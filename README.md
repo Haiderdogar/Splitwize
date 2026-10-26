@@ -169,6 +169,14 @@ Firebase-bound behavior (rules, Cloud Functions, FCM delivery) is
 verified by review against the deployed configuration, since it
 needs a live project.
 
+## Continuous integration
+
+GitHub Actions runs `flutter analyze` and the full `flutter test` suite on
+pushes and pull requests targeting `main`, and can also be started manually.
+Tests run one at a time because the functional suite shares a local SQLite
+database. The workflow creates a temporary Firebase options placeholder for
+static analysis; it does not contain or publish project credentials.
+
 - `flutter_riverpod` v3 with `riverpod_generator`: every provider is declared
   with `@riverpod` in `lib/providers/` and generated into `.g.dart`.
 - **No `StatefulWidget` / `ConsumerStatefulWidget` anywhere.** Every screen
