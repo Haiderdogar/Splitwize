@@ -1,0 +1,118 @@
+rules_version = '2';
+
+// Splitwize Firestore security rules.
+// Deploy with: firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Profiles: anyone signed in can read (needed for friend search by
+    // email); only the owner can create/update their own doc.
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.auth.uid == uid;
+      allow delete: if false;
+
+      // Accepted connections mirror: the owner manages their list, and
+      // the counterpart may also write — accepting a request (or
+      // removing a connection) writes BOTH users' mirror docs in one
+      // batch, from the acting user's client.
+      match /connections/{otherUid} {
+        allow read: if signedIn() &&
+          (request.auth.uid == uid || request.auth.uid == otherUid);
+        allow write: if signedIn() &&
+          (request.auth.uid == uid || request.auth.uid == otherUid);
+      }
+    }
+
+    // Connection requests: visible to sender & receiver; the sender creates,
+    // either side can update/cancel while pending.
+    match /connectionRequests/{id} {
+      allow read: if signedIn() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid == request.auth.uid
+      );
+      allow create: if signedIn() &&
+        request.resource.data.fromUid == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      allow update: if signedIn() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid == request.auth.uid
+      );
+      allow delete: if signedIn() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid == request.auth.uid
+      );
+    }
+
+    // Groups: members and invited users can read/update
+    // (invites are accepted via arrayUnion/arrayRemove on these fields).
+    match /groups/{groupId} {
+      allow read: if signedIn() && (
+        request.auth.uid in resource.data.members ||
+        request.auth.uid in resource.data.invited
+      );
+      allow create: if signedIn() &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update: if signedIn() && (
+        request.auth.uid in resource.data.members ||
+        request.auth.uid in resource.data.invited
+      );
+      allow delete: if signedIn() &&
+        resource.data.createdBy == request.auth.uid;
+    }
+
+    // Bills: participants can read. The creator creates and may edit
+    // or delete freely. Any participant may also update — but only
+    // the settlement state: the core fields below must be unchanged,
+    // which in practice leaves `splits` (their own paid flag, flipped
+    // transactionally) and `updatedAt`. Without the participant
+    // branch, a friend marking their share paid is denied and the
+    // whole settlement flow breaks.
+    match /bills/{billId} {
+      function coreUnchanged() {
+        return request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.title == resource.data.title
+          && request.resource.data.subtotal == resource.data.subtotal
+          && request.resource.data.tipPercent == resource.data.tipPercent
+          && request.resource.data.total == resource.data.total
+          && request.resource.data.splitType == resource.data.splitType
+          && request.resource.data.currency == resource.data.currency
+          && request.resource.data.groupId == resource.data.groupId
+          && request.resource.data.groupName == resource.data.groupName
+          && request.resource.data.createdByName == resource.data.createdByName
+          && request.resource.data.receiptImageUrl == resource.data.receiptImageUrl
+          && request.resource.data.participantIds == resource.data.participantIds
+          && request.resource.data.deleted == resource.data.deleted;
+      }
+      allow read: if signedIn() &&
+        request.auth.uid in resource.data.participantIds;
+      allow create: if signedIn() &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update: if signedIn() && (
+        resource.data.createdBy == request.auth.uid ||
+        (request.auth.uid in resource.data.participantIds && coreUnchanged())
+      );
+      allow delete: if signedIn() &&
+        resource.data.createdBy == request.auth.uid;
+    }
+
+    // Notifications inbox: each user reads/updates only their own.
+    // Anyone signed in may create one for *someone else* (invites);
+    // bill events are written by Cloud Functions (admin, bypasses rules).
+    match /notifications/{id} {
+      allow read: if signedIn() &&
+        resource.data.toUid == request.auth.uid;
+      allow create: if signedIn() &&
+        request.resource.data.toUid != request.auth.uid;
+      allow update: if signedIn() &&
+        resource.data.toUid == request.auth.uid;
+      allow delete: if signedIn() &&
+        resource.data.toUid == request.auth.uid;
+    }
+  }
+}

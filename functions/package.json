@@ -1,0 +1,1 @@
+{"dependencies":{"firebase-admin":"^12.7.0","firebase-functions":"^6.3.0"},"description":"Push notifications for the Splitwize app","engines":{"node":"20"},"main":"index.js","name":"splitwize-functions","private":true}

@@ -1,0 +1,85 @@
+name: splitwize
+description: Split bills with friends — Firebase backend, Google Sign-In, push notifications.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.4.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  intl: ^0.20.2
+  firebase_core: ^3.8.0
+  firebase_auth: ^5.3.3
+  cloud_firestore: ^5.5.0
+  firebase_messaging: ^15.1.6
+  currency_picker: ^2.0.21
+  firebase_storage: ^12.3.6
+  google_sign_in: ^6.2.1
+  # Receipt photos: pick from gallery/camera, compress before upload
+  image_picker: ^1.0.7
+  flutter_image_compress: ^2.3.0
+  path_provider: ^2.1.4
+  flutter_riverpod: ^3.0.0
+  riverpod_annotation: ^3.0.0
+  # Offline-first local data + cost-saving sync
+  sqflite: ^2.3.0
+  path: ^1.9.0
+  connectivity_plus: ^6.1.0
+  flutter_secure_storage: ^9.2.0
+  uuid: ^4.5.1
+  # Skeleton loading placeholders (shimmer effect)
+  shimmer: ^4.0.0
+  purchases_flutter: ^10.17.0
+  google_mobile_ads: ^9.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  riverpod: ^3.0.0
+  # Runs the real SQLite layer on the desktop test VM.
+  sqflite_common_ffi: ^2.3.4
+  # Firebase core mocks for the functional-test harness.
+  firebase_core_platform_interface: ^6.0.3
+  build_runner: ^2.4.13
+  riverpod_generator: ^3.0.0
+  riverpod_lint: ^3.0.0
+  custom_lint: ^0.8.0
+  # Native splash screen (shows the app icon while the app boots)
+  flutter_native_splash: ^2.4.8
+  # Launcher icon generation (run after the android/ios folders exist)
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icon/
+    - assets/splash/
+
+# Native launch splash: the app icon centered on a teal background
+# (matching the icon's gradient), light + dark variants. Generated with:
+#   dart run flutter_native_splash:create
+# (needs the android/ios folders — run `flutter create .` first)
+flutter_native_splash:
+  color: "#076E67"
+  color_dark: "#00524D"
+  image: assets/icon/app_icon.png
+  image_dark: assets/icon/app_icon.png
+  android_12:
+    icon_background_color: "#076E67"
+    icon_background_color_dark: "#00524D"
+    image: assets/icon/app_icon.png
+    image_dark: assets/icon/app_icon.png
+
+# Launcher icons: the 1024 master for iOS + legacy Android, and the
+# receipt motif on transparent as the Android adaptive foreground.
+# Generated with: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#076E67"
+  adaptive_icon_foreground: "assets/splash/splash_icon.png"
