@@ -179,7 +179,7 @@ static analysis; it does not contain or publish project credentials.
 
 The workflow also builds three ABI-specific Android release APKs on pushes to
 `main` and manual runs. Each successful build uploads a temporary Actions
-artifact and updates the **Latest Android test build** rolling prerelease in
+artifact and updates the **Latest Android test build** rolling release in
 the repository's Releases section with all three APKs. Before the first build,
 add these repository Actions
 secrets under **Settings → Secrets and variables → Actions**:

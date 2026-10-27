@@ -107,13 +107,14 @@ jobs:
           tag_name: latest-test-build
           name: Latest Android test build
           body: |
-            Rolling prerelease containing the latest split APKs from `main`.
+            Latest Android test release containing the split APKs from `main`.
 
             Built from commit `${{ github.sha }}`. Download the APK matching your device architecture:
             - `app-arm64-v8a-release.apk` for most modern Android phones
             - `app-armeabi-v7a-release.apk` for older 32-bit Android phones
             - `app-x86_64-release.apk` for x86-64 emulators
-          prerelease: true
+          prerelease: false
+          make_latest: true
           overwrite_files: true
           fail_on_unmatched_files: true
           files: build/app/outputs/flutter-apk/*-release.apk
