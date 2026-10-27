@@ -1,7 +1,7 @@
 name: splitwize
 description: Split bills with friends — Firebase backend, Google Sign-In, push notifications.
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.4.0

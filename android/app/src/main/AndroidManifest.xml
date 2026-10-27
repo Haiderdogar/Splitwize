@@ -39,6 +39,14 @@
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-3940256099942544~3347511713"/>
+        <!-- Use the legacy Skia renderer instead of Impeller: on some
+             older/mid-range Android phones Impeller's GPU backend
+             crashes the engine at the first frame, so the app closes
+             instantly with no Dart error at all. Re-enable (delete
+             this entry) once the crash is proven to be something else. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
         <!-- Push notifications display with the app icon -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
