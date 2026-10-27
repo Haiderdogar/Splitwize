@@ -52,6 +52,8 @@ jobs:
   build-android-split-apks:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -98,3 +100,20 @@ jobs:
           path: build/app/outputs/flutter-apk/*.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish APKs to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-test-build
+          name: Latest Android test build
+          body: |
+            Rolling prerelease containing the latest split APKs from `main`.
+
+            Built from commit `${{ github.sha }}`. Download the APK matching your device architecture:
+            - `app-arm64-v8a-release.apk` for most modern Android phones
+            - `app-armeabi-v7a-release.apk` for older 32-bit Android phones
+            - `app-x86_64-release.apk` for x86-64 emulators
+          prerelease: true
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          files: build/app/outputs/flutter-apk/*-release.apk

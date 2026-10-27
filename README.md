@@ -178,7 +178,10 @@ database. The workflow creates a temporary Firebase options placeholder for
 static analysis; it does not contain or publish project credentials.
 
 The workflow also builds three ABI-specific Android release APKs on pushes to
-`main` and manual runs. Before the first build, add these repository Actions
+`main` and manual runs. Each successful build uploads a temporary Actions
+artifact and updates the **Latest Android test build** rolling prerelease in
+the repository's Releases section with all three APKs. Before the first build,
+add these repository Actions
 secrets under **Settings → Secrets and variables → Actions**:
 
 - `FIREBASE_OPTIONS_DART` — the full contents of your locally generated
@@ -191,9 +194,10 @@ Use the Firebase configuration for the Android app whose package name matches
 ignored by Git and are written only into the temporary GitHub Actions runner.
 Pull requests run analysis and tests but do not build with Firebase secrets.
 
-After a successful run, open **Actions → Flutter CI → the workflow run →
-Artifacts** and download `splitwize-android-apks-<commit>`. Install the APK
-matching the test device: `app-arm64-v8a-release.apk` for most modern phones,
+Download the latest APK directly from **Releases → Latest Android test
+build → Assets**. You can also download the temporary ZIP from **Actions →
+Flutter CI → the workflow run → Artifacts**. Install the APK matching the
+test device: `app-arm64-v8a-release.apk` for most modern phones,
 `app-armeabi-v7a-release.apk` for older 32-bit devices, or
 `app-x86_64-release.apk` for x86-64 emulators. These APKs are for testing; the
 Android release build currently uses the debug signing key and is not
