@@ -77,7 +77,9 @@ class AuthGate extends StatelessWidget {
         final seen = ref.watch(onboardingSeenProvider);
         return seen.when(
           loading: () => const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(
+              child: CircularProgressIndicator(semanticsLabel: 'Loading'),
+            ),
           ),
           // If the flag can't be read, fail open into the normal flow
           // rather than trapping the user on onboarding.
@@ -99,12 +101,14 @@ class _AuthFlow extends StatelessWidget {
       builder: (context, ref, _) {
         // Keeps FCM registration in sync with the signed-in user.
         ref.watch(initNotificationsProvider);
-        
+
         ref.watch(initSyncProvider);
         final authState = ref.watch(authStateChangesProvider);
         return authState.when(
           loading: () => const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(
+              child: CircularProgressIndicator(semanticsLabel: 'Loading'),
+            ),
           ),
           error: (e, _) => Scaffold(
             body: Center(
