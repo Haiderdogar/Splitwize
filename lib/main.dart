@@ -116,7 +116,7 @@ class _AuthFlow extends StatelessWidget {
               ),
             ),
           ),
-          error: (e, _) => Scaffold(
+          error: (_, __) => Scaffold(
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -130,14 +130,14 @@ class _AuthFlow extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      'Could not reach the sign-in service.\nCheck your connection and restart the app.',
+                      'Could not reach the sign-in service.\nCheck your connection and try again.',
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '$e',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall,
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: () => ref.invalidate(authStateChangesProvider),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Try again'),
                     ),
                   ],
                 ),
