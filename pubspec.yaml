@@ -59,18 +59,34 @@ flutter:
     - assets/icon/
     - assets/splash/
 
-# Native launch splash: the app icon centered on a teal background
-# (matching the icon's gradient), light + dark variants. Generated with:
+# Native launch splash: the (unchanged) app icon, centered at standard
+# size, on a light background in light mode and a dark background in
+# dark mode. Generated with:
 #   dart run flutter_native_splash:create
-# (needs the android/ios folders — run `flutter create .` first)
+# Why two images: flutter_native_splash centers the image at its
+# intrinsic size, so the old full-bleed 1024 app icon looked too big.
+# assets/splash/splash_centered.png is that same icon on a transparent
+# 1024 canvas, shrunk to the central 512px (50%) with transparent
+# rounded corners, so the visible icon is ~128dp on a 360dp phone.
+# Android 12+ is the exception: Android itself sizes and circle-clips
+# the center logo, so it gets the full app icon and the system does
+# the sizing. Light/dark here follow the phone's system appearance
+# (values-night), which is what the native splash can see before
+# Flutter loads the app's saved theme setting.
 flutter_native_splash:
-  color: "#076E67"
-  color_dark: "#00524D"
-  image: assets/icon/app_icon.png
-  image_dark: assets/icon/app_icon.png
+  color: "#F8FAFA"
+  color_dark: "#0F1414"
+  image: assets/splash/splash_centered.png
+  image_dark: assets/splash/splash_centered.png
+  image_android: assets/splash/splash_centered.png
+  image_dark_android: assets/splash/splash_centered.png
+  image_ios: assets/splash/splash_centered.png
+  image_dark_ios: assets/splash/splash_centered.png
   android_12:
+    color: "#F8FAFA"
+    color_dark: "#0F1414"
     icon_background_color: "#076E67"
-    icon_background_color_dark: "#00524D"
+    icon_background_color_dark: "#076E67"
     image: assets/icon/app_icon.png
     image_dark: assets/icon/app_icon.png
 

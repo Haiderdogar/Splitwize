@@ -266,14 +266,15 @@ class _MembersSection extends StatelessWidget {
           next.whenData((members) =>
               ref.read(createBillFormProvider.notifier).autoSelect(members));
         });
+        // Only the member list itself is watched here. Selection
+        // state is NOT watched at this level: each row watches only
+        // its own membership (see [_MemberRow]), so ticking one
+        // person rebuilds that one row — not the whole list. (The
+        // old version watched the whole `selected` set here, so
+        // every tick rebuilt every row, including the percent /
+        // custom amount fields of people you weren't touching.)
         final membersAsync = ref.watch(createBillMembersProvider);
-        final selected =
-            ref.watch(createBillFormProvider.select((s) => s.selected));
-        final splitType =
-            ref.watch(createBillFormProvider.select((s) => s.splitType));
-        final currency = ref.watch(billFormCurrencyProvider);
         final myUid = ref.watch(currentUidProvider);
-        final notifier = ref.read(createBillFormProvider.notifier);
 
         return membersAsync.when(
           loading: () => const SliverToBoxAdapter(child: ShimmerRows(count: 3)),
@@ -299,12 +300,6 @@ class _MembersSection extends StatelessWidget {
                 return _MemberRow(
                   member: m,
                   isMe: m.uid == myUid,
-                  selected: selected.contains(m.uid),
-                  splitType: splitType,
-                  currencyCode: currency,
-                  onToggle: (v) => notifier.toggleMember(m.uid, v),
-                  onPercentChanged: (v) => notifier.setPercent(m.uid, v),
-                  onAmountChanged: (v) => notifier.setAmount(m.uid, v),
                 );
               },
             );
@@ -315,81 +310,87 @@ class _MembersSection extends StatelessWidget {
   }
 }
 
+/// One member row. It watches ONLY its own slice of form state —
+/// whether this member is selected, the split type, and the bill
+/// currency — so ticking one person, or typing a percent for them,
+/// rebuilds this row alone. The other rows' checkboxes and amount
+/// fields are untouched (they used to rebuild on every tick, since
+/// the whole list watched the whole selection set).
 class _MemberRow extends StatelessWidget {
   const _MemberRow({
     required this.member,
     required this.isMe,
-    required this.selected,
-    required this.splitType,
-    required this.currencyCode,
-    required this.onToggle,
-    required this.onPercentChanged,
-    required this.onAmountChanged,
   });
 
   final AppUser member;
   final bool isMe;
-  final bool selected;
-  final String splitType;
-  final String currencyCode;
-  final ValueChanged<bool> onToggle;
-  final ValueChanged<String> onPercentChanged;
-  final ValueChanged<String> onAmountChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 6),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(
-          children: [
-            Checkbox(
-              value: selected,
-              // The creator is always included.
-              onChanged: isMe ? null : (v) => onToggle(v ?? false),
-            ),
-            CircleAvatar(child: Text(member.initials)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                isMe ? '${member.displayName} (you)' : member.displayName,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-            if (selected && splitType == 'percentage')
-              SizedBox(
-                width: 90,
-                child: TextField(
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    suffixText: '%',
-                    border: OutlineInputBorder(),
-                    contentPadding:
-                        EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  ),
-                  onChanged: onPercentChanged,
+    return Consumer(
+      builder: (context, ref, _) {
+        final selected = ref.watch(createBillFormProvider
+            .select((s) => s.selected.contains(member.uid)));
+        final splitType =
+            ref.watch(createBillFormProvider.select((s) => s.splitType));
+        final currencyCode = ref.watch(billFormCurrencyProvider);
+        final notifier = ref.read(createBillFormProvider.notifier);
+        return Card(
+          margin: const EdgeInsets.only(bottom: 6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: selected,
+                  // The creator is always included.
+                  onChanged: isMe
+                      ? null
+                      : (v) => notifier.toggleMember(member.uid, v ?? false),
                 ),
-              ),
-            if (selected && splitType == 'custom')
-              SizedBox(
-                width: 110,
-                child: TextField(
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    prefixText: '${currencySymbol(currencyCode)} ',
-                    border: const OutlineInputBorder(),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                CircleAvatar(child: Text(member.initials)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    isMe ? '${member.displayName} (you)' : member.displayName,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  onChanged: onAmountChanged,
                 ),
-              ),
-          ],
-        ),
-      ),
+                if (selected && splitType == 'percentage')
+                  SizedBox(
+                    width: 90,
+                    child: TextField(
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        suffixText: '%',
+                        border: OutlineInputBorder(),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      onChanged: (v) => notifier.setPercent(member.uid, v),
+                    ),
+                  ),
+                if (selected && splitType == 'custom')
+                  SizedBox(
+                    width: 110,
+                    child: TextField(
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        prefixText: '${currencySymbol(currencyCode)} ',
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
+                      ),
+                      onChanged: (v) => notifier.setAmount(member.uid, v),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

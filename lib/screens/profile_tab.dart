@@ -125,15 +125,32 @@ class _ThemePickerDialog extends StatelessWidget {
   }
 }
 
-/// Push-notification permission status for the profile tile.
-/// Guarded: if Firebase Messaging is unavailable for any reason,
-/// this returns null (tile shows "Off") instead of throwing while
-/// the widget tree is building.
-Future<NotificationSettings?> _notificationSettings() async {
-  try {
-    return await FirebaseMessaging.instance.getNotificationSettings();
-  } catch (_) {
-    return null;
+/// Push-notification permission tile. It watches only
+/// [notificationAuthorizationStatusProvider] — a cached provider —
+/// so a Profile rebuild never re-queries Firebase Messaging, and
+/// the tile never flickers back to "Off" while a fresh future is
+/// pending (the old `FutureBuilder` built its future inside
+/// `build`, so it did exactly that on every profile change).
+class _PushNotificationsTile extends StatelessWidget {
+  const _PushNotificationsTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final status = ref.watch(notificationAuthorizationStatusProvider).value;
+        final enabled = status == AuthorizationStatus.authorized ||
+            status == AuthorizationStatus.provisional;
+        return ListTile(
+          leading: Icon(
+              enabled ? Icons.notifications_active : Icons.notifications_off),
+          title: const Text('Push notifications'),
+          subtitle: Text(enabled
+              ? 'On — you will be notified of new bills'
+              : 'Off — enable in system settings to get bill alerts'),
+        );
+      },
+    );
   }
 }
 
@@ -158,74 +175,144 @@ class ProfileTab extends StatelessWidget {
                 ref.invalidate(currentAppUserProvider);
               },
             ),
-            data: (user) => ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Center(
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 40,
-                        child: Text(
-                          user?.initials ?? '?',
-                          style: const TextStyle(fontSize: 28),
+            data: (user) {
+              // UI-only regrouping: every tile below, and every tap
+              // handler inside them, is unchanged. They are just
+              // grouped into cards under a header card, instead of
+              // one flat list of tiles.
+              final colorScheme = Theme.of(context).colorScheme;
+              const divider = Divider(height: 1, indent: 56, endIndent: 16);
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  // Header card: avatar, name and email on the
+                  // theme's primary container, so it reads in both
+                  // light and dark mode.
+                  Card(
+                    elevation: 0,
+                    color: colorScheme.primaryContainer,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 24),
+                      child: Column(
+                        children: [
+                          CircleAvatar(
+                            radius: 36,
+                            backgroundColor: colorScheme.primary,
+                            foregroundColor: colorScheme.onPrimary,
+                            child: Text(
+                              user?.initials ?? '?',
+                              style: const TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            user?.displayName ?? '…',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.onPrimaryContainer,
+                                ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            user?.email ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: colorScheme.onPrimaryContainer
+                                      .withValues(alpha: 0.8),
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'SETTINGS',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: colorScheme.outline,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Card(
+                    elevation: 0,
+                    color: colorScheme.surfaceContainerLow,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _PushNotificationsTile(),
+                        divider,
+                        _SyncStatusTile(),
+                        divider,
+                        _DefaultCurrencyTile(),
+                        divider,
+                        _AppearanceTile(),
+                        divider,
+                        _AdFreeTile(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Card(
+                    elevation: 0,
+                    color: colorScheme.surfaceContainerLow,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: ListTile(
+                      leading: Icon(
+                        Icons.logout,
+                        color: colorScheme.error,
+                      ),
+                      title: Text(
+                        'Sign out',
+                        style: TextStyle(
+                          color: colorScheme.error,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        user?.displayName ?? '…',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                      onTap: () => runGuarded(
+                        context,
+                        () async {
+                          final uid = ref.read(currentUidProvider);
+                          if (uid != null) {
+                            await ref
+                                .read(notificationServiceProvider)
+                                .dispose(uid);
+                          }
+                          await ref.read(authServiceProvider).signOut();
+                          ref.read(tabIndexProvider.notifier).set(0);
+                        },
+                        errorLabel: 'Could not sign out',
                       ),
-                      Text(user?.email ?? ''),
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                FutureBuilder<NotificationSettings?>(
-                  future: _notificationSettings(),
-                  builder: (context, notifSnap) {
-                    final status = notifSnap.data?.authorizationStatus;
-                    final enabled = status == AuthorizationStatus.authorized ||
-                        status == AuthorizationStatus.provisional;
-                    return ListTile(
-                      leading: Icon(enabled
-                          ? Icons.notifications_active
-                          : Icons.notifications_off),
-                      title: const Text('Push notifications'),
-                      subtitle: Text(enabled
-                          ? 'On — you will be notified of new bills'
-                          : 'Off — enable in system settings to get bill alerts'),
-                    );
-                  },
-                ),
-                const _SyncStatusTile(),
-                const _DefaultCurrencyTile(),
-                const _AppearanceTile(),
-                const _AdFreeTile(),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.logout),
-                  title: const Text('Sign out'),
-                  onTap: () => runGuarded(
-                    context,
-                    () async {
-                      final uid = ref.read(currentUidProvider);
-                      if (uid != null) {
-                        await ref
-                            .read(notificationServiceProvider)
-                            .dispose(uid);
-                      }
-                      await ref.read(authServiceProvider).signOut();
-                      ref.read(tabIndexProvider.notifier).set(0);
-                    },
-                    errorLabel: 'Could not sign out',
-                  ),
-                ),
-              ],
-            ),
+                ],
+              );
+            },
           );
         },
       ),

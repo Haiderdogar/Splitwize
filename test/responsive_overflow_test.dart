@@ -197,7 +197,7 @@ List<Override> testOverrides() => [
           .overrideWith((ref) => Stream.value(testOutgoing)),
       notificationsProvider
           .overrideWith((ref) => Stream.value(testNotifications)),
-      currentAppUserProvider.overrideWith((ref) async => me),
+      currentAppUserProvider.overrideWith((ref) => Stream.value(me)),
       billProvider.overrideWith((ref, id) => Stream.value(testBill)),
       groupProvider.overrideWith((ref, id) => Stream.value(testGroup)),
       groupMembersProvider

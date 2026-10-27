@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "772847950757",
+    "project_id": "splitwize-e5208",
+    "storage_bucket": "splitwize-e5208.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:772847950757:android:ef977dec94f0727a10264c",
+        "android_client_info": {
+          "package_name": "com.example.splitwize"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "772847950757-160vh8ihq7tifj64s4jne8644tq500cf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDs3g6R8aRVBEDhX_8nnaZZypSwJTnG86c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "772847950757-160vh8ihq7tifj64s4jne8644tq500cf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "772847950757-58dug8bjrfjhlv720ebcmmrgtigli2nc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.splitwize"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

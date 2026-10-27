@@ -2,6 +2,7 @@ import 'package:currency_picker/currency_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
@@ -42,6 +43,32 @@ class _CurrencyField extends StatelessWidget {
                   .setCurrency(c.code),
             ),
           ),
+        );
+      },
+    );
+  }
+}
+
+/// One friend row in the invite checklist. Watches only its own
+/// tick, so ticking one friend does not rebuild the other rows.
+class _FriendCheckRow extends StatelessWidget {
+  const _FriendCheckRow({required this.friend});
+
+  final AppUser friend;
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final checked = ref.watch(createGroupFormProvider
+            .select((s) => s.selected.contains(friend.uid)));
+        final notifier = ref.read(createGroupFormProvider.notifier);
+        return CheckboxListTile(
+          value: checked,
+          onChanged: (v) => notifier.toggle(friend.uid, v ?? false),
+          secondary: CircleAvatar(child: Text(friend.initials)),
+          title: Text(friend.displayName),
+          subtitle: Text(friend.email),
         );
       },
     );
@@ -94,15 +121,15 @@ class CreateGroupScreen extends StatelessWidget {
               ),
             ),
           ),
-          // Only the checklist reacts to connection/selection state.
+          // Only the checklist reacts to connection state. Selection
+          // is NOT watched here: each row watches only its own tick
+          // (see [_FriendCheckRow]), so ticking one friend rebuilds
+          // that one row instead of the whole checklist.
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: Consumer(
               builder: (context, ref, _) {
                 final connsAsync = ref.watch(connectionsProvider);
-                final selected = ref
-                    .watch(createGroupFormProvider.select((s) => s.selected));
-                final notifier = ref.read(createGroupFormProvider.notifier);
                 return connsAsync.when(
                   loading: () =>
                       const SliverToBoxAdapter(child: ShimmerRows(count: 3)),
@@ -127,16 +154,8 @@ class CreateGroupScreen extends StatelessWidget {
                     }
                     return SliverList.builder(
                       itemCount: conns.length,
-                      itemBuilder: (itemContext, i) {
-                        final c = conns[i];
-                        return CheckboxListTile(
-                          value: selected.contains(c.uid),
-                          onChanged: (v) => notifier.toggle(c.uid, v ?? false),
-                          secondary: CircleAvatar(child: Text(c.initials)),
-                          title: Text(c.displayName),
-                          subtitle: Text(c.email),
-                        );
-                      },
+                      itemBuilder: (itemContext, i) =>
+                          _FriendCheckRow(friend: conns[i]),
                     );
                   },
                 );

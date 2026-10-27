@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -75,6 +76,26 @@ class ThemeModeSetting extends _$ThemeModeSetting {
 @riverpod
 NotificationService notificationService(Ref ref) =>
     NotificationService.instance;
+
+/// Push-permission status for the Profile tile, as a provider — not
+/// a `FutureBuilder` whose future was created inside `build`.
+///
+/// The old tile built its future on every Profile rebuild, so every
+/// profile change re-queried Firebase Messaging and the tile could
+/// flicker back to "Off" while the new future was pending. A
+/// provider computes this once and caches it; only the tile watches
+/// it, so nothing else rebuilds when it resolves.
+@riverpod
+Future<AuthorizationStatus?> notificationAuthorizationStatus(Ref ref) async {
+  try {
+    return (await FirebaseMessaging.instance.getNotificationSettings())
+        .authorizationStatus;
+  } catch (_) {
+    // Messaging unavailable (tests, no Google services): tile shows
+    // "Off" instead of throwing while the tree is building.
+    return null;
+  }
+}
 
 @riverpod
 FirebaseAuth firebaseAuth(Ref ref) => FirebaseAuth.instance;

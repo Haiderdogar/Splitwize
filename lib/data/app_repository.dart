@@ -51,9 +51,45 @@ class AppRepository {
     requestSync?.call();
   }
 
+  /// Every watch stream re-queries on ANY local change: [_changes]
+  /// fires for every mutation, whatever table it touched (a friend
+  /// request accept also re-queries the bills list, and so on).
+  /// Without filtering, each of those re-queries produced fresh
+  /// model instances, and — with identity-only equality — every
+  /// screen watching any stream rebuilt, even when its own data
+  /// was byte-identical. So emissions are suppressed unless the
+  /// content actually changed, compared with the value equality
+  /// in `models.dart` (lists element-wise, singles by `==`).
+  /// A real change — a new bill, a share marked paid, a currency
+  /// switch — still emits exactly as before.
   Stream<T> _watch<T>(Future<T> Function() query) async* {
-    yield await query();
-    yield* _changes.stream.asyncMap((_) => query());
+    var last = await query();
+    yield last;
+    // Deliberately `yield*` (not an `await for` loop): cancelling
+    // a subscription to an async* generator that is blocked inside
+    // `await for` on another stream never completes, so disposed
+    // screens would leak a live query loop. `yield*` delegates the
+    // cancellation to the inner stream, so disposal is immediate.
+    // The `where` filter is seeded with the initial emission, so
+    // even the first re-query after subscribing is suppressed when
+    // its content is identical.
+    yield* _changes.stream.asyncMap((_) => query()).where((next) {
+      if (_sameEmission(last, next)) return false;
+      last = next;
+      return true;
+    });
+  }
+
+  bool _sameEmission<T>(T a, T b) {
+    if (identical(a, b)) return true;
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i] != b[i]) return false;
+      }
+      return true;
+    }
+    return a == b;
   }
 
   // ------------------------------------------------------------------ users

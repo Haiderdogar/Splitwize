@@ -371,6 +371,11 @@ class _SimplifyDebtsSection extends StatelessWidget {
     return Consumer(
       builder: (context, ref, _) {
         final billsAsync = ref.watch(groupBillsProvider(groupId));
+        // Memoized in [simplifiedDebtsProvider]: recomputed only
+        // when the group's bills change, not on every rebuild of
+        // this section (the old code ran the whole simplification
+        // inside `build`, so e.g. a member-list change re-ran it).
+        final plan = ref.watch(simplifiedDebtsProvider(groupId));
         final myUid = ref.watch(currentUidProvider) ?? '';
         return billsAsync.when(
           loading: () => const SliverToBoxAdapter(child: ShimmerRows(count: 2)),
@@ -387,7 +392,6 @@ class _SimplifyDebtsSection extends StatelessWidget {
             if (bills.isEmpty) {
               return const SliverToBoxAdapter(child: SizedBox.shrink());
             }
-            final plan = simplifyGroupDebts(bills);
             final billsById = {for (final b in bills) b.id: b};
             bool canRecord(Set<String> billIds, bool involvesMe) =>
                 involvesMe &&
@@ -800,6 +804,31 @@ class _NettingTile extends StatelessWidget {
   }
 }
 
+/// One candidate row in the invite checklist. Watches only its own
+/// tick, so ticking one candidate does not rebuild the other rows.
+class _InviteCheckRow extends StatelessWidget {
+  const _InviteCheckRow({required this.candidate});
+
+  final AppUser candidate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final checked = ref.watch(groupInviteSelectionProvider
+            .select((s) => s.contains(candidate.uid)));
+        final notifier = ref.read(groupInviteSelectionProvider.notifier);
+        return CheckboxListTile(
+          value: checked,
+          onChanged: (v) => notifier.toggle(candidate.uid, v ?? false),
+          secondary: CircleAvatar(child: Text(candidate.initials)),
+          title: Text(candidate.displayName),
+        );
+      },
+    );
+  }
+}
+
 /// Invite dialog: selection lives in [GroupInviteSelection] so no
 /// StatefulWidget is needed.
 class _InviteDialog extends StatelessWidget {
@@ -825,24 +854,14 @@ class _InviteDialog extends StatelessWidget {
           constraints: BoxConstraints(
             maxHeight: MediaQuery.sizeOf(context).height * 0.45,
           ),
-          child: Consumer(
-            builder: (context, ref, _) {
-              final selected = ref.watch(groupInviteSelectionProvider);
-              final notifier = ref.read(groupInviteSelectionProvider.notifier);
-              return ListView.builder(
-                shrinkWrap: true,
-                itemCount: candidates.length,
-                itemBuilder: (itemContext, i) {
-                  final c = candidates[i];
-                  return CheckboxListTile(
-                    value: selected.contains(c.uid),
-                    onChanged: (v) => notifier.toggle(c.uid, v ?? false),
-                    secondary: CircleAvatar(child: Text(c.initials)),
-                    title: Text(c.displayName),
-                  );
-                },
-              );
-            },
+          // No watch at this level: each row watches only its own
+          // tick (see [_InviteCheckRow]), so ticking one candidate
+          // rebuilds that row alone, not the whole checklist.
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: candidates.length,
+            itemBuilder: (itemContext, i) =>
+                _InviteCheckRow(candidate: candidates[i]),
           ),
         ),
       ),
@@ -851,14 +870,18 @@ class _InviteDialog extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        // Only the button reacts to selection state.
+        // Only the button reacts to selection state — and only to
+        // whether anything is selected at all (a bool), not to the
+        // whole set, so ticking a second friend does not rebuild it.
         Consumer(
           builder: (context, ref, _) {
-            final selected = ref.watch(groupInviteSelectionProvider);
+            final hasSelection = ref.watch(
+                groupInviteSelectionProvider.select((s) => s.isNotEmpty));
             return FilledButton(
-              onPressed: selected.isEmpty
+              onPressed: !hasSelection
                   ? null
                   : () async {
+                      final selected = ref.read(groupInviteSelectionProvider);
                       try {
                         final repo =
                             await ref.read(appRepositoryProvider.future);

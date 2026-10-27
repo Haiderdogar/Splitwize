@@ -45,7 +45,6 @@ class SplitwizeApp extends StatelessWidget {
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
             useMaterial3: true,
-            scaffoldBackgroundColor: Colors.white,
           ),
           darkTheme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
@@ -53,7 +52,6 @@ class SplitwizeApp extends StatelessWidget {
               brightness: Brightness.dark,
             ),
             useMaterial3: true,
-            scaffoldBackgroundColor: const Color(0xFF121212),
           ),
           themeMode: switch (mode) {
             AppTheme.system => ThemeMode.system,
@@ -79,11 +77,7 @@ class AuthGate extends StatelessWidget {
         final seen = ref.watch(onboardingSeenProvider);
         return seen.when(
           loading: () => const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(
-                semanticsLabel: 'Loading onboarding',
-              ),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           ),
           // If the flag can't be read, fail open into the normal flow
           // rather than trapping the user on onboarding.
@@ -101,22 +95,20 @@ class _AuthFlow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Only this subtree reacts to auth state; everything below stays plain.
     return Consumer(
       builder: (context, ref, _) {
         // Keeps FCM registration in sync with the signed-in user.
         ref.watch(initNotificationsProvider);
-
+        // Opens the per-user SQLite cache and runs the offline-first
+        // sync loop (outbox drain + delta pull on connectivity regain).
         ref.watch(initSyncProvider);
         final authState = ref.watch(authStateChangesProvider);
         return authState.when(
           loading: () => const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(
-                semanticsLabel: 'Loading your account',
-              ),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           ),
-          error: (_, __) => Scaffold(
+          error: (e, _) => Scaffold(
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -130,14 +122,14 @@ class _AuthFlow extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      'Could not reach the sign-in service.\nCheck your connection and try again.',
+                      'Could not reach the sign-in service.\nCheck your connection and restart the app.',
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: () => ref.invalidate(authStateChangesProvider),
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Try again'),
+                    const SizedBox(height: 8),
+                    Text(
+                      '$e',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),

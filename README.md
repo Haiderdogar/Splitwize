@@ -169,40 +169,6 @@ Firebase-bound behavior (rules, Cloud Functions, FCM delivery) is
 verified by review against the deployed configuration, since it
 needs a live project.
 
-## Continuous integration
-
-GitHub Actions runs `flutter analyze` and the full `flutter test` suite on
-pushes and pull requests targeting `main`, and can also be started manually.
-Tests run one at a time because the functional suite shares a local SQLite
-database. The workflow creates a temporary Firebase options placeholder for
-static analysis; it does not contain or publish project credentials.
-
-The workflow also builds three ABI-specific Android release APKs on pushes to
-`main` and manual runs. Each successful build uploads a temporary Actions
-artifact and updates the **Latest Android test build** rolling release in
-the repository's Releases section with all three APKs. Before the first build,
-add these repository Actions
-secrets under **Settings → Secrets and variables → Actions**:
-
-- `FIREBASE_OPTIONS_DART` — the full contents of your locally generated
-  `lib/firebase_options.dart`.
-- `ANDROID_GOOGLE_SERVICES_JSON` — the full contents of
-  `android/app/google-services.json`.
-
-Use the Firebase configuration for the Android app whose package name matches
-`applicationId` in `android/app/build.gradle.kts`. The config files remain
-ignored by Git and are written only into the temporary GitHub Actions runner.
-Pull requests run analysis and tests but do not build with Firebase secrets.
-
-Download the latest APK directly from **Releases → Latest Android test
-build → Assets**. You can also download the temporary ZIP from **Actions →
-Flutter CI → the workflow run → Artifacts**. Install the APK matching the
-test device: `app-arm64-v8a-release.apk` for most modern phones,
-`app-armeabi-v7a-release.apk` for older 32-bit devices, or
-`app-x86_64-release.apk` for x86-64 emulators. These APKs are for testing; the
-Android release build currently uses the debug signing key and is not
-Play-Store-ready.
-
 - `flutter_riverpod` v3 with `riverpod_generator`: every provider is declared
   with `@riverpod` in `lib/providers/` and generated into `.g.dart`.
 - **No `StatefulWidget` / `ConsumerStatefulWidget` anywhere.** Every screen
@@ -248,8 +214,6 @@ flutterfire configure   # select your project + Android/iOS
 ```
 This replaces `lib/firebase_options.dart` with real config and drops
 `google-services.json` / `GoogleService-Info.plist` into place.
-These project-specific files are intentionally ignored by Git; configure your
-own Firebase project locally before building or running the app.
 
 Android extras:
 - Add your **SHA-1** (debug + release) under Project settings → Android app,

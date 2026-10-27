@@ -393,25 +393,34 @@ class _AddFriendDialog extends StatelessWidget {
                     ref.read(addFriendProvider.notifier).setEmail(v),
               ),
             ),
-            // Only the result area reacts to search state.
+            // Only the result area reacts to search state — and
+            // only to the search fields, not the typed email. The
+            // old version watched the whole form state, so every
+            // keystroke in the email field rebuilt this area (and
+            // the button below) even though nothing it shows had
+            // changed.
             Consumer(
               builder: (context, ref, _) {
-                final s = ref.watch(addFriendProvider);
-                if (s.searching) {
+                final view = ref.watch(addFriendProvider.select((s) => (
+                      searching: s.searching,
+                      error: s.error,
+                      found: s.found,
+                    )));
+                if (view.searching) {
                   return const Padding(
                     padding: EdgeInsets.only(top: 12),
                     child: CircularProgressIndicator(),
                   );
                 }
-                if (s.error != null) {
+                if (view.error != null) {
                   return Padding(
                     padding: const EdgeInsets.only(top: 12),
-                    child: Text(s.error!,
+                    child: Text(view.error!,
                         style: TextStyle(
                             color: Theme.of(context).colorScheme.error)),
                   );
                 }
-                final found = s.found;
+                final found = view.found;
                 if (found != null) {
                   return Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -433,14 +442,19 @@ class _AddFriendDialog extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Close'),
         ),
-        // Only the action button reacts to search state.
+        // Only the action button reacts to search state — and only
+        // to searching / whether someone was found, not to the
+        // typed email, so keystrokes do not rebuild it.
         Consumer(
           builder: (context, ref, _) {
-            final s = ref.watch(addFriendProvider);
+            final view = ref.watch(addFriendProvider.select((s) => (
+                  searching: s.searching,
+                  hasFound: s.found != null,
+                )));
             final notifier = ref.read(addFriendProvider.notifier);
-            if (s.found == null) {
+            if (!view.hasFound) {
               return FilledButton(
-                onPressed: s.searching ? null : () => notifier.search(),
+                onPressed: view.searching ? null : () => notifier.search(),
                 child: const Text('Search'),
               );
             }
@@ -449,10 +463,10 @@ class _AddFriendDialog extends StatelessWidget {
                 final err = await notifier.sendInvite();
                 if (!context.mounted) return;
                 Navigator.of(context).pop();
+                final name = ref.read(addFriendProvider).found?.displayName ??
+                    'your friend';
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text(
-                          err ?? 'Invite sent to ${s.found!.displayName}.')),
+                  SnackBar(content: Text(err ?? 'Invite sent to $name.')),
                 );
               },
               child: const Text('Send invite'),

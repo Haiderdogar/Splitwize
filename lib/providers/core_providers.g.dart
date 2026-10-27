@@ -289,6 +289,72 @@ final class NotificationServiceProvider extends $FunctionalProvider<
 String _$notificationServiceHash() =>
     r'2389020220ef0e64a28e453b6a07a6e1696b314b';
 
+/// Push-permission status for the Profile tile, as a provider — not
+/// a `FutureBuilder` whose future was created inside `build`.
+///
+/// The old tile built its future on every Profile rebuild, so every
+/// profile change re-queried Firebase Messaging and the tile could
+/// flicker back to "Off" while the new future was pending. A
+/// provider computes this once and caches it; only the tile watches
+/// it, so nothing else rebuilds when it resolves.
+
+@ProviderFor(notificationAuthorizationStatus)
+const notificationAuthorizationStatusProvider =
+    NotificationAuthorizationStatusProvider._();
+
+/// Push-permission status for the Profile tile, as a provider — not
+/// a `FutureBuilder` whose future was created inside `build`.
+///
+/// The old tile built its future on every Profile rebuild, so every
+/// profile change re-queried Firebase Messaging and the tile could
+/// flicker back to "Off" while the new future was pending. A
+/// provider computes this once and caches it; only the tile watches
+/// it, so nothing else rebuilds when it resolves.
+
+final class NotificationAuthorizationStatusProvider extends $FunctionalProvider<
+        AsyncValue<AuthorizationStatus?>,
+        AuthorizationStatus?,
+        FutureOr<AuthorizationStatus?>>
+    with
+        $FutureModifier<AuthorizationStatus?>,
+        $FutureProvider<AuthorizationStatus?> {
+  /// Push-permission status for the Profile tile, as a provider — not
+  /// a `FutureBuilder` whose future was created inside `build`.
+  ///
+  /// The old tile built its future on every Profile rebuild, so every
+  /// profile change re-queried Firebase Messaging and the tile could
+  /// flicker back to "Off" while the new future was pending. A
+  /// provider computes this once and caches it; only the tile watches
+  /// it, so nothing else rebuilds when it resolves.
+  const NotificationAuthorizationStatusProvider._()
+      : super(
+          from: null,
+          argument: null,
+          retry: null,
+          name: r'notificationAuthorizationStatusProvider',
+          isAutoDispose: true,
+          dependencies: null,
+          $allTransitiveDependencies: null,
+        );
+
+  @override
+  String debugGetCreateSourceHash() => _$notificationAuthorizationStatusHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<AuthorizationStatus?> $createElement(
+          $ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<AuthorizationStatus?> create(Ref ref) {
+    return notificationAuthorizationStatus(ref);
+  }
+}
+
+String _$notificationAuthorizationStatusHash() =>
+    r'7f52825b914015f393a2f5134c1541495ee2aa30';
+
 @ProviderFor(firebaseAuth)
 const firebaseAuthProvider = FirebaseAuthProvider._();
 

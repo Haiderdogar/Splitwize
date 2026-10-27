@@ -82,12 +82,47 @@ final class AppUserFamily extends $Family
   String toString() => r'appUserProvider';
 }
 
+/// My own profile, LIVE — not a one-shot fetch.
+///
+/// It used to be a `Future` provider: it resolved once at startup
+/// and never again, so changing the default currency in Profile (or
+/// a profile change arriving from another device) left the Profile
+/// header, the Profile currency tile, the create-group currency
+/// field and the create-bill currency stale until the app was
+/// restarted. Deriving it from the profile stream fixes that, and
+/// the stream's distinct filter (see `AppRepository._watch`) means
+/// it only emits when the profile content actually changes — the
+/// screens watching it do not rebuild on unrelated mutations.
+
 @ProviderFor(currentAppUser)
 const currentAppUserProvider = CurrentAppUserProvider._();
 
+/// My own profile, LIVE — not a one-shot fetch.
+///
+/// It used to be a `Future` provider: it resolved once at startup
+/// and never again, so changing the default currency in Profile (or
+/// a profile change arriving from another device) left the Profile
+/// header, the Profile currency tile, the create-group currency
+/// field and the create-bill currency stale until the app was
+/// restarted. Deriving it from the profile stream fixes that, and
+/// the stream's distinct filter (see `AppRepository._watch`) means
+/// it only emits when the profile content actually changes — the
+/// screens watching it do not rebuild on unrelated mutations.
+
 final class CurrentAppUserProvider extends $FunctionalProvider<
-        AsyncValue<AppUser?>, AppUser?, FutureOr<AppUser?>>
-    with $FutureModifier<AppUser?>, $FutureProvider<AppUser?> {
+        AsyncValue<AppUser?>, AppUser?, Stream<AppUser?>>
+    with $FutureModifier<AppUser?>, $StreamProvider<AppUser?> {
+  /// My own profile, LIVE — not a one-shot fetch.
+  ///
+  /// It used to be a `Future` provider: it resolved once at startup
+  /// and never again, so changing the default currency in Profile (or
+  /// a profile change arriving from another device) left the Profile
+  /// header, the Profile currency tile, the create-group currency
+  /// field and the create-bill currency stale until the app was
+  /// restarted. Deriving it from the profile stream fixes that, and
+  /// the stream's distinct filter (see `AppRepository._watch`) means
+  /// it only emits when the profile content actually changes — the
+  /// screens watching it do not rebuild on unrelated mutations.
   const CurrentAppUserProvider._()
       : super(
           from: null,
@@ -104,16 +139,16 @@ final class CurrentAppUserProvider extends $FunctionalProvider<
 
   @$internal
   @override
-  $FutureProviderElement<AppUser?> $createElement($ProviderPointer pointer) =>
-      $FutureProviderElement(pointer);
+  $StreamProviderElement<AppUser?> $createElement($ProviderPointer pointer) =>
+      $StreamProviderElement(pointer);
 
   @override
-  FutureOr<AppUser?> create(Ref ref) {
+  Stream<AppUser?> create(Ref ref) {
     return currentAppUser(ref);
   }
 }
 
-String _$currentAppUserHash() => r'5a1ca4c0e8936b894f84143c4e8c8eed3e887daa';
+String _$currentAppUserHash() => r'a85b26905a74176beaf9d017529f709ee2723041';
 
 @ProviderFor(myBills)
 const myBillsProvider = MyBillsProvider._();
@@ -292,6 +327,119 @@ final class GroupBillsFamily extends $Family
 
   @override
   String toString() => r'groupBillsProvider';
+}
+
+/// The group's settlement plan, memoized in a provider instead of
+/// recomputed inside the Group Detail build: [simplifyGroupDebts]
+/// runs only when the group's bills actually change. A rebuild of
+/// the detail screen for any other reason (e.g. the signed-in user
+/// or a member list change) reuses the cached plan object.
+
+@ProviderFor(simplifiedDebts)
+const simplifiedDebtsProvider = SimplifiedDebtsFamily._();
+
+/// The group's settlement plan, memoized in a provider instead of
+/// recomputed inside the Group Detail build: [simplifyGroupDebts]
+/// runs only when the group's bills actually change. A rebuild of
+/// the detail screen for any other reason (e.g. the signed-in user
+/// or a member list change) reuses the cached plan object.
+
+final class SimplifiedDebtsProvider extends $FunctionalProvider<
+    GroupSettlementPlan,
+    GroupSettlementPlan,
+    GroupSettlementPlan> with $Provider<GroupSettlementPlan> {
+  /// The group's settlement plan, memoized in a provider instead of
+  /// recomputed inside the Group Detail build: [simplifyGroupDebts]
+  /// runs only when the group's bills actually change. A rebuild of
+  /// the detail screen for any other reason (e.g. the signed-in user
+  /// or a member list change) reuses the cached plan object.
+  const SimplifiedDebtsProvider._(
+      {required SimplifiedDebtsFamily super.from,
+      required String super.argument})
+      : super(
+          retry: null,
+          name: r'simplifiedDebtsProvider',
+          isAutoDispose: true,
+          dependencies: null,
+          $allTransitiveDependencies: null,
+        );
+
+  @override
+  String debugGetCreateSourceHash() => _$simplifiedDebtsHash();
+
+  @override
+  String toString() {
+    return r'simplifiedDebtsProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $ProviderElement<GroupSettlementPlan> $createElement(
+          $ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  GroupSettlementPlan create(Ref ref) {
+    final argument = this.argument as String;
+    return simplifiedDebts(
+      ref,
+      argument,
+    );
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(GroupSettlementPlan value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<GroupSettlementPlan>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is SimplifiedDebtsProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$simplifiedDebtsHash() => r'e668c1743cf0f0c9732070d4e5caa7575bbcb7d1';
+
+/// The group's settlement plan, memoized in a provider instead of
+/// recomputed inside the Group Detail build: [simplifyGroupDebts]
+/// runs only when the group's bills actually change. A rebuild of
+/// the detail screen for any other reason (e.g. the signed-in user
+/// or a member list change) reuses the cached plan object.
+
+final class SimplifiedDebtsFamily extends $Family
+    with $FunctionalFamilyOverride<GroupSettlementPlan, String> {
+  const SimplifiedDebtsFamily._()
+      : super(
+          retry: null,
+          name: r'simplifiedDebtsProvider',
+          dependencies: null,
+          $allTransitiveDependencies: null,
+          isAutoDispose: true,
+        );
+
+  /// The group's settlement plan, memoized in a provider instead of
+  /// recomputed inside the Group Detail build: [simplifyGroupDebts]
+  /// runs only when the group's bills actually change. A rebuild of
+  /// the detail screen for any other reason (e.g. the signed-in user
+  /// or a member list change) reuses the cached plan object.
+
+  SimplifiedDebtsProvider call(
+    String groupId,
+  ) =>
+      SimplifiedDebtsProvider._(argument: groupId, from: this);
+
+  @override
+  String toString() => r'simplifiedDebtsProvider';
 }
 
 /// Net per-friend balances across all my bills (unpaid shares only).

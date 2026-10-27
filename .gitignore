@@ -33,29 +33,6 @@ migrate_working_dir/
 /build/
 /coverage/
 
-# Local credentials and project-specific configuration
-.env
-.env.*
-!.env.example
-**/.env
-**/.env.*
-!**/.env.example
-.firebaserc
-lib/firebase_options.dart
-**/google-services.json
-**/GoogleService-Info.plist
-**/*service-account*.json
-**/*serviceaccount*.json
-**/key.properties
-*.pem
-*.key
-*.p12
-*.pfx
-*.jks
-*.keystore
-*.mobileprovision
-**/Flutter/ephemeral/
-
 # Symbolication related
 app.*.symbols
 

@@ -1,5 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Element-wise list equality (Dart's `List ==` is identity only).
+/// Used by the model `==` operators below and by the repository's
+/// change stream, so a re-query that returns the same content does
+/// not count as a change (see `AppRepository._watch`).
+bool _listEquals<T>(List<T> a, List<T> b) {
+  if (identical(a, b)) return true;
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
 /// Parses a date coming from Firestore ([Timestamp]), from the local
 /// SQLite cache (int milliseconds / ISO string) or an in-memory [DateTime].
 DateTime? dateFrom(dynamic v) {
@@ -83,6 +96,23 @@ class AppUser {
     if (parts.length == 1) return parts.first[0].toUpperCase();
     return (parts.first[0] + parts.last[0]).toUpperCase();
   }
+
+  // Value equality: two profiles built from the same data are the
+  // same profile. The repository's change stream and Riverpod's
+  // listeners rely on this to skip rebuilds when a re-query returns
+  // unchanged content (see `AppRepository._watch`).
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppUser &&
+          uid == other.uid &&
+          displayName == other.displayName &&
+          email == other.email &&
+          photoUrl == other.photoUrl &&
+          currency == other.currency;
+
+  @override
+  int get hashCode => Object.hash(uid, displayName, email, photoUrl, currency);
 }
 
 /// A friend/connection request stored in `connectionRequests/{id}`.
@@ -135,6 +165,32 @@ class ConnectionRequest {
 
   String otherUid(String myUid) => myUid == fromUid ? toUid : fromUid;
   String otherName(String myUid) => myUid == fromUid ? toName : fromName;
+
+  // Value equality (see AppUser). `updatedAt` is sync bookkeeping
+  // that is never displayed, so it is deliberately excluded: a sync
+  // that only bumps it must not rebuild the Friends tab.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConnectionRequest &&
+          id == other.id &&
+          fromUid == other.fromUid &&
+          fromName == other.fromName &&
+          toUid == other.toUid &&
+          toName == other.toName &&
+          status == other.status &&
+          createdAt == other.createdAt;
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        fromUid,
+        fromName,
+        toUid,
+        toName,
+        status,
+        createdAt,
+      );
 }
 
 /// A group stored in `groups/{groupId}`.
@@ -212,6 +268,33 @@ class BillGroup {
       currency: currency ?? this.currency,
     );
   }
+
+  // Value equality (see AppUser). `updatedAt` is excluded: it is
+  // sync bookkeeping, never displayed.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BillGroup &&
+          id == other.id &&
+          name == other.name &&
+          createdBy == other.createdBy &&
+          _listEquals(members, other.members) &&
+          _listEquals(invited, other.invited) &&
+          createdAt == other.createdAt &&
+          deleted == other.deleted &&
+          currency == other.currency;
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        name,
+        createdBy,
+        Object.hashAll(members),
+        Object.hashAll(invited),
+        createdAt,
+        deleted,
+        currency,
+      );
 }
 
 /// One person's share of a bill.
@@ -302,6 +385,31 @@ class BillSplit {
       paidAmount: paidAmount ?? this.paidAmount,
     );
   }
+
+  // Value equality (see AppUser). `paidAt` is included: the bill
+  // detail screen displays it ("Paid on …").
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BillSplit &&
+          uid == other.uid &&
+          displayName == other.displayName &&
+          amount == other.amount &&
+          percent == other.percent &&
+          paid == other.paid &&
+          paidAt == other.paidAt &&
+          paidAmount == other.paidAmount;
+
+  @override
+  int get hashCode => Object.hash(
+        uid,
+        displayName,
+        amount,
+        percent,
+        paid,
+        paidAt,
+        paidAmount,
+      );
 }
 
 /// A bill stored in `bills/{billId}`.
@@ -460,6 +568,53 @@ class Bill {
     return s.first.amount;
   }
 
+  // Value equality (see AppUser). `updatedAt` is excluded: it is
+  // sync bookkeeping, never displayed. Everything the UI shows —
+  // title, amounts, splits (including paid state), receipt, currency,
+  // deletion — is compared.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Bill &&
+          id == other.id &&
+          title == other.title &&
+          subtotal == other.subtotal &&
+          tipPercent == other.tipPercent &&
+          total == other.total &&
+          splitType == other.splitType &&
+          createdBy == other.createdBy &&
+          createdByName == other.createdByName &&
+          groupId == other.groupId &&
+          groupName == other.groupName &&
+          _listEquals(participantIds, other.participantIds) &&
+          _listEquals(splits, other.splits) &&
+          createdAt == other.createdAt &&
+          receiptImageUrl == other.receiptImageUrl &&
+          receiptLocalPath == other.receiptLocalPath &&
+          currency == other.currency &&
+          deleted == other.deleted;
+
+  @override
+  int get hashCode => Object.hashAll([
+        id,
+        title,
+        subtotal,
+        tipPercent,
+        total,
+        splitType,
+        createdBy,
+        createdByName,
+        groupId,
+        groupName,
+        Object.hashAll(participantIds),
+        Object.hashAll(splits),
+        createdAt,
+        receiptImageUrl,
+        receiptLocalPath,
+        currency,
+        deleted,
+      ]);
+
   /// Settlement helpers. A partially settled share (see
   /// [BillSplit.paidAmount]) counts as paid only once nothing remains.
   int get paidCount => splits.where((s) => s.isFullyPaid).length;
@@ -500,6 +655,32 @@ class FriendBalance {
     if (parts.length == 1) return parts.first[0].toUpperCase();
     return (parts.first[0] + parts.last[0]).toUpperCase();
   }
+
+  // Value equality (see AppUser): a balance is fully described by
+  // its numbers, so a recompute that yields the same numbers is
+  // not a change.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FriendBalance &&
+          uid == other.uid &&
+          displayName == other.displayName &&
+          currency == other.currency &&
+          net == other.net &&
+          owesMe == other.owesMe &&
+          iOweThem == other.iOweThem &&
+          openBills == other.openBills;
+
+  @override
+  int get hashCode => Object.hash(
+        uid,
+        displayName,
+        currency,
+        net,
+        owesMe,
+        iOweThem,
+        openBills,
+      );
 }
 
 /// An in-app notification stored in `notifications/{id}`.
@@ -573,4 +754,34 @@ class AppNotification {
       updatedAt: updatedAt,
     );
   }
+
+  // Value equality (see AppUser). `updatedAt` is excluded: it is
+  // sync bookkeeping, never displayed. `read` is included: it
+  // drives the unread badge.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppNotification &&
+          id == other.id &&
+          toUid == other.toUid &&
+          title == other.title &&
+          body == other.body &&
+          type == other.type &&
+          billId == other.billId &&
+          groupId == other.groupId &&
+          read == other.read &&
+          createdAt == other.createdAt;
+
+  @override
+  int get hashCode => Object.hash(
+        id,
+        toUid,
+        title,
+        body,
+        type,
+        billId,
+        groupId,
+        read,
+        createdAt,
+      );
 }

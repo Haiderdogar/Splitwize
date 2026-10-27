@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../data/app_repository.dart';
 import '../models/models.dart';
+import '../utils/debt_simplifier.dart';
 import 'core_providers.dart';
 
 part 'data_providers.g.dart';
@@ -37,12 +38,22 @@ Stream<T> _fromRepo<T>(
 Stream<AppUser?> appUser(Ref ref, String uid) =>
     _fromRepo(ref, (repo) => repo.watchUser(uid));
 
+/// My own profile, LIVE — not a one-shot fetch.
+///
+/// It used to be a `Future` provider: it resolved once at startup
+/// and never again, so changing the default currency in Profile (or
+/// a profile change arriving from another device) left the Profile
+/// header, the Profile currency tile, the create-group currency
+/// field and the create-bill currency stale until the app was
+/// restarted. Deriving it from the profile stream fixes that, and
+/// the stream's distinct filter (see `AppRepository._watch`) means
+/// it only emits when the profile content actually changes — the
+/// screens watching it do not rebuild on unrelated mutations.
 @riverpod
-Future<AppUser?> currentAppUser(Ref ref) async {
+Stream<AppUser?> currentAppUser(Ref ref) {
   final uid = ref.watch(currentUidProvider);
-  if (uid == null) return null;
-  final repo = await ref.watch(appRepositoryProvider.future);
-  return repo.getUser(uid);
+  if (uid == null) return Stream.value(null);
+  return _fromRepo(ref, (repo) => repo.watchUser(uid));
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +71,17 @@ Stream<Bill?> bill(Ref ref, String billId) =>
 @riverpod
 Stream<List<Bill>> groupBills(Ref ref, String groupId) =>
     _fromRepo(ref, (repo) => repo.watchBillsForGroup(groupId));
+
+/// The group's settlement plan, memoized in a provider instead of
+/// recomputed inside the Group Detail build: [simplifyGroupDebts]
+/// runs only when the group's bills actually change. A rebuild of
+/// the detail screen for any other reason (e.g. the signed-in user
+/// or a member list change) reuses the cached plan object.
+@riverpod
+GroupSettlementPlan simplifiedDebts(Ref ref, String groupId) {
+  final bills = ref.watch(groupBillsProvider(groupId)).value ?? const <Bill>[];
+  return simplifyGroupDebts(bills);
+}
 
 /// Net per-friend balances across all my bills (unpaid shares only).
 /// Pure local computation over the SQLite cache.
