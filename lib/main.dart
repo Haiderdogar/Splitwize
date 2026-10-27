@@ -78,7 +78,9 @@ class AuthGate extends StatelessWidget {
         return seen.when(
           loading: () => const Scaffold(
             body: Center(
-              child: CircularProgressIndicator(semanticsLabel: 'Loading'),
+              child: CircularProgressIndicator(
+                semanticsLabel: 'Loading onboarding',
+              ),
             ),
           ),
           // If the flag can't be read, fail open into the normal flow
@@ -107,7 +109,9 @@ class _AuthFlow extends StatelessWidget {
         return authState.when(
           loading: () => const Scaffold(
             body: Center(
-              child: CircularProgressIndicator(semanticsLabel: 'Loading'),
+              child: CircularProgressIndicator(
+                semanticsLabel: 'Loading your account',
+              ),
             ),
           ),
           error: (e, _) => Scaffold(
