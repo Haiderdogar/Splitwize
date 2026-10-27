@@ -177,6 +177,28 @@ Tests run one at a time because the functional suite shares a local SQLite
 database. The workflow creates a temporary Firebase options placeholder for
 static analysis; it does not contain or publish project credentials.
 
+The workflow also builds three ABI-specific Android release APKs on pushes to
+`main` and manual runs. Before the first build, add these repository Actions
+secrets under **Settings → Secrets and variables → Actions**:
+
+- `FIREBASE_OPTIONS_DART` — the full contents of your locally generated
+  `lib/firebase_options.dart`.
+- `ANDROID_GOOGLE_SERVICES_JSON` — the full contents of
+  `android/app/google-services.json`.
+
+Use the Firebase configuration for the Android app whose package name matches
+`applicationId` in `android/app/build.gradle.kts`. The config files remain
+ignored by Git and are written only into the temporary GitHub Actions runner.
+Pull requests run analysis and tests but do not build with Firebase secrets.
+
+After a successful run, open **Actions → Flutter CI → the workflow run →
+Artifacts** and download `splitwize-android-apks-<commit>`. Install the APK
+matching the test device: `app-arm64-v8a-release.apk` for most modern phones,
+`app-armeabi-v7a-release.apk` for older 32-bit devices, or
+`app-x86_64-release.apk` for x86-64 emulators. These APKs are for testing; the
+Android release build currently uses the debug signing key and is not
+Play-Store-ready.
+
 - `flutter_riverpod` v3 with `riverpod_generator`: every provider is declared
   with `@riverpod` in `lib/providers/` and generated into `.g.dart`.
 - **No `StatefulWidget` / `ConsumerStatefulWidget` anywhere.** Every screen
