@@ -45,6 +45,7 @@ class SplitwizeApp extends StatelessWidget {
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
             useMaterial3: true,
+            scaffoldBackgroundColor: Colors.white,
           ),
           darkTheme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
@@ -52,6 +53,7 @@ class SplitwizeApp extends StatelessWidget {
               brightness: Brightness.dark,
             ),
             useMaterial3: true,
+            scaffoldBackgroundColor: const Color(0xFF121212),
           ),
           themeMode: switch (mode) {
             AppTheme.system => ThemeMode.system,
