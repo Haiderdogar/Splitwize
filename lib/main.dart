@@ -13,21 +13,35 @@ import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  // Offline-first: the app caches everything in SQLite and syncs via
-  // deltas, so Firestore's own disk cache is disabled to avoid keeping
-  // two copies (and Firestore never fetches behind our back).
-  FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: false,
-  );
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  runApp(const ProviderScope(child: SplitwizeApp()));
+  // Firebase starts before any screen exists, so a failure here used to
+  // kill the app instantly with no UI at all (the "opens then closes"
+  // crash on a fresh install). Instead, capture the failure and still
+  // start the app on a readable error screen, so the user can see —
+  // and report — what actually went wrong.
+  String? firebaseError;
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    // Offline-first: the app caches everything in SQLite and syncs via
+    // deltas, so Firestore's own disk cache is disabled to avoid keeping
+    // two copies (and Firestore never fetches behind our back).
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: false,
+    );
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    firebaseError = '$e';
+  }
+  runApp(ProviderScope(child: SplitwizeApp(firebaseError: firebaseError)));
 }
 
 class SplitwizeApp extends StatelessWidget {
-  const SplitwizeApp({super.key});
+  /// Non-null when Firebase failed to start in [main]: the app opens on
+  /// an error screen instead of the auth flow (which needs Firebase).
+  final String? firebaseError;
+
+  const SplitwizeApp({super.key, this.firebaseError});
 
   @override
   Widget build(BuildContext context) {
@@ -58,9 +72,58 @@ class SplitwizeApp extends StatelessWidget {
             AppTheme.light => ThemeMode.light,
             AppTheme.dark => ThemeMode.dark,
           },
-          home: const AuthGate(),
+          home: firebaseError != null
+              ? _FirebaseInitErrorScreen(error: firebaseError!)
+              : const AuthGate(),
         );
       },
+    );
+  }
+}
+
+/// Shown instead of [AuthGate] when Firebase failed to start in [main].
+/// The auth flow needs Firebase, so it must not run in that state — but
+/// the app itself must still open, with the failure visible, instead of
+/// closing instantly with no explanation.
+class _FirebaseInitErrorScreen extends StatelessWidget {
+  final String error;
+
+  const _FirebaseInitErrorScreen({required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.cloud_off_outlined,
+                size: 56,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "Splitwize couldn't start.\n"
+                'Firebase failed to initialise on this device. '
+                'This usually means Google Play services is missing or '
+                'out of date, or the installed build has the wrong '
+                'Firebase configuration — reinstalling the matching '
+                'build usually fixes it.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                error,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
