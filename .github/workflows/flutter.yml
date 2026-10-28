@@ -90,13 +90,24 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Set release version
+        id: version
+        shell: bash
+        run: |
+          VERSION_NAME="1.0.${GITHUB_RUN_NUMBER}"
+          VERSION_CODE="${GITHUB_RUN_NUMBER}"
+          sed -i -E "s/^version: .*/version: ${VERSION_NAME}+${VERSION_CODE}/" pubspec.yaml
+          echo "name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+          echo "code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Build split release APKs
         run: flutter build apk --release --split-per-abi
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: splitwize-android-apks-${{ github.sha }}
+          name: splitwize-${{ steps.version.outputs.name }}-android-apks
           path: build/app/outputs/flutter-apk/*.apk
           if-no-files-found: error
           retention-days: 14
@@ -104,10 +115,10 @@ jobs:
       - name: Publish APKs to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest-test-build
-          name: Latest Android test build
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Splitwize Android ${{ steps.version.outputs.name }}
           body: |
-            Latest Android test release containing the split APKs from `main`.
+            Android release APKs for Splitwize version `${{ steps.version.outputs.name }}`.
 
             Built from commit `${{ github.sha }}`. Download the APK matching your device architecture:
             - `app-arm64-v8a-release.apk` for most modern Android phones
@@ -115,6 +126,6 @@ jobs:
             - `app-x86_64-release.apk` for x86-64 emulators
           prerelease: false
           make_latest: true
-          overwrite_files: true
           fail_on_unmatched_files: true
+          generate_release_notes: true
           files: build/app/outputs/flutter-apk/*-release.apk
