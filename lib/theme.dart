@@ -76,9 +76,13 @@ ThemeData _build(ColorScheme scheme) {
   );
 
   const pill = StadiumBorder();
+  // A visible 1px outline: the old borderless fill measured 1.05:1
+  // (light) / 1.16:1 (dark) against the surface — far below WCAG
+  // 1.4.11's 3:1 bar for input boundaries. The outline color passes
+  // it in both themes while keeping the filled 16px look.
   final inputBorder = OutlineInputBorder(
     borderRadius: BorderRadius.circular(16),
-    borderSide: BorderSide.none,
+    borderSide: BorderSide(color: scheme.outline),
   );
 
   return base.copyWith(
@@ -128,8 +132,8 @@ ThemeData _build(ColorScheme scheme) {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(shape: pill, textStyle: text.labelLarge),
     ),
-    // Filled, borderless fields with a 16px radius: forms read as one
-    // coherent system instead of a row of default outlines.
+    // Filled fields with a subtle outline and a 16px radius: forms read
+    // as one coherent system instead of a row of default outlines.
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: scheme.surfaceContainerLow,
@@ -171,4 +175,20 @@ ThemeData _build(ColorScheme scheme) {
       linearTrackColor: scheme.surfaceContainerHighest,
     ),
   );
+}
+
+/// Semantic debt colors, deliberately distinct from the teal brand:
+/// green for "owed to you", warm amber for "you owe" (amber reads as
+/// a friendly nudge, not the scolding red reserved for errors). Words
+/// ("You owe" / "owes you") always accompany the color, never replace
+/// it. All four values were checked against WCAG 4.5:1 on the app's
+/// surfaces and card fills (light 4.6+, dark 7.2+).
+extension SplitwizeDebtColors on ColorScheme {
+  Color get owed => brightness == Brightness.dark
+      ? const Color(0xFF6FBF8F)
+      : const Color(0xFF1B7F3B);
+
+  Color get owe => brightness == Brightness.dark
+      ? const Color(0xFFE8A87C)
+      : const Color(0xFFB25400);
 }

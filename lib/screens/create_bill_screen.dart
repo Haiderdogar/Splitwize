@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,8 @@ import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
+import '../utils/split_math.dart';
+import '../widgets/split_bar.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show currencySymbol, formatMoney;
 
@@ -127,6 +130,13 @@ class _SubtotalField extends StatelessWidget {
         final symbol = currencySymbol(ref.watch(billFormCurrencyProvider));
         return TextField(
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          // Hero amount: the bill's total is the first thing the eye
+          // lands on, big and centered, not one more small field.
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            fontFeatures: [const ui.FontFeature.tabularFigures()],
+          ),
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
           ],
@@ -406,9 +416,22 @@ class _SplitTypeSection extends StatelessWidget {
             ref.watch(createBillFormProvider.select((s) => s.splitType));
         final selectedCount =
             ref.watch(createBillFormProvider.select((s) => s.selected.length));
+        final selected =
+            ref.watch(createBillFormProvider.select((s) => s.selected));
+        final percents =
+            ref.watch(createBillFormProvider.select((s) => s.percents));
+        final amounts =
+            ref.watch(createBillFormProvider.select((s) => s.amounts));
         final total = ref.watch(createBillFormProvider.select((s) => s.total));
         final currency = ref.watch(billFormCurrencyProvider);
         final notifier = ref.read(createBillFormProvider.notifier);
+        final remainder = unallocatedRemainder(
+          splitType: splitType,
+          selected: selected,
+          percents: percents,
+          amounts: amounts,
+          total: total,
+        );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -444,6 +467,35 @@ class _SplitTypeSection extends StatelessWidget {
                   ),
                 ),
               ),
+            // Live split preview: the motif bar, updating as shares
+            // are typed, plus what's left to allocate for percentage
+            // and custom splits (equal splits are always exact).
+            if (selectedCount > 0 && total > 0) ...[
+              const SizedBox(height: 12),
+              SplitBar(
+                  segments: _previewSegments(
+                splitType: splitType,
+                selected: selected,
+                percents: percents,
+                amounts: amounts,
+              )),
+              if (remainder != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _remainderText(
+                    splitType: splitType,
+                    remainder: remainder,
+                    currency: currency,
+                  ),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: remainder < -0.01
+                            ? Theme.of(context).colorScheme.error
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ],
           ],
         );
       },
@@ -579,4 +631,55 @@ class _ReceiptSection extends StatelessWidget {
       },
     );
   }
+}
+
+/// Live split-bar segments for the form's current state: equal shares
+/// for equal splits, entered percents/amounts otherwise (unparseable
+/// entries count as zero; the bar hides them).
+List<SplitSegment> _previewSegments({
+  required String splitType,
+  required Set<String> selected,
+  required Map<String, String> percents,
+  required Map<String, String> amounts,
+}) {
+  double parse(String? v) =>
+      double.tryParse((v ?? '').replaceAll(',', '.')) ?? 0;
+  final uids = selected.toList();
+  return [
+    for (var i = 0; i < uids.length; i++)
+      SplitSegment(
+        value: switch (splitType) {
+          'percentage' => parse(percents[uids[i]]),
+          'custom' => parse(amounts[uids[i]]),
+          _ => 1,
+        },
+        color: splitHues[i % splitHues.length],
+      ),
+  ];
+}
+
+/// Remainder line for percentage/custom splits: what's left, what's
+/// over, or fully allocated. Thresholds match submit-time validation
+/// (0.01 percent points, 2 cents).
+String _remainderText({
+  required String splitType,
+  required double remainder,
+  required String currency,
+}) {
+  if (splitType == 'percentage') {
+    if (remainder.abs() < 0.01) {
+      return 'Fully allocated';
+    }
+    if (remainder > 0) {
+      return '${remainder.toStringAsFixed(1)}% left to allocate';
+    }
+    return 'Over by ${(-remainder).toStringAsFixed(1)}%';
+  }
+  if (remainder.abs() < 0.02) {
+    return 'Fully allocated';
+  }
+  if (remainder > 0) {
+    return '${formatMoney(remainder, currency)} left to allocate';
+  }
+  return 'Over by ${formatMoney(-remainder, currency)}';
 }

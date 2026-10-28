@@ -7,6 +7,9 @@ import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
+import '../theme.dart';
+import '../widgets/money_text.dart';
+import '../widgets/split_bar.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show formatMoney;
 
@@ -106,7 +109,11 @@ class _BillBody extends StatelessWidget {
                     const Divider(),
                     _KVRow(
                         label: 'Total',
-                        value: formatMoney(bill.total, bill.currency),
+                        valueWidget: MoneyText(
+                          bill.total,
+                          currencyCode: bill.currency,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                         bold: true),
                     const SizedBox(height: 12),
                     Text(
@@ -167,6 +174,23 @@ class _BillBody extends StatelessWidget {
           ),
         ),
         SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          sliver: SliverToBoxAdapter(
+            // The split motif: each share's width is its proportion of
+            // the total; the rows below are the legend.
+            child: SplitBar(
+              segments: [
+                for (var i = 0; i < bill.splits.length; i++)
+                  SplitSegment(
+                    label: bill.splits[i].displayName,
+                    value: bill.splits[i].amount,
+                    color: splitHues[i % splitHues.length],
+                  ),
+              ],
+            ),
+          ),
+        ),
+        SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           sliver: SliverList.builder(
             itemCount: bill.splits.length,
@@ -186,10 +210,20 @@ class _BillBody extends StatelessWidget {
 }
 
 class _KVRow extends StatelessWidget {
-  const _KVRow({required this.label, required this.value, this.bold = false});
+  const _KVRow({
+    required this.label,
+    this.value,
+    this.valueWidget,
+    this.bold = false,
+  }) : assert(value != null || valueWidget != null);
 
   final String label;
-  final String value;
+
+  /// Plain value text; ignored when [valueWidget] is given.
+  final String? value;
+
+  /// Rich value (e.g. [MoneyText]) replacing the plain text.
+  final Widget? valueWidget;
   final bool bold;
 
   @override
@@ -207,7 +241,7 @@ class _KVRow extends StatelessWidget {
           // The label flexes; the amount always gets its full width.
           Expanded(child: Text(label, style: style)),
           const SizedBox(width: 12),
-          Text(value, style: style),
+          valueWidget ?? Text(value!, style: style),
         ],
       ),
     );
@@ -275,8 +309,8 @@ class _SplitTile extends StatelessWidget {
                                 : 'Unpaid'),
                         visualDensity: VisualDensity.compact,
                         backgroundColor: split.paid
-                            ? Colors.green.withValues(alpha: 0.2)
-                            : Colors.orange.withValues(alpha: 0.2),
+                            ? colorScheme.owed.withValues(alpha: 0.2)
+                            : colorScheme.owe.withValues(alpha: 0.2),
                       ),
                       if (split.isPartiallyPaid)
                         Text(
@@ -294,12 +328,9 @@ class _SplitTile extends StatelessWidget {
                 ],
               ),
             ),
-            Text(
-              formatMoney(split.amount, currencyCode),
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
+            MoneyText(
+              split.amount,
+              currencyCode: currencyCode,
             ),
             if (_canToggle)
               TextButton(

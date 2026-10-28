@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
+import '../theme.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/money_text.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show formatMoney;
 
@@ -162,6 +164,7 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final codes = byCurrency.keys.toList()..sort();
     final multi = codes.length > 1;
     return Card(
@@ -185,16 +188,42 @@ class _SummaryCard extends StatelessWidget {
                         label: 'You are owed',
                         amount: byCurrency[code]!.owed,
                         currency: code,
-                        color: Colors.green),
+                        color: scheme.owed),
                   ),
                   Expanded(
                     child: _Summary(
                         label: 'You owe',
                         amount: byCurrency[code]!.owe,
                         currency: code,
-                        color: Colors.orange),
+                        color: scheme.owe),
                   ),
                 ],
+              ),
+              // Net for this currency, on its own line: the one-glance
+              // figure. Never blended across currencies. Scales down
+              // (never truncates) on narrow screens at large text.
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _netLabel(
+                            byCurrency[code]!.owed - byCurrency[code]!.owe),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      if (byCurrency[code]!.owed - byCurrency[code]!.owe != 0)
+                        MoneyText(
+                          (byCurrency[code]!.owed - byCurrency[code]!.owe)
+                              .abs(),
+                          currencyCode: code,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                    ],
+                  ),
+                ),
               ),
               if (code != codes.last) const Divider(height: 24),
             ],
@@ -203,6 +232,12 @@ class _SummaryCard extends StatelessWidget {
       ),
     );
   }
+
+  String _netLabel(double net) => net == 0
+      ? 'Net · settled'
+      : net > 0
+          ? 'Net · you are owed '
+          : 'Net · you owe ';
 }
 
 class _Summary extends StatelessWidget {
@@ -227,12 +262,11 @@ class _Summary extends StatelessWidget {
         // large figure meets a narrow screen / big text setting.
         FittedBox(
           fit: BoxFit.scaleDown,
-          child: Text(
-            formatMoney(amount, currency),
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
+          child: MoneyText(
+            amount,
+            currencyCode: currency,
+            style: Theme.of(context).textTheme.titleLarge,
+            color: color,
           ),
         ),
       ],
@@ -255,13 +289,30 @@ class _BalanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final debtColor = _iOwe ? scheme.owe : scheme.owed;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
+      // Subtle 8% debt tint over the card fill: scannable without
+      // reading a single word.
+      color: Color.alphaBlend(
+        debtColor.withValues(alpha: 0.08),
+        scheme.surfaceContainerLow,
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Row(
           children: [
-            CircleAvatar(child: Text(balance.initials)),
+            // Status halo: the ring color says the direction before
+            // any text is read (amber = I owe, green = owed to me).
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: debtColor, width: 2),
+              ),
+              padding: const EdgeInsets.all(2),
+              child: CircleAvatar(child: Text(balance.initials)),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -276,7 +327,7 @@ class _BalanceCard extends StatelessWidget {
                         ? 'You owe ${formatMoney(balance.net.abs(), balance.currency)}'
                         : '${balance.displayName.split(' ').first} owes you ${formatMoney(balance.net, balance.currency)}',
                     style: TextStyle(
-                      color: _iOwe ? Colors.orange : Colors.green,
+                      color: debtColor,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

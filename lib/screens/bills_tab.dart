@@ -8,6 +8,8 @@ import '../providers/data_providers.dart';
 import '../utils/money.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/money_text.dart';
+import '../widgets/split_bar.dart';
 import '../widgets/state_widgets.dart';
 import 'bill_detail_screen.dart';
 import 'create_bill_screen.dart';
@@ -97,10 +99,26 @@ class _EmptyBills extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const EmptyState(
+    return EmptyState(
       icon: Icons.receipt_long_outlined,
       title: 'No bills yet.',
-      subtitle: 'Tap + to split your first bill with friends.',
+      subtitle: 'Split your first bill with friends.',
+      actionLabel: 'Split a bill',
+      onAction: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const CreateBillScreen()),
+      ),
+      // The split motif as this screen's own art, instead of the
+      // generic circle every other empty state uses.
+      visual: const SizedBox(
+        width: 220,
+        child: SplitBar(
+          segments: [
+            SplitSegment(value: 5, color: Colors.teal),
+            SplitSegment(value: 3, color: Colors.orange),
+            SplitSegment(value: 2, color: Colors.purple),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -188,12 +206,9 @@ class _BillCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                formatMoney(mine ? bill.total : myShare, bill.currency),
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+              MoneyText(
+                mine ? bill.total : myShare,
+                currencyCode: bill.currency,
               ),
               Text(
                 mine ? 'total' : 'your share',

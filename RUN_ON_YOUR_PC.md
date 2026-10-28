@@ -45,7 +45,7 @@ computer's debug key. One-time, two minutes:
 
 ```bash
 flutter analyze     # should say: No issues found!
-flutter test        # 192 tests, all passing
+flutter test        # 204 tests, all passing
 ```
 
 The functional tests run against a real local SQLite database, so you

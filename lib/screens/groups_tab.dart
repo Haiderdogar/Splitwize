@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/state_widgets.dart';
 import 'create_group_screen.dart';
 import 'group_detail_screen.dart';
@@ -120,18 +121,16 @@ class GroupsTab extends StatelessWidget {
                   data: (groups) {
                     if (groups.isEmpty) {
                       return SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text(
-                            'No groups yet. Create one and invite your friends.',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                ),
+                        child: EmptyState(
+                          icon: Icons.group_outlined,
+                          title: 'No groups yet.',
+                          subtitle:
+                              'Create one and invite your friends to split bills together.',
+                          actionLabel: 'Create group',
+                          onAction: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const CreateGroupScreen(),
+                            ),
                           ),
                         ),
                       );

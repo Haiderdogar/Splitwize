@@ -25,12 +25,18 @@ void main() {
       expect(splitwizeLightTheme.appBarTheme.elevation, 0);
     });
 
-    test('form fields are filled with a 16px radius', () {
+    test('form fields are filled with a 16px radius and a visible outline', () {
       final decoration = splitwizeLightTheme.inputDecorationTheme;
       expect(decoration.filled, isTrue);
       final border = decoration.border as OutlineInputBorder;
       expect(border.borderRadius, BorderRadius.circular(16));
-      expect(border.borderSide, BorderSide.none);
+      // A visible outline, not BorderSide.none: the old borderless
+      // fill measured 1.05:1 against the surface, far below WCAG
+      // 1.4.11's 3:1 bar for input boundaries.
+      expect(
+        border.borderSide,
+        BorderSide(color: splitwizeLightTheme.colorScheme.outline),
+      );
     });
 
     test('primary buttons and FABs use the pill shape', () {

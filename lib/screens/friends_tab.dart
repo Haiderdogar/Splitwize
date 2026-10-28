@@ -30,10 +30,7 @@ class FriendsTab extends StatelessWidget {
       // lazily, only for what's on screen.
       body: const CustomScrollView(
         slivers: [
-          SliverPadding(
-            padding: EdgeInsets.fromLTRB(12, 12, 12, 0),
-            sliver: SliverToBoxAdapter(child: _InviteHeroCard()),
-          ),
+          _InviteHeader(),
           SliverPadding(
             padding: EdgeInsets.fromLTRB(12, 20, 12, 0),
             sliver: SliverToBoxAdapter(child: _RequestsHeader()),
@@ -56,6 +53,61 @@ class FriendsTab extends StatelessWidget {
           ),
           SliverToBoxAdapter(child: SizedBox(height: 12)),
         ],
+      ),
+    );
+  }
+}
+
+/// The invite lead: the full hero card for new users, collapsing to a
+/// compact row once friends exist so it stops pushing the list down.
+class _InviteHeader extends StatelessWidget {
+  const _InviteHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final hasFriends =
+            ref.watch(connectionsProvider).value?.isNotEmpty ?? false;
+        return SliverPadding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          sliver: SliverToBoxAdapter(
+            child: hasFriends
+                ? const _InviteCompactRow()
+                : const _InviteHeroCard(),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Compact invite row for users who already have friends: same dialog,
+/// a fraction of the height.
+class _InviteCompactRow extends StatelessWidget {
+  const _InviteCompactRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Row(
+          children: [
+            const Icon(Icons.person_add_outlined),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Invite friends to split bills together.'),
+            ),
+            TextButton(
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => const _AddFriendDialog(),
+              ),
+              child: const Text('Invite'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -205,8 +257,8 @@ class _ConnectedHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer(
       builder: (context, ref, _) {
-        final count = ref.watch(
-            connectionsProvider.select((v) => v.value?.length ?? 0));
+        final count =
+            ref.watch(connectionsProvider.select((v) => v.value?.length ?? 0));
         return _SectionHeader('Connected', count: count);
       },
     );
