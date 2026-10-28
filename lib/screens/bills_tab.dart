@@ -7,6 +7,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../utils/money.dart';
 import '../widgets/ad_banner.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/state_widgets.dart';
 import 'bill_detail_screen.dart';
 import 'create_bill_screen.dart';
@@ -96,25 +97,10 @@ class _EmptyBills extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.receipt_long_outlined,
-              size: 64,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'No bills yet.\nTap + to split your first bill with friends.',
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+    return const EmptyState(
+      icon: Icons.receipt_long_outlined,
+      title: 'No bills yet.',
+      subtitle: 'Tap + to split your first bill with friends.',
     );
   }
 }
@@ -133,7 +119,8 @@ class _BillCard extends StatelessWidget {
         bill.splits.isEmpty ? 0.0 : bill.paidCount / bill.splits.length;
     return Card(
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         title: Text(
           bill.title,
           style: const TextStyle(fontWeight: FontWeight.bold),

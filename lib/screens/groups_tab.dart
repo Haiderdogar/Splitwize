@@ -119,11 +119,20 @@ class GroupsTab extends StatelessWidget {
                   ),
                   data: (groups) {
                     if (groups.isEmpty) {
-                      return const SliverToBoxAdapter(
+                      return SliverToBoxAdapter(
                         child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
                           child: Text(
-                              'No groups yet. Create one and invite your friends.'),
+                            'No groups yet. Create one and invite your friends.',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
                         ),
                       );
                     }

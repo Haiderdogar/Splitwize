@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -6,34 +8,53 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'firebase_options.dart';
 import 'providers/core_providers.dart';
+import 'theme.dart';
 import 'screens/home_shell.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/sign_in_screen.dart';
 import 'services/notification_service.dart';
 
+/// Last-resort startup guard. An error that escapes to the Dart zone —
+/// an unhandled Future/Stream error anywhere in startup, including
+/// from a plugin's platform channel on a particular device — kills the
+/// isolate, and the app then closes instantly with no UI at all (the
+/// "opens then closes" crash). The zone handler below catches those
+/// instead, and [SplitwizeApp] opens on a readable error screen
+/// showing what failed, so the failure is visible and reportable
+/// instead of a silent close.
+final ValueNotifier<String?> startupFatalError = ValueNotifier<String?>(null);
+
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  // Firebase starts before any screen exists, so a failure here used to
-  // kill the app instantly with no UI at all (the "opens then closes"
-  // crash on a fresh install). Instead, capture the failure and still
-  // start the app on a readable error screen, so the user can see —
-  // and report — what actually went wrong.
-  String? firebaseError;
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    // Offline-first: the app caches everything in SQLite and syncs via
-    // deltas, so Firestore's own disk cache is disabled to avoid keeping
-    // two copies (and Firestore never fetches behind our back).
-    FirebaseFirestore.instance.settings = const Settings(
-      persistenceEnabled: false,
-    );
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  } catch (e) {
-    firebaseError = '$e';
-  }
-  runApp(ProviderScope(child: SplitwizeApp(firebaseError: firebaseError)));
+  await runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    // Firebase starts before any screen exists, so a failure here used to
+    // kill the app instantly with no UI at all (the "opens then closes"
+    // crash on a fresh install). Instead, capture the failure and still
+    // start the app on a readable error screen, so the user can see —
+    // and report — what actually went wrong.
+    String? firebaseError;
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      // Offline-first: the app caches everything in SQLite and syncs via
+      // deltas, so Firestore's own disk cache is disabled to avoid keeping
+      // two copies (and Firestore never fetches behind our back).
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: false,
+      );
+      FirebaseMessaging.onBackgroundMessage(
+        firebaseMessagingBackgroundHandler,
+      );
+    } catch (e) {
+      firebaseError = '$e';
+    }
+    runApp(ProviderScope(child: SplitwizeApp(firebaseError: firebaseError)));
+  }, (error, stack) {
+    // First fatal error wins; the running app rebuilds onto the
+    // error screen below instead of dying.
+    startupFatalError.value ??= '$error';
+  });
 }
 
 class SplitwizeApp extends StatelessWidget {
@@ -48,33 +69,38 @@ class SplitwizeApp extends StatelessWidget {
     // Only the MaterialApp shell reacts to the appearance setting;
     // flipping it re-themes the whole app (light/dark ColorSchemes
     // are both derived from the same teal seed).
-    return Consumer(
-      builder: (context, ref, _) {
-        final mode =
-            ref.watch(themeModeSettingProvider).value ?? AppTheme.system;
-        return MaterialApp(
-          title: 'Splitwize',
-          debugShowCheckedModeBanner: false,
-          navigatorKey: NotificationService.instance.navigatorKey,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-            useMaterial3: true,
-          ),
-          darkTheme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.teal,
-              brightness: Brightness.dark,
-            ),
-            useMaterial3: true,
-          ),
-          themeMode: switch (mode) {
-            AppTheme.system => ThemeMode.system,
-            AppTheme.light => ThemeMode.light,
-            AppTheme.dark => ThemeMode.dark,
+    return ValueListenableBuilder<String?>(
+      valueListenable: startupFatalError,
+      builder: (context, fatalError, _) {
+        return Consumer(
+          builder: (context, ref, _) {
+            final mode =
+                ref.watch(themeModeSettingProvider).value ?? AppTheme.system;
+            return MaterialApp(
+              title: 'Splitwize',
+              debugShowCheckedModeBanner: false,
+              navigatorKey: NotificationService.instance.navigatorKey,
+              theme: splitwizeLightTheme,
+              darkTheme: splitwizeDarkTheme,
+              themeMode: switch (mode) {
+                AppTheme.system => ThemeMode.system,
+                AppTheme.light => ThemeMode.light,
+                AppTheme.dark => ThemeMode.dark,
+              },
+              home: fatalError != null
+                  ? _FirebaseInitErrorScreen(
+                      error: fatalError,
+                      message:
+                          'Splitwize hit an unexpected error while starting. '
+                          'The app stayed open on this screen so the failure '
+                          'can be seen and reported, instead of closing with '
+                          'no explanation.',
+                    )
+                  : firebaseError != null
+                      ? _FirebaseInitErrorScreen(error: firebaseError!)
+                      : const AuthGate(),
+            );
           },
-          home: firebaseError != null
-              ? _FirebaseInitErrorScreen(error: firebaseError!)
-              : const AuthGate(),
         );
       },
     );
@@ -88,7 +114,11 @@ class SplitwizeApp extends StatelessWidget {
 class _FirebaseInitErrorScreen extends StatelessWidget {
   final String error;
 
-  const _FirebaseInitErrorScreen({required this.error});
+  /// Body text. Defaults to the Firebase explanation; the zone guard
+  /// passes its own text for non-Firebase startup failures.
+  final String? message;
+
+  const _FirebaseInitErrorScreen({required this.error, this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -105,13 +135,13 @@ class _FirebaseInitErrorScreen extends StatelessWidget {
                 color: Theme.of(context).colorScheme.error,
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 "Splitwize couldn't start.\n"
-                'Firebase failed to initialise on this device. '
-                'This usually means Google Play services is missing or '
-                'out of date, or the installed build has the wrong '
-                'Firebase configuration — reinstalling the matching '
-                'build usually fixes it.',
+                '${message ?? 'Firebase failed to initialise on this device. '
+                    'This usually means Google Play services is missing or '
+                    'out of date, or the installed build has the wrong '
+                    'Firebase configuration — reinstalling the matching '
+                    'build usually fixes it.'}',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),

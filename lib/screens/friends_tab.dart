@@ -32,47 +32,23 @@ class FriendsTab extends StatelessWidget {
         slivers: [
           SliverPadding(
             padding: EdgeInsets.fromLTRB(12, 12, 12, 0),
-            sliver: SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SectionTitle('Requests for you'),
-                  SizedBox(height: 4),
-                ],
-              ),
-            ),
+            sliver: SliverToBoxAdapter(child: _InviteHeroCard()),
+          ),
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(12, 20, 12, 0),
+            sliver: SliverToBoxAdapter(child: _RequestsHeader()),
           ),
           SliverPadding(
             padding: EdgeInsets.symmetric(horizontal: 12),
             sliver: _IncomingRequests(),
           ),
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(12, 12, 12, 0),
-            sliver: SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SectionTitle('Requests you sent'),
-                  SizedBox(height: 4),
-                ],
-              ),
-            ),
-          ),
-          SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
             sliver: _OutgoingRequests(),
           ),
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(12, 12, 12, 0),
-            sliver: SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SectionTitle('Connected'),
-                  SizedBox(height: 4),
-                ],
-              ),
-            ),
+            padding: EdgeInsets.fromLTRB(12, 20, 12, 0),
+            sliver: SliverToBoxAdapter(child: _ConnectedHeader()),
           ),
           SliverPadding(
             padding: EdgeInsets.symmetric(horizontal: 12),
@@ -85,18 +61,193 @@ class FriendsTab extends StatelessWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-  final String text;
+/// The invite hero: a tonal card that leads the screen, with the same
+/// invite dialog behind its button as the app-bar action.
+class _InviteHeroCard extends StatelessWidget {
+  const _InviteHeroCard();
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: Theme.of(context)
-          .textTheme
-          .titleMedium
-          ?.copyWith(fontWeight: FontWeight.bold),
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return Card(
+      color: scheme.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Invite friends',
+                    style: text.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: scheme.onPrimaryContainer,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Split bills with people you trust. They get an invite to join Splitwize.',
+                    style: text.bodyMedium?.copyWith(
+                      color: scheme.onPrimaryContainer,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Scales down (never overflows) on narrow screens
+                  // and at large text scales.
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: FilledButton.icon(
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (_) => const _AddFriendDialog(),
+                        ),
+                        icon: const Icon(Icons.person_add),
+                        label: const Text('Invite by email'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: scheme.onPrimaryContainer.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.people,
+                size: 32,
+                color: scheme.onPrimaryContainer,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Small muted section header with an optional pending-count pill.
+/// The count watches only the list lengths, so it never rebuilds on
+/// unrelated state changes.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.text, {this.count});
+
+  final String text;
+  final int? count;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Text(
+            text,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+          ),
+          if (count != null && count! > 0) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '$count',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: scheme.onPrimaryContainer,
+                    ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestsHeader extends StatelessWidget {
+  const _RequestsHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final incoming = ref.watch(
+            incomingRequestsProvider.select((v) => v.value?.length ?? 0));
+        final outgoing = ref.watch(
+            outgoingRequestsProvider.select((v) => v.value?.length ?? 0));
+        return _SectionHeader('Requests', count: incoming + outgoing);
+      },
+    );
+  }
+}
+
+class _ConnectedHeader extends StatelessWidget {
+  const _ConnectedHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final count = ref.watch(
+            connectionsProvider.select((v) => v.value?.length ?? 0));
+        return _SectionHeader('Connected', count: count);
+      },
+    );
+  }
+}
+
+/// Compact empty row used by every section: an icon in a tonal circle
+/// plus a title and a muted explanation, inside a standard card.
+class _EmptyRow extends StatelessWidget {
+  const _EmptyRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return Card(
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHigh,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: scheme.outline),
+        ),
+        title: Text(title, style: text.titleSmall),
+        subtitle: Text(
+          subtitle,
+          style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+      ),
     );
   }
 }
@@ -124,9 +275,10 @@ class _IncomingRequests extends StatelessWidget {
           data: (reqs) {
             if (reqs.isEmpty) {
               return const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: Text('No incoming requests.'),
+                child: _EmptyRow(
+                  icon: Icons.inbox_outlined,
+                  title: 'No incoming requests',
+                  subtitle: 'Invites from friends will appear here.',
                 ),
               );
             }
@@ -180,9 +332,10 @@ class _OutgoingRequests extends StatelessWidget {
           data: (reqs) {
             if (reqs.isEmpty) {
               return const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: Text('No outgoing requests.'),
+                child: _EmptyRow(
+                  icon: Icons.send_outlined,
+                  title: 'No outgoing requests',
+                  subtitle: 'Invites you send will appear here.',
                 ),
               );
             }
@@ -192,12 +345,27 @@ class _OutgoingRequests extends StatelessWidget {
                 final r = reqs[i];
                 return Card(
                   child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
                     leading: CircleAvatar(
-                        child: Text(r.toName.isEmpty
-                            ? '?'
-                            : r.toName[0].toUpperCase())),
-                    title: Text(r.toName),
-                    subtitle: const Text('Waiting for response'),
+                      radius: 24,
+                      backgroundColor:
+                          Theme.of(context).colorScheme.primaryContainer,
+                      foregroundColor: Theme.of(context).colorScheme.primary,
+                      child: Text(
+                        r.toName.isEmpty ? '?' : r.toName[0].toUpperCase(),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    title: Text(r.toName,
+                        style: Theme.of(context).textTheme.titleMedium),
+                    subtitle: Text(
+                      'Waiting for response',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
                     trailing: TextButton(
                       onPressed: () => runGuarded(
                         context,
@@ -242,10 +410,10 @@ class _Connections extends StatelessWidget {
           data: (friends) {
             if (friends.isEmpty) {
               return const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                      'Not connected with anyone yet. Tap + above and invite by email.'),
+                child: _EmptyRow(
+                  icon: Icons.people_outline,
+                  title: 'No friends yet',
+                  subtitle: 'Invite friends to start splitting bills together.',
                 ),
               );
             }
@@ -255,10 +423,27 @@ class _Connections extends StatelessWidget {
                 final f = friends[i];
                 return Card(
                   child: ListTile(
-                    leading: CircleAvatar(child: Text(f.initials)),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    leading: CircleAvatar(
+                      radius: 24,
+                      backgroundColor:
+                          Theme.of(context).colorScheme.primaryContainer,
+                      foregroundColor: Theme.of(context).colorScheme.primary,
+                      child: Text(
+                        f.initials,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
                     title: Text(f.displayName,
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(f.email),
+                        style: Theme.of(context).textTheme.titleMedium),
+                    subtitle: Text(
+                      f.email,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
                     trailing: IconButton(
                       tooltip: 'Remove',
                       icon: const Icon(Icons.person_remove_outlined),
@@ -317,10 +502,11 @@ class _IncomingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Card(
-      color: Theme.of(context).colorScheme.secondaryContainer,
+      color: scheme.secondaryContainer,
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(16),
         // Name on top, actions on their own row: side-by-side
         // buttons squeeze the name out at large text scales.
         child: Column(
@@ -329,17 +515,29 @@ class _IncomingCard extends StatelessWidget {
             Row(
               children: [
                 CircleAvatar(
-                    child: Text(request.fromName.isEmpty
+                  radius: 24,
+                  backgroundColor: scheme.primaryContainer,
+                  foregroundColor: scheme.primary,
+                  child: Text(
+                    request.fromName.isEmpty
                         ? '?'
-                        : request.fromName[0].toUpperCase())),
+                        : request.fromName[0].toUpperCase(),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(request.fromName,
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const Text('wants to connect with you'),
+                          style: Theme.of(context).textTheme.titleMedium),
+                      Text(
+                        'wants to connect with you',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                      ),
                     ],
                   ),
                 ),

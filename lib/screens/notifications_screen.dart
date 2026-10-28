@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/state_widgets.dart';
 import 'bill_detail_screen.dart';
 import 'group_detail_screen.dart';
@@ -153,25 +154,10 @@ class _EmptyInbox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.notifications_none,
-              size: 64,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'All caught up.\nNew bills, payments and invites will show up here.',
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+    return const EmptyState(
+      icon: Icons.notifications_none,
+      title: 'All caught up.',
+      subtitle: 'New bills, payments and invites will show up here.',
     );
   }
 }

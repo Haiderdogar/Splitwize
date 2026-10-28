@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show formatMoney;
 
@@ -145,25 +146,10 @@ class _AllSettled extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.account_balance_wallet_outlined,
-              size: 64,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'All settled up 🎉\nNo outstanding balances with anyone.',
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+    return const EmptyState(
+      icon: Icons.account_balance_wallet_outlined,
+      title: 'All settled up 🎉',
+      subtitle: 'No outstanding balances with anyone.',
     );
   }
 }
@@ -272,7 +258,7 @@ class _BalanceCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Row(
           children: [
             CircleAvatar(child: Text(balance.initials)),
