@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +27,9 @@ import 'services/notification_service.dart';
 final ValueNotifier<String?> startupFatalError = ValueNotifier<String?>(null);
 
 Future<void> main() async {
+  // Set once Firebase is up; the zone handler below only reports to
+  // Crashlytics when it is available (Firebase init may itself fail).
+  var crashlyticsReady = false;
   await runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
     // Firebase starts before any screen exists, so a failure here used to
@@ -37,6 +42,19 @@ Future<void> main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+      // Crash reporting, wired only once Firebase is up: framework
+      // errors and uncaught async errors now land in Crashlytics
+      // instead of vanishing, including native crashes (the Crashlytics
+      // SDK ships with the plugin; no extra native setup needed).
+      // No user identifiers are attached — reports carry opaque
+      // stack traces only.
+      FlutterError.onError =
+          FirebaseCrashlytics.instance.recordFlutterFatalError;
+      ui.PlatformDispatcher.instance.onError = (error, stack) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        return true;
+      };
+      crashlyticsReady = true;
       // Offline-first: the app caches everything in SQLite and syncs via
       // deltas, so Firestore's own disk cache is disabled to avoid keeping
       // two copies (and Firestore never fetches behind our back).
@@ -51,6 +69,22 @@ Future<void> main() async {
     }
     runApp(ProviderScope(child: SplitwizeApp(firebaseError: firebaseError)));
   }, (error, stack) {
+    // Report to Crashlytics when available (non-fatal: the app stays
+    // open on the error screen below instead of dying). Reporting
+    // itself must never break the error screen.
+    if (crashlyticsReady) {
+      try {
+        unawaited(
+          FirebaseCrashlytics.instance.recordError(
+            error,
+            stack,
+            fatal: false,
+          ),
+        );
+      } catch (_) {
+        // Ignore reporting failures entirely.
+      }
+    }
     // First fatal error wins; the running app rebuilds onto the
     // error screen below instead of dying.
     startupFatalError.value ??= '$error';

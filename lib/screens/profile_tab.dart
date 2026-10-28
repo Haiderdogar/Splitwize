@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/monetization_providers.dart';
+import '../utils/sign_out_guard.dart';
 import '../widgets/paywall_sheet.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show currencyLabel;
@@ -297,6 +298,26 @@ class ProfileTab extends StatelessWidget {
                       onTap: () => runGuarded(
                         context,
                         () async {
+                          // Guard: sign-out wipes the local database,
+                          // including the outbox of unsynced changes.
+                          // Drain first when possible; only ask the
+                          // user when changes would otherwise be lost.
+                          final repo =
+                              await ref.read(appRepositoryProvider.future);
+                          final sync =
+                              await ref.read(syncServiceProvider.future);
+                          final proceed = await resolveSignOut(
+                            pendingCount: repo.db.outboxCount,
+                            drain: sync.syncNow,
+                            confirm: (pending) async {
+                              if (!context.mounted) return false;
+                              return _confirmSignOutWithPendingChanges(
+                                context,
+                                pending,
+                              );
+                            },
+                          );
+                          if (!proceed) return;
                           final uid = ref.read(currentUidProvider);
                           if (uid != null) {
                             await ref
@@ -399,4 +420,37 @@ class _AdFreeTile extends StatelessWidget {
       },
     );
   }
+}
+
+/// Asks whether to sign out despite [pending] unsynced changes, which
+/// signing out would delete from this device. Returns true only when
+/// the user explicitly confirms.
+Future<bool> _confirmSignOutWithPendingChanges(
+  BuildContext context,
+  int pending,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Unsynced changes'),
+      content: Text(
+        'You have $pending change${pending == 1 ? '' : 's'} that '
+        "haven't synced yet. Signing out deletes them from this device.",
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
+          child: const Text('Sign out anyway'),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
 }
