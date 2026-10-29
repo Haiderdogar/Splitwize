@@ -32,11 +32,20 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("sharedDebug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "splitwize-debug"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Uses one fixed debug certificate for both local and GitHub builds.
+            // Replace this with a release keystore before Play Store publishing.
+            signingConfig = signingConfigs.getByName("sharedDebug")
             // Flutter may turn minify on via -Pshrink (see gradle.properties).
             // Keep rules are always listed so a future shrink=true build does
             // not strip AdMob/Firebase and crash on open again.
