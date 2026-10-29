@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for Firebase / network in release builds. Debug/profile
+         already declare this; release uses main/ only, so it must live here
+         too (plugins usually merge it, but keep it explicit). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Android 13+ only shows the notification permission prompt
          (firebase_messaging requestPermission) when this is declared.
          Without it, push notifications silently never appear. -->

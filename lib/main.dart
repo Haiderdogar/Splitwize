@@ -37,6 +37,10 @@ Future<void> main() async {
     // crash on a fresh install). Instead, capture the failure and still
     // start the app on a readable error screen, so the user can see —
     // and report — what actually went wrong.
+    //
+    // Native instant-close on Android release APKs is separate: see
+    // android/gradle.properties (shrink=false) and
+    // android/app/proguard-rules.pro — R8 was stripping AdMob/Firebase.
     String? firebaseError;
     try {
       await Firebase.initializeApp(
