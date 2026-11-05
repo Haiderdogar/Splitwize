@@ -69,6 +69,16 @@ class BillsTab extends StatelessWidget {
                   ),
                   data: (bills) {
                     final open = bills.where((bill) => !bill.fullySettled).length;
+                    // Keep totals separate by currency: mixing USD and PKR
+                    // would produce a misleading financial summary.
+                    final snapshots = <String, ({double owed, double owe})>{};
+                    for (final balance in ref.watch(balancesProvider)) {
+                      final current = snapshots[balance.currency] ?? (owed: 0.0, owe: 0.0);
+                      snapshots[balance.currency] = (
+                        owed: current.owed + (balance.net > 0 ? balance.net : 0.0),
+                        owe: current.owe + (balance.net < 0 ? balance.net.abs() : 0.0),
+                      );
+                    }
                     return ListView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
                       itemCount: bills.isEmpty ? 2 : bills.length + 1,
@@ -77,6 +87,7 @@ class BillsTab extends StatelessWidget {
                           return _BillsDashboardHeader(
                             billCount: bills.length,
                             openCount: open,
+                            snapshots: snapshots,
                             onSplit: () => Navigator.of(context).push(
                               MaterialPageRoute(builder: (_) => const CreateBillScreen()),
                             ),
@@ -120,6 +131,7 @@ class _BillsDashboardHeader extends StatelessWidget {
   const _BillsDashboardHeader({
     required this.billCount,
     required this.openCount,
+    required this.snapshots,
     required this.onSplit,
     required this.onGroups,
     required this.onBalances,
@@ -127,6 +139,7 @@ class _BillsDashboardHeader extends StatelessWidget {
 
   final int billCount;
   final int openCount;
+  final Map<String, ({double owed, double owe})> snapshots;
   final VoidCallback onSplit;
   final VoidCallback onGroups;
   final VoidCallback onBalances;
@@ -152,6 +165,19 @@ class _BillsDashboardHeader extends StatelessWidget {
             )),
           ]),
         ),
+        if (snapshots.isNotEmpty) ...[
+          const SizedBox(height: 21),
+          const AuroraSectionHeading(
+            'Your balance',
+            subtitle: 'What comes in, what goes out — by currency',
+          ),
+          for (final entry in snapshots.entries)
+            _AuroraBalanceSnapshot(
+              currency: entry.key,
+              owed: entry.value.owed,
+              owe: entry.value.owe,
+            ),
+        ],
         const SizedBox(height: 21),
         const AuroraSectionHeading('Quick actions', subtitle: 'Your essentials, one tap away'),
         Row(children: [
@@ -180,6 +206,62 @@ class _BillsDashboardHeader extends StatelessWidget {
           subtitle: billCount == 0 ? 'Your first bill will appear here' : 'Shared expenses at a glance',
         ),
       ],
+    );
+  }
+}
+
+class _AuroraBalanceSnapshot extends StatelessWidget {
+  const _AuroraBalanceSnapshot({
+    required this.currency,
+    required this.owed,
+    required this.owe,
+  });
+
+  final String currency;
+  final double owed;
+  final double owe;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 9),
+      elevation: 0,
+      color: scheme.surfaceContainerLowest,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(currency, style: const TextStyle(
+            color: AuroraPalette.indigo, fontSize: 11,
+            fontWeight: FontWeight.w900, letterSpacing: 1.2,
+          )),
+          const SizedBox(height: 9),
+          Row(children: [
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('You are owed', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 5),
+                FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+                  child: MoneyText(owed, currencyCode: currency,
+                    color: const Color(0xFF087D58))),
+              ],
+            )),
+            Container(height: 35, width: 1, color: scheme.outlineVariant),
+            const SizedBox(width: 13),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('You owe', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 5),
+                FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+                  child: MoneyText(owe, currencyCode: currency,
+                    color: const Color(0xFFB45A00))),
+              ],
+            )),
+          ]),
+        ]),
+      ),
     );
   }
 }
