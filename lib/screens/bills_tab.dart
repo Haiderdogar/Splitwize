@@ -7,6 +7,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../utils/money.dart';
 import '../widgets/ad_banner.dart';
+import '../widgets/app_drawer.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/money_text.dart';
 import '../widgets/split_bar.dart';
@@ -24,6 +25,7 @@ class BillsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const SplitwizeMenuButton(),
         title: const Text('Bills'),
         actions: [
           // Only the badge reacts to notification state.
