@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,168 +12,103 @@ import 'profile_tab.dart';
 class HomeShell extends StatelessWidget {
   const HomeShell({super.key});
 
-  static const _tabs = [
-    BillsTab(),
-    BalancesTab(),
-    GroupsTab(),
-    FriendsTab(),
-    ProfileTab(),
+  static const _tabs = [BillsTab(), BalancesTab(), GroupsTab(), FriendsTab(), ProfileTab()];
+  static const _items = <({IconData icon, IconData active, String label, Color color})>[
+    (icon: Icons.receipt_long_outlined, active: Icons.receipt_long_rounded, label: 'Bills', color: Color(0xFF19A995)),
+    (icon: Icons.account_balance_wallet_outlined, active: Icons.account_balance_wallet_rounded, label: 'Balances', color: Color(0xFF6574E8)),
+    (icon: Icons.groups_outlined, active: Icons.groups_rounded, label: 'Groups', color: Color(0xFFFFA34D)),
+    (icon: Icons.people_outline_rounded, active: Icons.people_rounded, label: 'Friends', color: Color(0xFFE66A9B)),
+    (icon: Icons.person_outline_rounded, active: Icons.person_rounded, label: 'Profile', color: Color(0xFF9A70E8)),
   ];
-
-  // These colors and dimensions mirror the floating glass navigation bar
-  // used in the Expense Tracker app. They are kept local so this UI-only
-  // update does not introduce dependencies into Splitwize.
-  static const _primaryEmerald = Color(0xFF2563EB);
-  static const _deepForest = Color(0xFF111827);
-  static const _mintAccent = Color(0xFF60A5FA);
-  static const _gray200 = Color(0xFFE2E8F0);
-  static const _gray400 = Color(0xFF94A3B8);
-  static const _gray600 = Color(0xFF475569);
 
   @override
   Widget build(BuildContext context) {
-    // Only the shell reacts to the selected tab.
-    return Consumer(
-      builder: (context, ref, _) {
-        final index = ref.watch(tabIndexProvider);
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-
-        return Scaffold(
-          key: splitwizeScaffoldKey,
-          drawer: const SplitwizeDrawer(),
-          extendBody: true,
-          body: IndexedStack(index: index, children: _tabs),
-          bottomNavigationBar: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(28),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                  child: Container(
-                    height: 62,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? _deepForest.withValues(alpha: 0.75)
-                          : Colors.white.withValues(alpha: 0.75),
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(
-                        color: isDark
-                            ? _mintAccent.withValues(alpha: 0.2)
-                            : _gray200.withValues(alpha: 0.8),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(
-                            alpha: isDark ? 0.3 : 0.08,
-                          ),
-                          blurRadius: 24,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildNavItem(
-                          index: 0,
-                          currentIndex: index,
-                          icon: Icons.receipt_long_outlined,
-                          activeIcon: Icons.receipt_long,
-                          label: 'Bills',
-                          isDark: isDark,
-                          onTap: (i) =>
-                              ref.read(tabIndexProvider.notifier).set(i),
-                        ),
-                        _buildNavItem(
-                          index: 1,
-                          currentIndex: index,
-                          icon: Icons.account_balance_wallet_outlined,
-                          activeIcon: Icons.account_balance_wallet,
-                          label: 'Balances',
-                          isDark: isDark,
-                          onTap: (i) =>
-                              ref.read(tabIndexProvider.notifier).set(i),
-                        ),
-                        _buildNavItem(
-                          index: 2,
-                          currentIndex: index,
-                          icon: Icons.group_outlined,
-                          activeIcon: Icons.group,
-                          label: 'Groups',
-                          isDark: isDark,
-                          onTap: (i) =>
-                              ref.read(tabIndexProvider.notifier).set(i),
-                        ),
-                        _buildNavItem(
-                          index: 3,
-                          currentIndex: index,
-                          icon: Icons.people_outline,
-                          activeIcon: Icons.people,
-                          label: 'Friends',
-                          isDark: isDark,
-                          onTap: (i) =>
-                              ref.read(tabIndexProvider.notifier).set(i),
-                        ),
-                        _buildNavItem(
-                          index: 4,
-                          currentIndex: index,
-                          icon: Icons.person_outline,
-                          activeIcon: Icons.person,
-                          label: 'Profile',
-                          isDark: isDark,
-                          onTap: (i) =>
-                              ref.read(tabIndexProvider.notifier).set(i),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+    return Consumer(builder: (context, ref, _) {
+      final index = ref.watch(tabIndexProvider);
+      final dark = Theme.of(context).brightness == Brightness.dark;
+      return Scaffold(
+        key: splitwizeScaffoldKey,
+        drawer: const SplitwizeDrawer(),
+        extendBody: true,
+        body: IndexedStack(index: index, children: _tabs),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(13, 0, 13, 8),
+            child: Container(
+              height: 70,
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+              decoration: BoxDecoration(
+                color: dark ? const Color(0xFF1A1D38) : Colors.white,
+                borderRadius: BorderRadius.circular(25),
+                border: Border.all(color: dark ? Colors.white12 : const Color(0xFFE5E7F8)),
+                boxShadow: [BoxShadow(
+                  color: const Color(0xFF353A80).withValues(alpha: dark ? .22 : .12),
+                  blurRadius: 28, offset: const Offset(0, 9))],
               ),
+              child: Row(children: [
+                for (var i = 0; i < _items.length; i++)
+                  Expanded(child: _NavDestination(
+                    item: _items[i], selected: index == i, dark: dark,
+                    onTap: () => ref.read(tabIndexProvider.notifier).set(i),
+                  )),
+              ]),
             ),
           ),
-        );
-      },
-    );
+        ),
+      );
+    });
   }
+}
 
-  Widget _buildNavItem({
-    required int index,
-    required int currentIndex,
-    required IconData icon,
-    required IconData activeIcon,
-    required String label,
-    required bool isDark,
-    required ValueChanged<int> onTap,
-  }) {
-    final selected = index == currentIndex;
-    final color = selected
-        ? _primaryEmerald
-        : (isDark ? _gray400 : _gray600);
+class _NavDestination extends StatelessWidget {
+  const _NavDestination({required this.item, required this.selected, required this.dark, required this.onTap});
+  final ({IconData icon, IconData active, String label, Color color}) item;
+  final bool selected;
+  final bool dark;
+  final VoidCallback onTap;
 
-    return Expanded(
+  @override
+  Widget build(BuildContext context) {
+    final muted = dark ? const Color(0xFFB4B8D0) : const Color(0xFF8589A4);
+    return Semantics(
+      button: true, selected: selected, label: item.label,
       child: InkWell(
-        onTap: () => onTap(index),
-        borderRadius: BorderRadius.circular(20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              selected ? activeIcon : icon,
-              color: color,
-              size: 24,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(19),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          decoration: BoxDecoration(
+            gradient: selected ? LinearGradient(
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [item.color.withValues(alpha: .20), item.color.withValues(alpha: .08)],
+            ) : null,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedScale(
+                  scale: selected ? 1.12 : 1,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutBack,
+                  child: Icon(selected ? item.active : item.icon, size: 23, color: selected ? item.color : muted),
+                ),
+                const SizedBox(height: 3),
+                Flexible(child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(item.label, maxLines: 1,
+                    style: TextStyle(fontSize: 10.5, fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      color: selected ? item.color : muted)),
+                )),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                color: color,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
