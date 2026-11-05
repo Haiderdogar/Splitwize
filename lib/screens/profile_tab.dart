@@ -8,6 +8,7 @@ import '../providers/data_providers.dart';
 import '../providers/monetization_providers.dart';
 import '../utils/sign_out_guard.dart';
 import '../widgets/paywall_sheet.dart';
+import '../widgets/app_drawer.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show currencyLabel;
 
@@ -161,7 +162,7 @@ class ProfileTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(leading: const SplitwizeMenuButton(), title: const Text('Profile')),
       // Only this subtree reacts to profile state.
       body: Consumer(
         builder: (context, ref, _) {
