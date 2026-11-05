@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/app_drawer.dart';
 import '../widgets/state_widgets.dart';
 import 'create_group_screen.dart';
 import 'group_detail_screen.dart';
@@ -15,7 +16,7 @@ class GroupsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Groups')),
+      appBar: AppBar(leading: const SplitwizeMenuButton(), title: const Text('Groups')),
       // Slivers + builder lists: cards are built lazily, only
       // for what's on screen.
       body: CustomScrollView(
