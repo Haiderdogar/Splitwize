@@ -51,6 +51,9 @@ dev_dependencies:
   custom_lint: ^0.8.0
   # Launcher icon generation (run after the android/ios folders exist)
   flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.8
+  # Deterministic splash sizing/padding from the shared launcher artwork.
+  image: ^4.12.0
 
 flutter:
   uses-material-design: true
@@ -68,3 +71,23 @@ flutter_launcher_icons:
   adaptive_icon_background: "#24117A"
   adaptive_icon_foreground: "assets/icon/app_icon.png"
   adaptive_icon_foreground_inset: 24
+
+# The native launch screen stays visible until Flutter's first frame.
+# main() already completes Firebase startup before runApp(), so no runtime
+# preserve/remove calls or artificial startup delay are needed.
+flutter_native_splash:
+  android: true
+  ios: true
+  web: false
+  color: "#F6F7FF"
+  color_dark: "#101225"
+  image: assets/splash/splash_icon.png
+  image_dark: assets/splash/splash_icon.png
+  android_gravity: center
+  ios_content_mode: center
+  fullscreen: false
+  android_12:
+    color: "#F6F7FF"
+    color_dark: "#101225"
+    image: assets/splash/splash_android12.png
+    image_dark: assets/splash/splash_android12.png

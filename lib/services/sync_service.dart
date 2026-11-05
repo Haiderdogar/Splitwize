@@ -69,8 +69,9 @@ class SyncService {
 
   final _state = StreamController<SyncState>.broadcast();
   SyncState _current = const SyncState();
-  bool _syncing = false;
+  Future<void>? _activeSync;
   bool _queued = false;
+  bool _disposed = false;
   StreamSubscription? _connectivitySub;
   bool _started = false;
 
@@ -80,13 +81,14 @@ class SyncService {
   String get myUid => repository.myUid;
 
   void _emit(SyncState s) {
+    if (_disposed) return;
     _current = s;
     if (!_state.isClosed) _state.add(s);
   }
 
   /// Starts the connectivity listener and runs the first sync.
   Future<void> init() async {
-    if (_started) return;
+    if (_started || _disposed) return;
     _started = true;
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       final online = results.any((r) => r != ConnectivityResult.none);
@@ -103,15 +105,32 @@ class SyncService {
 
   /// Pushes pending mutations, then pulls deltas. Safe to call often;
   /// concurrent calls collapse into one.
-  Future<void> syncNow() async {
-    if (_syncing) {
+  Future<void> syncNow() {
+    if (_disposed) return Future.value();
+    final active = _activeSync;
+    if (active != null) {
       _queued = true;
-      return;
+      return active;
     }
-    _syncing = true;
+    return _activeSync = _runSync();
+  }
+
+  Future<void> _runSync() async {
+    try {
+      do {
+        _queued = false;
+        await _syncOnce();
+      } while (_queued && !_disposed);
+    } finally {
+      _activeSync = null;
+    }
+  }
+
+  Future<void> _syncOnce() async {
     _emit(_current.copyWith(syncing: true, error: null));
     try {
       final online = await _isOnline();
+      if (_disposed) return;
       _emit(_current.copyWith(online: online));
       if (!online) {
         _emit(_current.copyWith(
@@ -119,8 +138,11 @@ class SyncService {
         return;
       }
       await _pushOutbox();
+      if (_disposed) return;
       await _pushReadFlags();
+      if (_disposed) return;
       await _pullDeltas();
+      if (_disposed) return;
       repository.notifyChanged();
       _emit(_current.copyWith(
         syncing: false,
@@ -128,17 +150,12 @@ class SyncService {
         pending: await repository.db.outboxCount(),
       ));
     } catch (e) {
+      if (_disposed) return;
       _emit(_current.copyWith(
         syncing: false,
         error: e.toString(),
         pending: await repository.db.outboxCount(),
       ));
-    } finally {
-      _syncing = false;
-      if (_queued) {
-        _queued = false;
-        unawaited(syncNow());
-      }
     }
   }
 
@@ -155,22 +172,31 @@ class SyncService {
 
   Future<void> _pushOutbox() async {
     final db = repository.db;
-    for (final op in await db.peekOutbox()) {
-      final id = op['id'] as int;
-      final type = op['type'] as String;
-      final payload = op['payload'] as Map<String, dynamic>;
-      try {
-        await _execute(type, payload);
-        await db.removeOutbox(id);
-        // Bill/group creates flip their local rows to synced.
-        if (type == 'bill.create') {
-          await db.markBillSynced((payload['bill'] as Map)['id'] as String);
-        } else if (type == 'group.create') {
-          await db.markGroupSynced((payload['group'] as Map)['id'] as String);
+    // peekOutbox is bounded to 200 rows. Keep draining before pulling,
+    // otherwise a stale pull can overwrite edits still in later batches.
+    while (!_disposed) {
+      final batch = await db.peekOutbox();
+      if (batch.isEmpty || _disposed) return;
+      for (final op in batch) {
+        if (_disposed) return;
+        final id = op['id'] as int;
+        final type = op['type'] as String;
+        final payload = op['payload'] as Map<String, dynamic>;
+        try {
+          await _execute(type, payload);
+          if (_disposed) return;
+          await db.removeOutbox(id);
+          // Bill/group creates flip their local rows to synced.
+          if (type == 'bill.create') {
+            await db.markBillSynced((payload['bill'] as Map)['id'] as String);
+          } else if (type == 'group.create') {
+            await db.markGroupSynced((payload['group'] as Map)['id'] as String);
+          }
+        } catch (_) {
+          if (_disposed) return;
+          await db.bumpOutboxRetries(id);
+          rethrow; // preserve order — retry everything next time
         }
-      } catch (_) {
-        await db.bumpOutboxRetries(id);
-        rethrow; // preserve order — retry everything next time
       }
     }
   }
@@ -264,8 +290,13 @@ class SyncService {
     // the bill goes out without one. The queued payload is only a
     // fallback for a row that no longer exists.
     final localBill = await repository.billById(billId);
-    final localPath =
-        localBill?.receiptLocalPath ?? (billMap['receiptLocalPath'] as String?);
+    final localPath = localBill != null
+        ? localBill.receiptLocalPath
+        : billMap['receiptLocalPath'] as String?;
+    if (localBill != null) {
+      billMap['receiptImageUrl'] = localBill.receiptImageUrl;
+      billMap['receiptLocalPath'] = localPath;
+    }
     String? uploadedUrl;
     if (localPath != null && localPath.isNotEmpty) {
       final file = File(localPath);
@@ -284,6 +315,7 @@ class SyncService {
       }
     }
     await remote.pushBill(billMap);
+    if (_disposed) return;
     if (uploadedUrl != null) {
       await repository.applyReceiptUploaded(billId, uploadedUrl);
       try {
@@ -328,8 +360,10 @@ class SyncService {
   /// Pushes read flags for notifications marked read while offline.
   Future<void> _pushReadFlags() async {
     for (final id in await repository.db.pendingReadNotificationIds()) {
+      if (_disposed) return;
       try {
         await remote.markNotificationRead(id);
+        if (_disposed) return;
         await repository.db.markNotificationSynced(id);
       } catch (_) {
         // Leave pending — the next sync will retry.
@@ -372,6 +406,7 @@ class SyncService {
       final cur = await readCursor('cursor_bills');
       final since = cur?.subtract(_overlap);
       final bills = await remote.fetchBillsDelta(myUid, since: since);
+      if (_disposed) return;
       for (final b in bills) {
         await repository.applyRemoteBill(b);
       }
@@ -383,6 +418,7 @@ class SyncService {
       final cur = await readCursor('cursor_groups');
       final since = cur?.subtract(_overlap);
       final groups = await remote.fetchGroupsDelta(myUid, since: since);
+      if (_disposed) return;
       for (final g in groups) {
         await repository.applyRemoteGroup(g);
       }
@@ -394,6 +430,7 @@ class SyncService {
       final cur = await readCursor('cursor_notifications');
       final since = cur?.subtract(_overlap);
       final notifs = await remote.fetchNotificationsDelta(myUid, since: since);
+      if (_disposed) return;
       for (final n in notifs) {
         await repository.applyRemoteNotification(n);
       }
@@ -406,6 +443,7 @@ class SyncService {
       final cur = await readCursor('cursor_requests');
       final since = cur?.subtract(_overlap);
       final requests = await remote.fetchRequests(myUid, since: since);
+      if (_disposed) return;
       for (final r in requests) {
         await repository.applyRemoteRequest(r);
       }
@@ -416,6 +454,7 @@ class SyncService {
     // Connections (full refresh — mirror docs are tiny) ---------------
     {
       final mirrors = await remote.fetchConnectionMirrors(myUid);
+      if (_disposed) return;
       await repository.applyRemoteConnections(mirrors);
       // Resolve display names for anyone referenced by bills/groups who
       // we haven't cached a real profile for — best effort.
@@ -437,6 +476,7 @@ class SyncService {
       if (missing.isNotEmpty) {
         try {
           final users = await remote.fetchUsers(missing.take(50).toList());
+          if (_disposed) return;
           for (final u in users) {
             await repository.db.upsertUser(u.uid, u.toProfileMap());
           }
@@ -446,6 +486,10 @@ class SyncService {
   }
 
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _queued = false;
+    repository.requestSync = null;
     _connectivitySub?.cancel();
     _state.close();
   }

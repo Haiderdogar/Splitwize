@@ -1,4 +1,4 @@
-name: Generate Android and iOS App Icons
+name: Generate Android and iOS Icons and Splash Screens
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
     paths:
       - 'assets/icon/app_icon.png'
       - 'pubspec.yaml'
+      - 'tool/generate_splash_assets.dart'
       - '.github/workflows/generate-app-icons.yml'
   workflow_dispatch:
 
@@ -38,20 +39,25 @@ jobs:
       - name: Generate native Android and iOS launcher assets
         run: dart run flutter_launcher_icons
 
-      - name: Commit regenerated platform icons
+      - name: Generate native Android and iOS splash screens
+        run: |
+          dart run tool/generate_splash_assets.dart
+          dart run flutter_native_splash:create
+
+      - name: Commit regenerated platform branding
         shell: bash
         run: |
-          git add android/app/src/main/res ios/Runner/Assets.xcassets/AppIcon.appiconset
+          git add android/app/src/main/res assets/splash ios/Runner/Assets.xcassets ios/Runner/Base.lproj/LaunchScreen.storyboard ios/Runner/Info.plist
           if git diff --cached --quiet; then
-            echo "Launcher assets already match the new icon."
+            echo "Launcher and splash assets already match the current icon."
             exit 0
           fi
           git -c user.name='github-actions[bot]' \
               -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-              commit -m 'Regenerate native Android and iOS icons for Splitwize'
+              commit -m 'Regenerate native Android and iOS icons and splash screens'
           # Flutter tooling can update pubspec.lock in the runner;
           # discard only uncommitted generated-local changes after the
-          # dedicated native icon commit is safely created.
+          # dedicated native branding commit is safely created.
           git reset --hard HEAD
           git pull --rebase origin main
           git push origin HEAD:main

@@ -38,7 +38,7 @@ async function pruneBadTokens(db, uid, tokens, responses) {
     await db
       .collection("users")
       .doc(uid)
-      .update({ fcmTokens: admin.firestore.FieldValue.arrayRemove(bad) });
+      .update({ fcmTokens: admin.firestore.FieldValue.arrayRemove(...bad) });
   }
 }
 

@@ -10,8 +10,13 @@ double? unallocatedRemainder({
   required Map<String, String> amounts,
   required double total,
 }) {
-  double parse(String? v) =>
-      double.tryParse((v ?? '').replaceAll(',', '.')) ?? 0;
+  double parse(String? v) {
+    final value = double.tryParse((v ?? '').replaceAll(',', '.'));
+    return value != null && value.isFinite && value.abs() <= 90071992547409
+        ? value
+        : 0;
+  }
+
   switch (splitType) {
     case 'percentage':
       var sum = 0.0;
@@ -20,11 +25,11 @@ double? unallocatedRemainder({
       }
       return 100 - sum;
     case 'custom':
-      var sum = 0.0;
+      var sumCents = 0;
       for (final uid in selected) {
-        sum += parse(amounts[uid]);
+        sumCents += (parse(amounts[uid]) * 100).round();
       }
-      return total - sum;
+      return ((total * 100).round() - sumCents) / 100;
     default:
       return null;
   }

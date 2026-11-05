@@ -40,9 +40,13 @@ class SplitBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = segments.fold(0.0, (sum, s) => sum + s.value);
-    final visible = segments.where((s) => s.value > 0).toList();
-    if (total <= 0 || visible.isEmpty) return const SizedBox.shrink();
+    final visible =
+        segments.where((s) => s.value.isFinite && s.value > 0).toList();
+    if (visible.isEmpty) return const SizedBox.shrink();
+    // Normalise before summing so large pasted values cannot overflow.
+    final largest =
+        visible.fold(0.0, (max, s) => s.value > max ? s.value : max);
+    final total = visible.fold(0.0, (sum, s) => sum + s.value / largest);
     return Semantics(
       label: 'Split between ${visible.length} people',
       child: ClipRRect(
@@ -54,7 +58,8 @@ class SplitBar extends StatelessWidget {
               for (final s in visible)
                 Expanded(
                   // Proportional flex, rounded so shares add to 1000.
-                  flex: (s.value / total * 1000).round().clamp(1, 1000),
+                  flex:
+                      (s.value / largest / total * 1000).round().clamp(1, 1000),
                   child: Container(color: s.color),
                 ),
             ],

@@ -98,6 +98,38 @@ void main() {
       expect(await form().submit(), contains('amount'));
     });
 
+    for (final value in ['NaN', 'Infinity', '1e309', '0.001']) {
+      test('invalid bill amount $value is rejected without throwing', () async {
+        fillValid();
+        form().setSubtotal(value);
+        expect(await form().submit(), isNotNull);
+        expect(await repo.watchMyBills().first, isEmpty);
+      });
+    }
+
+    test('non-finite percentages and custom amounts are rejected', () async {
+      fillValid();
+      form().setSplitType('percentage');
+      form().setPercent('me', 'NaN');
+      form().setPercent('fa', '50');
+      form().setPercent('fb', '50');
+      expect(await form().submit(), isNotNull);
+
+      form().setSplitType('custom');
+      form().setAmount('me', 'NaN');
+      form().setAmount('fa', '50');
+      form().setAmount('fb', '50');
+      expect(await form().submit(), isNotNull);
+      expect(await repo.watchMyBills().first, isEmpty);
+    });
+
+    test('overlapping submissions create only one bill', () async {
+      fillValid();
+      final results = await Future.wait([form().submit(), form().submit()]);
+      expect(results.where((error) => error == null), hasLength(1));
+      expect(await repo.watchMyBills().first, hasLength(1));
+    });
+
     test('nobody selected is rejected', () async {
       form().setTitle('X');
       form().setSubtotal('50');
@@ -106,6 +138,42 @@ void main() {
   });
 
   group('split math', () {
+    test('percentage rounding preserves the exact bill total', () async {
+      fillValid();
+      form().setSubtotal('1');
+      form().setSplitType('percentage');
+      form().setPercent('me', '33.33');
+      form().setPercent('fa', '33.33');
+      form().setPercent('fb', '33.34');
+      expect(await form().submit(), isNull);
+      final bill = (await repo.watchMyBills().first).single;
+      expect(
+          bill.splits.fold<int>(0, (sum, s) => sum + (s.amount * 100).round()),
+          (bill.total * 100).round());
+    });
+
+    test('custom shares cannot leave an unpaid cent unallocated', () async {
+      fillValid();
+      form().setSplitType('custom');
+      form().setAmount('me', '33.33');
+      form().setAmount('fa', '33.33');
+      form().setAmount('fb', '33.33');
+      expect(await form().submit(), isNotNull);
+      expect(await repo.watchMyBills().first, isEmpty);
+    });
+
+    test('subtotal and tip total use the same cents as the stored shares',
+        () async {
+      fillValid();
+      form().setSubtotal('10.009');
+      form().setTip(10);
+      expect(await form().submit(), isNull);
+      final bill = (await repo.watchMyBills().first).single;
+      expect(bill.subtotal, 10.01);
+      expect(bill.total, 11.01);
+      expect(bill.splits.fold<double>(0, (sum, s) => sum + s.amount),
+          closeTo(bill.total, 0.00001));
+    });
     test('equal split distributes whole cents exactly', () async {
       fillValid(); // 100.00 among me + A + B
       expect(await form().submit(), isNull);

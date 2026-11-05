@@ -74,20 +74,10 @@ service cloud.firestore {
     // whole settlement flow breaks.
     match /bills/{billId} {
       function coreUnchanged() {
-        return request.resource.data.createdBy == resource.data.createdBy
-          && request.resource.data.createdAt == resource.data.createdAt
-          && request.resource.data.title == resource.data.title
-          && request.resource.data.subtotal == resource.data.subtotal
-          && request.resource.data.tipPercent == resource.data.tipPercent
-          && request.resource.data.total == resource.data.total
-          && request.resource.data.splitType == resource.data.splitType
-          && request.resource.data.currency == resource.data.currency
-          && request.resource.data.groupId == resource.data.groupId
-          && request.resource.data.groupName == resource.data.groupName
-          && request.resource.data.createdByName == resource.data.createdByName
-          && request.resource.data.receiptImageUrl == resource.data.receiptImageUrl
-          && request.resource.data.participantIds == resource.data.participantIds
-          && request.resource.data.deleted == resource.data.deleted;
+        // Optional fields (e.g. a removed receiptImageUrl) may be absent.
+        // Accessing a missing field rejects the entire settlement write.
+        return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['splits', 'updatedAt']);
       }
       allow read: if signedIn() &&
         request.auth.uid in resource.data.participantIds;

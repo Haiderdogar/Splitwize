@@ -215,7 +215,7 @@ class AppRepository {
     String? receiptLocalPath,
     required String currency,
   }) async {
-    final total = subtotal * (1 + tipPercent / 100);
+    final total = (subtotal * (1 + tipPercent / 100) * 100).round() / 100;
     final participantIds = splits.map((s) => s.uid).toSet().toList();
     if (!participantIds.contains(creator.uid)) {
       participantIds.add(creator.uid);

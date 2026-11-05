@@ -81,10 +81,21 @@ class CreateBillFormState {
     this.receiptBusy = false,
   });
 
-  double get subtotalValue =>
-      double.tryParse(subtotal.replaceAll(',', '.')) ?? 0;
+  double get subtotalValue {
+    final value = double.tryParse(subtotal.replaceAll(',', '.'));
+    // Keep cents within the exact integer range, and keep invalid pasted
+    // values out of previews as well as submission.
+    if (value == null || !value.isFinite || value.abs() > 90071992547409) {
+      return 0;
+    }
+    return (value * 100).round() / 100;
+  }
 
-  double get total => subtotalValue * (1 + tipPercent / 100);
+  double get total {
+    final value = subtotalValue * (1 + tipPercent / 100);
+    if (!value.isFinite || value.abs() > 90071992547409) return 0;
+    return (value * 100).round() / 100;
+  }
 
   CreateBillFormState copyWith({
     String? title,
@@ -240,15 +251,34 @@ class CreateBillForm extends _$CreateBillForm {
   /// Validates and creates the bill. Returns null on success, an error
   /// message otherwise.
   Future<String?> submit() async {
+    if (state.saving) return 'A bill is already being saved.';
+    if (state.receiptBusy) return 'Wait for the receipt photo to finish.';
+    final draft = state;
+    // Lock before the first await so quick repeated taps cannot create
+    // duplicates. Use one snapshot even if fields change during a save.
+    state = state.copyWith(saving: true);
+    try {
+      return await _submit(draft);
+    } finally {
+      if (ref.mounted) state = state.copyWith(saving: false);
+    }
+  }
+
+  Future<String?> _submit(CreateBillFormState draft) async {
     final uid = ref.read(currentUidProvider);
     if (uid == null) return 'Not signed in.';
     final members =
         ref.read(createBillMembersProvider).value ?? const <AppUser>[];
     final selectedMembers =
-        members.where((m) => state.selected.contains(m.uid)).toList();
+        members.where((m) => draft.selected.contains(m.uid)).toList();
 
-    if (state.title.trim().isEmpty) return 'Give the bill a title.';
-    if (state.subtotalValue <= 0) return 'Enter the bill amount.';
+    if (draft.title.trim().isEmpty) return 'Give the bill a title.';
+    if (draft.subtotalValue <= 0 || draft.total <= 0) {
+      return 'Enter a valid bill amount.';
+    }
+    if (!draft.tipPercent.isFinite || draft.tipPercent < 0) {
+      return 'Enter a valid tip percentage.';
+    }
     if (selectedMembers.isEmpty) return 'Select at least one person.';
 
     late final AppRepository repo;
@@ -263,10 +293,10 @@ class CreateBillForm extends _$CreateBillForm {
       if (profile == null) return 'Profile not found.';
       me = profile;
       currency = me.currencyCode;
-      if (state.groupId != null) {
+      if (draft.groupId != null) {
         final groups = await ref.read(myGroupsProvider.future);
         for (final g in groups) {
-          if (g.id == state.groupId) {
+          if (g.id == draft.groupId) {
             groupName = g.name;
             currency = g.currency;
           }
@@ -276,10 +306,10 @@ class CreateBillForm extends _$CreateBillForm {
       return 'Could not create bill: $e';
     }
 
-    final total = state.total;
+    final total = draft.total;
     final splits = <BillSplit>[];
 
-    if (state.splitType == 'equal') {
+    if (draft.splitType == 'equal') {
       // Whole cents so shares always add up exactly.
       final totalCents = (total * 100).round();
       final base = totalCents ~/ selectedMembers.length;
@@ -291,13 +321,13 @@ class CreateBillForm extends _$CreateBillForm {
           amount: (base + (i < remainder ? 1 : 0)) / 100,
         ));
       }
-    } else if (state.splitType == 'percentage') {
+    } else if (draft.splitType == 'percentage') {
       double sum = 0;
       final pcts = <String, double>{};
       for (final m in selectedMembers) {
         final p =
-            double.tryParse((state.percents[m.uid] ?? '').replaceAll(',', '.'));
-        if (p == null || p < 0) {
+            double.tryParse((draft.percents[m.uid] ?? '').replaceAll(',', '.'));
+        if (p == null || !p.isFinite || p < 0 || p > 100) {
           return 'Enter a valid percentage for ${m.displayName}.';
         }
         pcts[m.uid] = p;
@@ -306,59 +336,74 @@ class CreateBillForm extends _$CreateBillForm {
       if ((sum - 100).abs() > 0.01) {
         return 'Percentages add up to ${sum.toStringAsFixed(1)}% — they must total 100%.';
       }
-      for (final m in selectedMembers) {
+      // Largest-remainder allocation keeps the sum exact even when every
+      // individual percentage would round down (or up).
+      final totalCents = (total * 100).round();
+      final quotas = [
+        for (final m in selectedMembers) totalCents * (pcts[m.uid]! / sum),
+      ];
+      final cents = quotas.map((q) => q.floor()).toList();
+      final order = List.generate(cents.length, (i) => i)
+        ..sort((a, b) {
+          final comparison =
+              (quotas[b] - cents[b]).compareTo(quotas[a] - cents[a]);
+          return comparison == 0 ? a.compareTo(b) : comparison;
+        });
+      final remainder = totalCents - cents.fold<int>(0, (a, b) => a + b);
+      for (var i = 0; i < remainder; i++) {
+        cents[order[i % order.length]]++;
+      }
+      for (var i = 0; i < selectedMembers.length; i++) {
+        final m = selectedMembers[i];
         splits.add(BillSplit(
           uid: m.uid,
           displayName: m.displayName,
-          amount: (total * pcts[m.uid]! / 100 * 100).round() / 100,
+          amount: cents[i] / 100,
           percent: pcts[m.uid],
         ));
       }
     } else {
-      double sum = 0;
-      final amts = <String, double>{};
+      var sumCents = 0;
+      final amts = <String, int>{};
       for (final m in selectedMembers) {
         final a =
-            double.tryParse((state.amounts[m.uid] ?? '').replaceAll(',', '.'));
-        if (a == null || a < 0) {
+            double.tryParse((draft.amounts[m.uid] ?? '').replaceAll(',', '.'));
+        if (a == null || !a.isFinite || a < 0 || a > 90071992547409) {
           return 'Enter a valid amount for ${m.displayName}.';
         }
-        amts[m.uid] = a;
-        sum += a;
+        amts[m.uid] = (a * 100).round();
+        sumCents += amts[m.uid]!;
       }
-      if ((sum - total).abs() > 0.02) {
-        return 'Custom amounts total ${formatMoney(sum, currency)} but the bill is ${formatMoney(total, currency)}.';
+      if (sumCents != (total * 100).round()) {
+        return 'Custom amounts total ${formatMoney(sumCents / 100, currency)} but the bill is ${formatMoney(total, currency)}.';
       }
       for (final m in selectedMembers) {
         splits.add(BillSplit(
           uid: m.uid,
           displayName: m.displayName,
-          amount: (amts[m.uid]! * 100).round() / 100,
+          amount: amts[m.uid]! / 100,
         ));
       }
     }
 
-    state = state.copyWith(saving: true);
     try {
       // Local-first: the bill is created in SQLite instantly (works
       // offline) and queued for Firestore sync in the background.
       await repo.createBill(
-        title: state.title.trim(),
-        subtotal: (state.subtotalValue * 100).round() / 100,
-        tipPercent: state.tipPercent,
+        title: draft.title.trim(),
+        subtotal: draft.subtotalValue,
+        tipPercent: draft.tipPercent,
         creator: me,
-        groupId: state.groupId,
+        groupId: draft.groupId,
         groupName: groupName,
-        splitType: state.splitType,
+        splitType: draft.splitType,
         splits: splits,
-        receiptLocalPath: state.receiptPath,
+        receiptLocalPath: draft.receiptPath,
         currency: currency,
       );
       return null;
     } catch (e) {
       return 'Could not create bill: $e';
-    } finally {
-      state = state.copyWith(saving: false);
     }
   }
 }

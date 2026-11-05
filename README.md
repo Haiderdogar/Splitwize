@@ -11,9 +11,9 @@ tiny.
 
 ## Features
 
-- **App icon & native splash** — custom icon (a receipt split between
-  two friends on the teal gradient) shown centered on the native launch
-  splash (light + dark + Android 12 variants)
+- **App icon & native splash** — the current Splitwize logo appears in
+  the launcher and centered on the native launch screen, with light,
+  dark, and Android 12 variants
 - **Onboarding** — a 3-page animated intro (split bills · stay in the
   loop · offline sync) shown exactly once per install; Skip or
   "Get started" marks it seen (flag in secure storage, survives
@@ -260,23 +260,29 @@ iOS (`ios/Runner/Info.plist`):
 Receipts are stored at `receipts/{billId}.jpg` in Firebase Storage and
 linked from the bill document as `receiptImageUrl`.
 
-### 3c. App icon & native splash (platform scaffold)
+### 3c. App icon & native splash
 
-The icon (a receipt split between two friends, on the teal gradient —
-`assets/icon/app_icon.png`, 1024×1024 master) and the native splash
-(app icon centered on matching teal, via `flutter_native_splash`) are
-configured in `pubspec.yaml`. Once the `android/` + `ios/` folders exist
-(`flutter create .`), generate the native side with:
+The current Splitwize logo (`assets/icon/app_icon.png`) supplies both the
+launcher icons and native splash screens. Configuration lives in
+`pubspec.yaml`. Regenerate the Android and iOS resources with:
 
 ```bash
-dart run flutter_launcher_icons     # launcher icons (incl. adaptive)
-dart run flutter_native_splash:create   # splash screens, incl. Android 12
+flutter pub get
+dart run flutter_launcher_icons
+dart run tool/generate_splash_assets.dart
+dart run flutter_native_splash:create
 ```
 
-Re-run both if you change the config (`flutter_native_splash:` /
-`flutter_launcher_icons:` sections in `pubspec.yaml`). Android uses the
-receipt motif alone (`assets/splash/splash_icon.png`) as the adaptive
-icon foreground so it survives the circular mask.
+The preparation script sizes the shared artwork and creates a padded
+Android 12 image so its circular mask preserves the entire logo. Light
+(`#F6F7FF`) and dark (`#101225`) backgrounds match the app themes. The
+splash stays visible during Firebase initialization and disappears when
+Flutter draws its first frame; no artificial delay is added.
+
+Both branding workflows regenerate these resources automatically. Rebuild
+and reinstall the app to see native splash changes; hot reload cannot
+update them. Windows desktop plugin setup requires Developer Mode for
+symlinks; Android/iOS asset generation works independently.
 
 ### 4. Run the app
 ```bash

@@ -15,6 +15,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  functions-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Test notification handlers
+        run: node --test functions/test/notifications.test.js
+
   analyze-and-test:
     runs-on: ubuntu-latest
     steps:
@@ -50,6 +62,7 @@ jobs:
         run: flutter test --concurrency=1
 
   build-android-split-apks:
+    needs: [analyze-and-test, functions-test]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -92,6 +105,11 @@ jobs:
 
       - name: Generate current Android launcher icons
         run: dart run flutter_launcher_icons
+
+      - name: Generate native splash screens
+        run: |
+          dart run tool/generate_splash_assets.dart
+          dart run flutter_native_splash:create
 
       - name: Set release version
         id: version

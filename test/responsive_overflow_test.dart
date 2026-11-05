@@ -35,6 +35,7 @@ import 'package:splitwize/screens/onboarding_screen.dart';
 import 'package:splitwize/screens/profile_tab.dart';
 import 'package:splitwize/screens/sign_in_screen.dart';
 import 'package:splitwize/services/sync_service.dart';
+import 'package:splitwize/widgets/app_drawer.dart';
 
 // ---------------------------------------------------------------------------
 // Stress data: long strings + big amounts on purpose.
@@ -297,6 +298,27 @@ void main() {
     'CreateGroup': const CreateGroupScreen(),
     'HomeShell': const HomeShell(),
   };
+
+  for (final size in [const Size(640, 360), const Size(320, 568)]) {
+    testWidgets('open drawer fits $size at 2x text', (tester) async {
+      addTearDown(() => tester.view.reset());
+      await pumpAt(tester, const HomeShell(), size: size, textScale: 2);
+      splitwizeScaffoldKey.currentState!.openDrawer();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.takeException(), isNull);
+      final drawerScroll = find.descendant(
+          of: find.byType(Drawer), matching: find.byType(Scrollable));
+      for (final label in ['Notifications', 'Log out']) {
+        final item = find.descendant(
+            of: find.byType(Drawer), matching: find.text(label));
+        await tester.scrollUntilVisible(item, 100, scrollable: drawerScroll);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(item.hitTestable(), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+    });
+  }
 
   for (final screen in screens.entries) {
     for (final size in sizes.entries) {

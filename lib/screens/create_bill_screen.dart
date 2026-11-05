@@ -660,7 +660,7 @@ List<SplitSegment> _previewSegments({
 
 /// Remainder line for percentage/custom splits: what's left, what's
 /// over, or fully allocated. Thresholds match submit-time validation
-/// (0.01 percent points, 2 cents).
+/// (0.01 percent points, exact whole cents).
 String _remainderText({
   required String splitType,
   required double remainder,
@@ -675,7 +675,7 @@ String _remainderText({
     }
     return 'Over by ${(-remainder).toStringAsFixed(1)}%';
   }
-  if (remainder.abs() < 0.02) {
+  if (remainder.abs() < 0.005) {
     return 'Fully allocated';
   }
   if (remainder > 0) {

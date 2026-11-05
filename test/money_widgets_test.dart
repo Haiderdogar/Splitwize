@@ -18,6 +18,26 @@ void main() {
   });
 
   group('SplitBar', () {
+    testWidgets('invalid and very large preview values cannot crash the bar',
+        (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+          home: Scaffold(
+              body: SplitBar(
+        segments: [
+          SplitSegment(value: double.nan, color: Colors.red),
+          SplitSegment(value: double.infinity, color: Colors.red),
+          SplitSegment(value: 1e308, color: Colors.teal),
+          SplitSegment(value: 1e308, color: Colors.orange),
+        ],
+      ))));
+      expect(tester.takeException(), isNull);
+      final parts = tester
+          .widgetList<Expanded>(find.descendant(
+              of: find.byType(SplitBar), matching: find.byType(Expanded)))
+          .toList();
+      expect(parts, hasLength(2));
+      expect(parts.map((part) => part.flex), [500, 500]);
+    });
     testWidgets('renders proportional segments without overflow',
         (tester) async {
       await tester.pumpWidget(

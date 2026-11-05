@@ -3,6 +3,27 @@ import 'package:splitwize/utils/split_math.dart';
 
 void main() {
   group('unallocatedRemainder', () {
+    test('non-finite entries count as zero in the preview', () {
+      expect(
+          unallocatedRemainder(
+              splitType: 'percentage',
+              selected: {'a', 'b'},
+              percents: {'a': 'NaN', 'b': 'Infinity'},
+              amounts: {},
+              total: 100),
+          100);
+    });
+
+    test('custom preview rounds each share to cents like submission', () {
+      expect(
+          unallocatedRemainder(
+              splitType: 'custom',
+              selected: {'a', 'b'},
+              percents: {},
+              amounts: {'a': '0.004', 'b': '0.006'},
+              total: 0.01),
+          0);
+    });
     test('percentage: 100 minus the entered percents', () {
       expect(
         unallocatedRemainder(
