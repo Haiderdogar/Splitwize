@@ -103,6 +103,9 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Verify release Google Sign-In configuration
+        run: dart run tool/verify_android_sign_in.dart
+
       - name: Generate current Android launcher icons
         run: dart run flutter_launcher_icons
 

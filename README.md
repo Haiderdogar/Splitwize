@@ -216,6 +216,8 @@ This replaces `lib/firebase_options.dart` with real config and drops
 `google-services.json` / `GoogleService-Info.plist` into place.
 
 Android extras:
+- For Google sign-in error 10 in GitHub release APKs, follow
+  [the release sign-in configuration guide](docs/ANDROID_GOOGLE_SIGN_IN.md).
 - Add your **SHA-1** (debug + release) under Project settings → Android app,
   otherwise Google Sign-In fails on Android. Debug SHA-1:
   ```bash
