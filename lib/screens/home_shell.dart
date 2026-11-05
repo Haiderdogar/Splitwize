@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/core_providers.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/animated_3d.dart';
 import 'balances_tab.dart';
 import 'bills_tab.dart';
 import 'friends_tab.dart';
@@ -97,7 +98,11 @@ class _NavDestination extends StatelessWidget {
                   scale: selected ? 1.12 : 1,
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOutBack,
-                  child: Icon(selected ? item.active : item.icon, size: 23, color: selected ? item.color : muted),
+                  child: Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()..setEntry(3, 2, .002)..rotateY(selected ? -.20 : 0),
+                    child: Icon(selected ? item.active : item.icon, size: 23, color: selected ? item.color : muted),
+                  ),
                 ),
                 const SizedBox(height: 3),
                 Flexible(child: FittedBox(

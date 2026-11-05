@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/core_providers.dart';
+import 'animated_3d.dart';
 import '../providers/data_providers.dart';
 import '../screens/notifications_screen.dart';
 
@@ -58,7 +59,7 @@ class SplitwizeDrawer extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _AnimatedBrandMark(),
+                  const Splitwize3DBrand(size: 62),
                   const SizedBox(height: 18),
                   const Text('Splitwize', style: TextStyle(
                     color: Colors.white, fontSize: 27, fontWeight: FontWeight.w800,
