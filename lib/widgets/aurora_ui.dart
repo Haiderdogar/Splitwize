@@ -40,10 +40,14 @@ class AuroraHero extends StatelessWidget {
     return TweenAnimationBuilder<double>(
       duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 540),
       curve: Curves.easeOutCubic,
-      tween: Tween(begin: .96, end: 1),
-      builder: (context, scale, child) => Transform.scale(
-        scale: scale,
+      tween: Tween(begin: 0.0, end: 1.0),
+      builder: (context, progress, child) => Transform(
         alignment: Alignment.center,
+        transform: Matrix4.identity()
+          ..setEntry(3, 2, .001)
+          ..rotateY((1 - progress) * -.12)
+          ..rotateX((1 - progress) * .08)
+          ..scaleByDouble(.96 + (.04 * progress), .96 + (.04 * progress), 1.0, 1.0),
         child: child,
       ),
       child: Container(

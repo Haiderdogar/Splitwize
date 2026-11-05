@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'aurora_ui.dart';
 
 /// The app's standard "nothing here yet" view: a large visual, a bold
 /// title, and a muted one-line explanation, all centred, plus an
@@ -38,20 +39,17 @@ class EmptyState extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ExcludeSemantics(
               child: visual ??
-                  Container(
-                    width: 112,
-                    height: 112,
-                    decoration: BoxDecoration(
-                      color: scheme.surfaceContainerHigh,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(icon, size: 56, color: scheme.outline),
+                  AuroraMonogram(
+                    label: '',
+                    icon: icon,
+                    color: AuroraPalette.violet,
+                    size: 95,
                   ),
             ),
             const SizedBox(height: 20),

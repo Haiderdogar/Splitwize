@@ -30,7 +30,7 @@ class GroupsTab extends StatelessWidget {
                 children: [
                   AuroraHero(
                     eyebrow: 'TOGETHER IS BETTER',
-                    title: 'Your circles.\\nYour adventures.',
+                    title: 'Your circles.\nYour adventures.',
                     subtitle: 'Create a space for every trip, home, and shared experience.',
                     icon: Icons.groups_rounded,
                     colors: [AuroraPalette.indigo, AuroraPalette.cyan],

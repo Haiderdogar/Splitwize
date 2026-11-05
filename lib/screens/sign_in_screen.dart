@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/form_providers.dart';
+import '../widgets/animated_3d.dart';
+import '../widgets/aurora_ui.dart';
 
 class SignInScreen extends StatelessWidget {
   const SignInScreen({super.key});
@@ -10,34 +12,39 @@ class SignInScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      body: SafeArea(
+      body: Container(
+        decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+          colors: [colorScheme.surfaceContainerLow, colorScheme.surface],
+        )),
+        child: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 112,
-                  height: 112,
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.receipt_long,
-                    size: 56,
-                    color: colorScheme.primary,
-                  ),
-                ),
+                const Splitwize3DBrand(size: 104),
                 const SizedBox(height: 24),
                 Text(
                   'Splitwize',
-                  style: Theme.of(context).textTheme.headlineMedium,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 33,
+                    letterSpacing: -1,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const AuroraHero(
+                  eyebrow: 'WELCOME TO BETTER TOGETHER',
+                  title: 'Split. Settle.\nSmile.',
+                  subtitle: 'Turn shared expenses into great memories, without the awkward maths.',
+                  icon: Icons.favorite_rounded,
+                  colors: [AuroraPalette.indigo, AuroraPalette.violet],
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Split bills with friends and groups.\nEveryone gets notified instantly.',
+                  'One simple place for all your shared moments.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: colorScheme.onSurfaceVariant,
@@ -88,6 +95,7 @@ class SignInScreen extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

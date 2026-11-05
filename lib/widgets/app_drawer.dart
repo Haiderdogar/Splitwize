@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/core_providers.dart';
 import 'animated_3d.dart';
+import 'aurora_ui.dart';
 import 'logout_button.dart';
 import '../providers/data_providers.dart';
 import '../screens/notifications_screen.dart';
@@ -33,31 +34,31 @@ class SplitwizeDrawer extends ConsumerWidget {
       title: 'My bills',
       icon: Icons.receipt_long_rounded,
       index: 0,
-      color: Color(0xFF26A69A)
+      color: AuroraPalette.indigo
     ),
     (
       title: 'Balances',
       icon: Icons.account_balance_wallet_rounded,
       index: 1,
-      color: Color(0xFF5C6BC0)
+      color: AuroraPalette.cyan
     ),
     (
       title: 'Groups',
       icon: Icons.groups_rounded,
       index: 2,
-      color: Color(0xFFFFA726)
+      color: AuroraPalette.gold
     ),
     (
       title: 'Friends',
       icon: Icons.diversity_3_rounded,
       index: 3,
-      color: Color(0xFFEC407A)
+      color: AuroraPalette.coral
     ),
     (
       title: 'Profile & settings',
       icon: Icons.tune_rounded,
       index: 4,
-      color: Color(0xFF7E57C2)
+      color: AuroraPalette.violet
     ),
   ];
 
@@ -75,15 +76,15 @@ class SplitwizeDrawer extends ConsumerWidget {
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(22, 22, 22, 24),
+              padding: const EdgeInsets.fromLTRB(22, 27, 22, 28),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Color(0xFF073B4C),
-                    Color(0xFF087F8C),
-                    Color(0xFF26A69A)
+                    AuroraPalette.deep,
+                    AuroraPalette.indigo,
+                    AuroraPalette.violet
                   ],
                 ),
                 borderRadius:
@@ -102,7 +103,7 @@ class SplitwizeDrawer extends ConsumerWidget {
                         letterSpacing: -0.8,
                       )),
                   const SizedBox(height: 4),
-                  Text('Better together. Easier to split.',
+                  Text('Split moments. Stay friends.',
                       style: TextStyle(
                           color: Colors.white.withValues(alpha: .82),
                           fontSize: 13)),

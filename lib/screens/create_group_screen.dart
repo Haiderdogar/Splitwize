@@ -7,6 +7,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
 import '../widgets/state_widgets.dart';
+import '../widgets/aurora_ui.dart';
 import 'bills_tab.dart' show currencyLabel;
 
 /// Currencies pinned to the top of the picker, in code order.
@@ -93,6 +94,14 @@ class CreateGroupScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const AuroraHero(
+                    eyebrow: 'NEW GROUP',
+                    title: 'Better things\nhappen together.',
+                    subtitle: 'Start a circle for trips, roomies, family or any shared plan.',
+                    icon: Icons.group_add_rounded,
+                    colors: [AuroraPalette.violet, AuroraPalette.coral],
+                  ),
+                  const SizedBox(height: 23),
                   // Writes only — never rebuilds on keystrokes.
                   Consumer(
                     builder: (context, ref, _) => TextField(

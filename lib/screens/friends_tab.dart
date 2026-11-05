@@ -126,7 +126,7 @@ class _InviteHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return AuroraHero(
       eyebrow: 'YOUR PEOPLE',
-      title: 'More friends.\\nLess maths.',
+      title: 'More friends.\nLess maths.',
       subtitle: 'Invite your favourite people, then split every moment effortlessly.',
       icon: Icons.people_alt_rounded,
       colors: const [AuroraPalette.indigo, AuroraPalette.coral],

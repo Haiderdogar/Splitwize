@@ -12,6 +12,7 @@ import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
 import '../utils/split_math.dart';
 import '../widgets/split_bar.dart';
+import '../widgets/aurora_ui.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show currencySymbol, formatMoney;
 
@@ -38,6 +39,14 @@ class CreateBillScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  AuroraHero(
+                    eyebrow: 'START A NEW SPLIT',
+                    title: 'Every bill.\nMade easier.',
+                    subtitle: 'Add your expense, choose your people and make it fair.',
+                    icon: Icons.receipt_long_rounded,
+                    colors: [AuroraPalette.indigo, AuroraPalette.violet],
+                  ),
+                  SizedBox(height: 24),
                   _SectionTitle('Bill'),
                   _TitleField(),
                   SizedBox(height: 12),

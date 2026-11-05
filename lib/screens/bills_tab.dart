@@ -138,7 +138,7 @@ class _BillsDashboardHeader extends StatelessWidget {
       children: [
         AuroraHero(
           eyebrow: 'YOUR SHARED SPACE',
-          title: 'Split moments.\\nNot friendships.',
+          title: 'Split moments.\nNot friendships.',
           subtitle: 'Your bills, people and payments in one happy place.',
           icon: Icons.auto_awesome_rounded,
           metric: '$billCount',

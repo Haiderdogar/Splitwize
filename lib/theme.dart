@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 
 /// Splitwize visual system: vivid indigo, electric cyan and coral accents,
 /// soft luminous surfaces and rounded, tactile controls.
-const splitwizeIndigo = Color(0xFF5546E8);
-const splitwizeCyan = Color(0xFF19B8C7);
-const splitwizeCoral = Color(0xFFFF6B6B);
-const splitwizeViolet = Color(0xFF9B6BFF);
-const splitwizeMint = Color(0xFF31C99A);
+const splitwizeIndigo = Color(0xFF5145EF);
+const splitwizeCyan = Color(0xFF1BC8E5);
+const splitwizeCoral = Color(0xFFFF789B);
+const splitwizeViolet = Color(0xFF915BFA);
+const splitwizeMint = Color(0xFF36D8A3);
 
 ThemeData get splitwizeLightTheme => _build(
   ColorScheme.fromSeed(seedColor: splitwizeIndigo).copyWith(

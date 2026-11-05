@@ -55,7 +55,7 @@ class BalancesTab extends StatelessWidget {
               children: const [
                 AuroraHero(
                   eyebrow: 'MONEY, MADE SIMPLE',
-                  title: 'All clear.\\nAll yours.',
+                  title: 'All clear.\nAll yours.',
                   subtitle: 'Your shared balances are looking great.',
                   icon: Icons.check_circle_rounded,
                   colors: [AuroraPalette.indigo, AuroraPalette.mint],
@@ -78,7 +78,7 @@ class BalancesTab extends StatelessWidget {
                   children: [
                     AuroraHero(
                       eyebrow: 'YOUR MONEY MAP',
-                      title: 'Know where\\nyou stand.',
+                      title: 'Know where\nyou stand.',
                       subtitle: 'A clearer view of what you owe and what comes back.',
                       icon: Icons.account_balance_wallet_rounded,
                       metric: '${balances.length}',
