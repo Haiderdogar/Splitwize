@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/core_providers.dart';
+import '../widgets/app_drawer.dart';
 import 'balances_tab.dart';
 import 'bills_tab.dart';
 import 'friends_tab.dart';
@@ -40,6 +41,8 @@ class HomeShell extends StatelessWidget {
         final isDark = Theme.of(context).brightness == Brightness.dark;
 
         return Scaffold(
+          key: splitwizeScaffoldKey,
+          drawer: const SplitwizeDrawer(),
           extendBody: true,
           body: IndexedStack(index: index, children: _tabs),
           bottomNavigationBar: SafeArea(
