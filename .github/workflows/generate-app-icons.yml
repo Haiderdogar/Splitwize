@@ -49,5 +49,9 @@ jobs:
           git -c user.name='github-actions[bot]' \
               -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
               commit -m 'Regenerate native Android and iOS icons for Splitwize'
+          # Flutter tooling can update pubspec.lock in the runner;
+          # discard only uncommitted generated-local changes after the
+          # dedicated native icon commit is safely created.
+          git reset --hard HEAD
           git pull --rebase origin main
           git push origin HEAD:main
