@@ -57,14 +57,14 @@ flutter:
   assets:
     - assets/icon/
 
-# Launcher icons: the 1024 master for iOS + legacy Android, and the
-# receipt motif on transparent as the Android adaptive foreground.
-# Generated with: dart run flutter_launcher_icons
-# (assets/splash/splash_icon.png is only a build-time source for the
-# adaptive foreground — it is not bundled into the app.)
+# The shared 3D Splitwize artwork is the source for Android, iOS,
+# and the animated in-app brand mark.
+# Update generated platform assets using: dart run flutter_launcher_icons
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icon/app_icon.png"
-  adaptive_icon_background: "#076E67"
-  adaptive_icon_foreground: "assets/splash/splash_icon.png"
+  remove_alpha_ios: true
+  adaptive_icon_background: "#24117A"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  adaptive_icon_foreground_inset: 24

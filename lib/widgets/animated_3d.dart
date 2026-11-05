@@ -139,12 +139,7 @@ class _Splitwize3DBrandState extends State<Splitwize3DBrand>
         width: widget.size,
         height: widget.size,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(widget.size * .30),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF00D5ED), Color(0xFF326BFF), Color(0xFF8D37F6), Color(0xFFFF4CB7)],
-          ),
+          borderRadius: BorderRadius.circular(widget.size * .28),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF6A43EF).withValues(alpha: .35),
@@ -153,21 +148,16 @@ class _Splitwize3DBrandState extends State<Splitwize3DBrand>
             ),
           ],
         ),
-        child: Stack(alignment: Alignment.center, children: [
-          Transform.translate(
-            offset: Offset(widget.size * .045, widget.size * .07),
-            child: Icon(Icons.call_split_rounded,
-              color: const Color(0xFF251B86).withValues(alpha: .4),
-              size: widget.size * .57),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(widget.size * .28),
+          child: Image.asset(
+            'assets/icon/app_icon.png',
+            width: widget.size,
+            height: widget.size,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.medium,
           ),
-          Icon(Icons.call_split_rounded, color: Colors.white, size: widget.size * .57),
-          Positioned(
-            top: widget.size * .13,
-            right: widget.size * .12,
-            child: Icon(Icons.auto_awesome_rounded,
-              color: const Color(0xFFFFDF70), size: widget.size * .22),
-          ),
-        ]),
+        ),
       ),
     );
   }

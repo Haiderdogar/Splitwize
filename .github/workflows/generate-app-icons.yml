@@ -1,0 +1,53 @@
+name: Generate Android and iOS App Icons
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'assets/icon/app_icon.png'
+      - 'pubspec.yaml'
+      - '.github/workflows/generate-app-icons.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: splitwize-launcher-icons
+  cancel-in-progress: false
+
+jobs:
+  generate-icons:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          cache-dependency-path: pubspec.lock
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate native Android and iOS launcher assets
+        run: dart run flutter_launcher_icons
+
+      - name: Commit regenerated platform icons
+        shell: bash
+        run: |
+          git add android/app/src/main/res ios/Runner/Assets.xcassets/AppIcon.appiconset
+          if git diff --cached --quiet; then
+            echo "Launcher assets already match the new icon."
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m 'Regenerate native Android and iOS icons for Splitwize'
+          git pull --rebase origin main
+          git push origin HEAD:main
