@@ -6,6 +6,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../theme.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/app_drawer.dart';
 import '../widgets/money_text.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show formatMoney;
@@ -18,7 +19,7 @@ class BalancesTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Balances')),
+      appBar: AppBar(leading: const SplitwizeMenuButton(), title: const Text('Balances')),
       // Only this subtree reacts to balance state.
       body: Consumer(
         builder: (context, ref, _) {
