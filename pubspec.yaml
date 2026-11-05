@@ -68,9 +68,9 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/icon/app_icon.png"
   remove_alpha_ios: true
-  adaptive_icon_background: "#24117A"
-  adaptive_icon_foreground: "assets/icon/app_icon.png"
-  adaptive_icon_foreground_inset: 24
+  adaptive_icon_background: "assets/icon/adaptive_background.png"
+  adaptive_icon_foreground: "assets/icon/adaptive_foreground.png"
+  adaptive_icon_foreground_inset: 8
 
 # The native launch screen stays visible until Flutter's first frame.
 # main() already completes Firebase startup before runApp(), so no runtime
