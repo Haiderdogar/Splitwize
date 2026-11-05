@@ -7,6 +7,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../utils/money.dart';
 import '../widgets/ad_banner.dart';
+import '../widgets/aurora_ui.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/money_text.dart';
@@ -26,7 +27,7 @@ class BillsTab extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         leading: const SplitwizeMenuButton(),
-        title: const Text('Bills'),
+        title: const Text('Splitwize'),
         actions: [
           // Only the badge reacts to notification state.
           Consumer(
@@ -67,15 +68,31 @@ class BillsTab extends StatelessWidget {
                     },
                   ),
                   data: (bills) {
-                    if (bills.isEmpty) return const _EmptyBills();
-                    return ListView.separated(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: bills.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, i) => _BillCard(
-                        bill: bills[i],
-                        myUid: myUid ?? '',
-                      ),
+                    final open = bills.where((bill) => !bill.fullySettled).length;
+                    return ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
+                      itemCount: bills.isEmpty ? 2 : bills.length + 1,
+                      itemBuilder: (context, i) {
+                        if (i == 0) {
+                          return _BillsDashboardHeader(
+                            billCount: bills.length,
+                            openCount: open,
+                            onSplit: () => Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const CreateBillScreen()),
+                            ),
+                            onGroups: () => ref.read(tabIndexProvider.notifier).set(2),
+                            onBalances: () => ref.read(tabIndexProvider.notifier).set(1),
+                          );
+                        }
+                        if (bills.isEmpty) return const _EmptyBills();
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _BillCard(
+                            bill: bills[i - 1],
+                            myUid: myUid ?? '',
+                          ),
+                        );
+                      },
                     );
                   },
                 );
@@ -85,13 +102,84 @@ class BillsTab extends StatelessWidget {
           const AdBannerSlot(),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 80),
+        child: FloatingActionButton.extended(
         onPressed: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const CreateBillScreen()),
         ),
         icon: const Icon(Icons.add),
         label: const Text('Split bill'),
+        ),
       ),
+    );
+  }
+}
+
+class _BillsDashboardHeader extends StatelessWidget {
+  const _BillsDashboardHeader({
+    required this.billCount,
+    required this.openCount,
+    required this.onSplit,
+    required this.onGroups,
+    required this.onBalances,
+  });
+
+  final int billCount;
+  final int openCount;
+  final VoidCallback onSplit;
+  final VoidCallback onGroups;
+  final VoidCallback onBalances;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AuroraHero(
+          eyebrow: 'YOUR SHARED SPACE',
+          title: 'Split moments.\\nNot friendships.',
+          subtitle: 'Your bills, people and payments in one happy place.',
+          icon: Icons.auto_awesome_rounded,
+          metric: '$billCount',
+          metricLabel: billCount == 1 ? 'shared bill' : 'shared bills',
+          bottom: Row(children: [
+            const Icon(Icons.bolt_rounded, color: AuroraPalette.gold, size: 19),
+            const SizedBox(width: 5),
+            Expanded(child: Text(
+              openCount == 0 ? 'All caught up — nice work!' : '$openCount bills still in progress',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
+            )),
+          ]),
+        ),
+        const SizedBox(height: 21),
+        const AuroraSectionHeading('Quick actions', subtitle: 'Your essentials, one tap away'),
+        Row(children: [
+          AuroraActionTile(
+            icon: Icons.add_card_rounded,
+            label: 'Split bill',
+            color: AuroraPalette.indigo,
+            onTap: onSplit,
+          ),
+          AuroraActionTile(
+            icon: Icons.groups_rounded,
+            label: 'My groups',
+            color: AuroraPalette.cyan,
+            onTap: onGroups,
+          ),
+          AuroraActionTile(
+            icon: Icons.balance_rounded,
+            label: 'Balances',
+            color: AuroraPalette.coral,
+            onTap: onBalances,
+          ),
+        ]),
+        const SizedBox(height: 22),
+        AuroraSectionHeading(
+          'Recent splits',
+          subtitle: billCount == 0 ? 'Your first bill will appear here' : 'Shared expenses at a glance',
+        ),
+      ],
     );
   }
 }
@@ -137,13 +225,27 @@ class _BillCard extends StatelessWidget {
     final myShare = bill.myShare(myUid);
     final progress =
         bill.splits.isEmpty ? 0.0 : bill.paidCount / bill.splits.length;
+    final scheme = Theme.of(context).colorScheme;
     return Card(
+      elevation: 0,
+      color: scheme.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .46)),
+      ),
       child: ListTile(
+        leading: AuroraMonogram(
+          label: '',
+          icon: mine ? Icons.receipt_long_rounded : Icons.payments_rounded,
+          color: bill.fullySettled ? AuroraPalette.mint : AuroraPalette.indigo,
+        ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         title: Text(
           bill.title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

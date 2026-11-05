@@ -6,6 +6,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../theme.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/aurora_ui.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/money_text.dart';
 import '../widgets/state_widgets.dart';
@@ -48,18 +49,48 @@ class BalancesTab extends StatelessWidget {
             );
           }
 
-          if (balances.isEmpty) return const _AllSettled();
+          if (balances.isEmpty) {
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 105),
+              children: const [
+                AuroraHero(
+                  eyebrow: 'MONEY, MADE SIMPLE',
+                  title: 'All clear.\\nAll yours.',
+                  subtitle: 'Your shared balances are looking great.',
+                  icon: Icons.check_circle_rounded,
+                  colors: [AuroraPalette.indigo, AuroraPalette.mint],
+                ),
+                SizedBox(height: 12),
+                _AllSettled(),
+              ],
+            );
+          }
 
           // Lazy list: only the visible balance cards are built.
           // Index 0 is the summary card, the rest are friends.
           return ListView.builder(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 105),
             itemCount: balances.length + 1,
             itemBuilder: (context, i) {
               if (i == 0) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _SummaryCard(byCurrency: byCurrency),
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AuroraHero(
+                      eyebrow: 'YOUR MONEY MAP',
+                      title: 'Know where\\nyou stand.',
+                      subtitle: 'A clearer view of what you owe and what comes back.',
+                      icon: Icons.account_balance_wallet_rounded,
+                      metric: '${balances.length}',
+                      metricLabel: balances.length == 1 ? 'friend balance' : 'friend balances',
+                      colors: const [AuroraPalette.deep, AuroraPalette.violet],
+                    ),
+                    const SizedBox(height: 20),
+                    const AuroraSectionHeading('Overview', subtitle: 'Totals shown separately by currency'),
+                    _SummaryCard(byCurrency: byCurrency),
+                    const SizedBox(height: 18),
+                    const AuroraSectionHeading('People & balances', subtitle: 'Tap a balance to take action'),
+                  ],
                 );
               }
               final b = balances[i - 1];
@@ -293,7 +324,12 @@ class _BalanceCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final debtColor = _iOwe ? scheme.owe : scheme.owed;
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: debtColor.withValues(alpha: .24)),
+      ),
       // Subtle 8% debt tint over the card fill: scannable without
       // reading a single word.
       color: Color.alphaBlend(

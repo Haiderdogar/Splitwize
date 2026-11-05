@@ -6,6 +6,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/aurora_ui.dart';
 import '../widgets/state_widgets.dart';
 
 class FriendsTab extends StatelessWidget {
@@ -34,19 +35,19 @@ class FriendsTab extends StatelessWidget {
         slivers: [
           _InviteHeader(),
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(12, 20, 12, 0),
+            padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
             sliver: SliverToBoxAdapter(child: _RequestsHeader()),
           ),
           SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.symmetric(horizontal: 16),
             sliver: _IncomingRequests(),
           ),
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
             sliver: _OutgoingRequests(),
           ),
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(12, 20, 12, 0),
+            padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
             sliver: SliverToBoxAdapter(child: _ConnectedHeader()),
           ),
           SliverPadding(
@@ -72,7 +73,7 @@ class _InviteHeader extends StatelessWidget {
         final hasFriends =
             ref.watch(connectionsProvider).value?.isNotEmpty ?? false;
         return SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           sliver: SliverToBoxAdapter(
             child: hasFriends
                 ? const _InviteCompactRow()
@@ -92,11 +93,12 @@ class _InviteCompactRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      elevation: 0,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Row(
           children: [
-            const Icon(Icons.person_add_outlined),
+            const AuroraMonogram(label: '', icon: Icons.person_add_alt_1_rounded, color: AuroraPalette.coral, size: 46),
             const SizedBox(width: 12),
             const Expanded(
               child: Text('Invite friends to split bills together.'),
@@ -122,68 +124,25 @@ class _InviteHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-    return Card(
-      color: scheme.primaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Invite friends',
-                    style: text.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: scheme.onPrimaryContainer,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Split bills with people you trust. They get an invite to join Splitwize.',
-                    style: text.bodyMedium?.copyWith(
-                      color: scheme.onPrimaryContainer,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Scales down (never overflows) on narrow screens
-                  // and at large text scales.
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: FilledButton.icon(
-                        onPressed: () => showDialog(
-                          context: context,
-                          builder: (_) => const _AddFriendDialog(),
-                        ),
-                        icon: const Icon(Icons.person_add),
-                        label: const Text('Invite by email'),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: scheme.onPrimaryContainer.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.people,
-                size: 32,
-                color: scheme.onPrimaryContainer,
-              ),
-            ),
-          ],
+    return AuroraHero(
+      eyebrow: 'YOUR PEOPLE',
+      title: 'More friends.\\nLess maths.',
+      subtitle: 'Invite your favourite people, then split every moment effortlessly.',
+      icon: Icons.people_alt_rounded,
+      colors: const [AuroraPalette.indigo, AuroraPalette.coral],
+      bottom: Align(
+        alignment: Alignment.centerLeft,
+        child: FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: AuroraPalette.indigo,
+          ),
+          onPressed: () => showDialog(
+            context: context,
+            builder: (_) => const _AddFriendDialog(),
+          ),
+          icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+          label: const Text('Invite by email'),
         ),
       ),
     );

@@ -8,6 +8,7 @@ import '../providers/data_providers.dart';
 import '../providers/monetization_providers.dart';
 import '../widgets/logout_button.dart';
 import '../widgets/paywall_sheet.dart';
+import '../widgets/aurora_ui.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show currencyLabel;
@@ -186,73 +187,22 @@ class ProfileTab extends StatelessWidget {
               final colorScheme = Theme.of(context).colorScheme;
               const divider = Divider(height: 1, indent: 56, endIndent: 16);
               return ListView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 102),
                 children: [
                   // Header card: avatar, name and email on the
                   // theme's primary container, so it reads in both
                   // light and dark mode.
-                  Card(
-                    elevation: 0,
-                    color: colorScheme.primaryContainer,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 24),
-                      child: Column(
-                        children: [
-                          CircleAvatar(
-                            radius: 36,
-                            backgroundColor: colorScheme.primary,
-                            foregroundColor: colorScheme.onPrimary,
-                            child: Text(
-                              user?.initials ?? '?',
-                              style: const TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            user?.displayName ?? '…',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.onPrimaryContainer,
-                                ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            user?.email ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  color: colorScheme.onPrimaryContainer
-                                      .withValues(alpha: 0.8),
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  AuroraHero(
+                    eyebrow: 'YOUR SPACE',
+                    title: user?.displayName ?? 'Hello there!',
+                    subtitle: user?.email ?? 'Your shared life, beautifully organised.',
+                    icon: Icons.account_circle_rounded,
+                    colors: const [AuroraPalette.deep, AuroraPalette.violet],
                   ),
                   const SizedBox(height: 24),
-                  Text(
-                    'SETTINGS',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: colorScheme.outline,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  const AuroraSectionHeading(
+                    'Your preferences',
+                    subtitle: 'Make Splitwize feel like yours',
                   ),
                   const SizedBox(height: 8),
                   Card(

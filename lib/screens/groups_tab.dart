@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/aurora_ui.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/state_widgets.dart';
 import 'create_group_screen.dart';
@@ -22,11 +23,19 @@ class GroupsTab extends StatelessWidget {
       body: CustomScrollView(
         slivers: [
           const SliverPadding(
-            padding: EdgeInsets.fromLTRB(12, 12, 12, 0),
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
             sliver: SliverToBoxAdapter(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  AuroraHero(
+                    eyebrow: 'TOGETHER IS BETTER',
+                    title: 'Your circles.\\nYour adventures.',
+                    subtitle: 'Create a space for every trip, home, and shared experience.',
+                    icon: Icons.groups_rounded,
+                    colors: [AuroraPalette.indigo, AuroraPalette.cyan],
+                  ),
+                  SizedBox(height: 20),
                   _SectionTitle('Invites'),
                   SizedBox(height: 8),
                 ],
@@ -35,7 +44,7 @@ class GroupsTab extends StatelessWidget {
           ),
           // Only this subtree reacts to invite state.
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: Consumer(
               builder: (context, ref, _) {
                 final invitesAsync = ref.watch(groupInvitesProvider);
@@ -90,7 +99,7 @@ class GroupsTab extends StatelessWidget {
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
           const SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverToBoxAdapter(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,7 +112,7 @@ class GroupsTab extends StatelessWidget {
           ),
           // Only this subtree reacts to group state.
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: Consumer(
               builder: (context, ref, _) {
                 final groupsAsync = ref.watch(myGroupsProvider);
@@ -141,15 +150,23 @@ class GroupsTab extends StatelessWidget {
                       itemBuilder: (itemContext, i) {
                         final g = groups[i];
                         return Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          elevation: 0,
                           child: ListTile(
-                            leading:
-                                const CircleAvatar(child: Icon(Icons.group)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            leading: AuroraMonogram(
+                              label: '',
+                              icon: Icons.groups_rounded,
+                              color: i.isEven ? AuroraPalette.indigo : AuroraPalette.coral,
+                              size: 52,
+                            ),
                             title: Text(g.name,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold)),
+                              maxLines: 2, overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w800)),
                             subtitle: Text(
-                                '${g.members.length} member${g.members.length == 1 ? '' : 's'}'),
-                            trailing: const Icon(Icons.chevron_right),
+                                '${g.members.length} member${g.members.length == 1 ? '' : 's'} · ${g.currency}',
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            trailing: const Icon(Icons.chevron_right_rounded),
                             onTap: () => Navigator.of(itemContext).push(
                               MaterialPageRoute(
                                 builder: (_) =>
@@ -168,12 +185,15 @@ class GroupsTab extends StatelessWidget {
           const SliverToBoxAdapter(child: SizedBox(height: 12)),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 80),
+        child: FloatingActionButton.extended(
         onPressed: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const CreateGroupScreen()),
         ),
         icon: const Icon(Icons.add),
         label: const Text('New group'),
+        ),
       ),
     );
   }
@@ -185,13 +205,7 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: Theme.of(context)
-          .textTheme
-          .titleMedium
-          ?.copyWith(fontWeight: FontWeight.bold),
-    );
+    return AuroraSectionHeading(text);
   }
 }
 
