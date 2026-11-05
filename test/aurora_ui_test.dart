@@ -12,16 +12,16 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(const MaterialApp(
       home: MediaQuery(
-        data: const MediaQueryData(
+        data: MediaQueryData(
           size: Size(320, 568),
           textScaler: TextScaler.linear(1.6),
         ),
         child: Scaffold(
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: const AuroraHero(
+            padding: EdgeInsets.all(16),
+            child: AuroraHero(
               eyebrow: 'SHARED EXPENSES',
               title: 'Split moments, not friendships.',
               subtitle: 'Long descriptive text must wrap without overflowing the mobile screen.',
