@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
+import '../widgets/app_drawer.dart';
 import '../widgets/state_widgets.dart';
 
 class FriendsTab extends StatelessWidget {
@@ -14,6 +15,7 @@ class FriendsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const SplitwizeMenuButton(),
         title: const Text('Friends'),
         actions: [
           IconButton(
