@@ -68,7 +68,7 @@ class _SplitwizeTiltCardState extends State<SplitwizeTiltCard> {
               ..setEntry(3, 2, .001)
               ..rotateX(reduceMotion ? 0 : _x)
               ..rotateY(reduceMotion ? 0 : _y)
-              ..scale(_pressed ? .975 : 1.0),
+              ..scaleByDouble(_pressed ? .975 : 1.0, _pressed ? .975 : 1.0, 1.0, 1.0),
             child: Stack(children: [
               Positioned.fill(
                 child: Transform.translate(

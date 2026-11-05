@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/core_providers.dart';
 import '../widgets/app_drawer.dart';
-import '../widgets/animated_3d.dart';
 import 'balances_tab.dart';
 import 'bills_tab.dart';
 import 'friends_tab.dart';
