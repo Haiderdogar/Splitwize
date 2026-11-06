@@ -1,0 +1,67 @@
+name: Apply user-selected Splitwize app icon
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-selected-icon.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  install-icon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download user-approved icon source
+        run: |
+          curl --fail --location --retry 3 --output assets/icon/app_icon.png "https://at.adobe.com/CX61ImlOWQp0Rvti"
+          file assets/icon/app_icon.png
+          python -m pip install 'Pillow>=10,<13'
+          python - <<'PY'
+          from PIL import Image,ImageDraw
+          from pathlib import Path
+          root=Path('assets/icon')
+          original=Image.open(root/'app_icon.png')
+          original.load()
+          if original.width < 900 or original.height < 900: raise RuntimeError('Unexpected icon dimensions')
+          img=original.convert('RGB').resize((1024,1024),Image.Resampling.LANCZOS)
+          img.save(root/'app_icon.png',optimize=True)
+          # Device masks use a separate transparent foreground.
+          foreground=img.convert('RGBA')
+          ImageDraw.floodfill(foreground,(0,0),(0,0,0,0),thresh=24)
+          pixels=list(foreground.getdata())
+          result=[]
+          for r,g,b,a in pixels:
+              if r<100 and g<155 and b<145 and g>r+10 and g>b-20: a=0
+              result.append((r,g,b,a))
+          foreground.putdata(result)
+          foreground=foreground.resize((840,840),Image.Resampling.LANCZOS)
+          canvas=Image.new('RGBA',(1024,1024),(0,0,0,0))
+          canvas.alpha_composite(foreground,(92,92))
+          canvas.save(root/'adaptive_foreground.png',optimize=True)
+          Image.new('RGB',(1024,1024),(4,62,41)).save(root/'adaptive_background.png')
+          PY
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          cache-dependency-path: pubspec.lock
+      - run: flutter pub get
+      - run: dart run flutter_launcher_icons
+      - run: |
+          dart run tool/generate_splash_assets.dart
+          dart run flutter_native_splash:create
+      - run: |
+          flutter analyze
+          flutter test
+      - name: Commit generated icon and splash assets
+        run: |
+          git add assets/icon/ assets/splash/ android/app/src/main/res/ ios/Runner/Assets.xcassets/ ios/Runner/Base.lproj/LaunchScreen.storyboard ios/Runner/Info.plist
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Apply selected receipt icon to Android and iOS'
+          git pull --rebase origin main
+          git push origin HEAD:main
