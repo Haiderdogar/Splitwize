@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/core_providers.dart';
 import '../providers/form_providers.dart';
-import '../widgets/animated_3d.dart';
-import '../widgets/aurora_ui.dart';
+import '../widgets/studio_ui.dart';
+import '../theme.dart';
 
 /// One-time onboarding, shown exactly once per install (gated by
 /// [OnboardingSeen] in `main.dart`). Three swipeable pages with
@@ -96,19 +96,19 @@ class _OnbPage {
 
 const _kPages = [
   _OnbPage(
-    accent: AuroraPalette.indigo,
+    accent: SplitwizePalette.forest,
     title: 'Split bills in seconds',
     body: 'Add a bill, pick who was there, and split it equally, by '
         'percentage, or with custom amounts. No more end-of-dinner maths.',
   ),
   _OnbPage(
-    accent: AuroraPalette.coral,
+    accent: SplitwizePalette.coral,
     title: 'Everyone knows who owes what',
     body: 'Friends are notified the moment a bill is added. Track who '
         'has paid, send a friendly reminder, and settle up with one tap.',
   ),
   _OnbPage(
-    accent: AuroraPalette.cyan,
+    accent: SplitwizePalette.positive,
     title: 'Works offline, syncs by itself',
     body: 'No signal? No problem. Bills, groups and receipt photos are '
         'saved on your phone and synced securely when you are back online.',
@@ -131,7 +131,7 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 10, 12, 4),
       child: Row(
         children: [
-          const Splitwize3DBrand(size: 34),
+          const SplitwizeMark(size: 34),
           const SizedBox(width: 10),
           const Expanded(
             child: Text(
@@ -200,7 +200,7 @@ class _Controls extends StatelessWidget {
             child: FilledButton.icon(
               onPressed: onNext,
               style: FilledButton.styleFrom(
-                backgroundColor: accent,
+                backgroundColor: scheme.primary,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
               ),

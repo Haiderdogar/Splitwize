@@ -6,7 +6,8 @@ import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../widgets/empty_state.dart';
-import '../widgets/aurora_ui.dart';
+import '../widgets/studio_ui.dart';
+import '../theme.dart';
 import '../widgets/state_widgets.dart';
 import 'bill_detail_screen.dart';
 import 'group_detail_screen.dart';
@@ -77,14 +78,11 @@ class NotificationsScreen extends StatelessWidget {
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                   children: const [
-                    AuroraHero(
-                      eyebrow: 'YOUR ACTIVITY',
-                      title: 'Stay in the loop.',
-                      subtitle: 'Every shared moment, payment and invite in one place.',
-                      icon: Icons.notifications_active_rounded,
-                      colors: [AuroraPalette.deep, AuroraPalette.violet],
+                    PageIntroduction(
+                      eyebrow: 'ACTIVITY',
+                      title: 'Notifications.',
+                      description: 'Bills, payments and invites in one place.',
                     ),
-                    SizedBox(height: 30),
                     _EmptyInbox(),
                   ],
                 );
@@ -98,17 +96,12 @@ class NotificationsScreen extends StatelessWidget {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        AuroraHero(
-                          eyebrow: 'YOUR ACTIVITY',
-                          title: 'Stay in the loop.',
-                          subtitle: 'Never miss a split, payment or invitation.',
-                          icon: Icons.notifications_active_rounded,
-                          metric: '${items.where((n) => !n.read).length}',
-                          metricLabel: 'unread',
-                          colors: const [AuroraPalette.deep, AuroraPalette.violet],
+                        const PageIntroduction(
+                          eyebrow: 'ACTIVITY',
+                          title: 'Notifications.',
+                          description: 'Bills, payments and invites in one place.',
                         ),
-                        const SizedBox(height: 19),
-                        const AuroraSectionHeading('Recent updates'),
+                        const SectionHeading('Recent updates'),
                       ],
                     );
                   }
@@ -121,12 +114,8 @@ class NotificationsScreen extends StatelessWidget {
                             .secondaryContainer
                             .withValues(alpha: 0.5),
                     child: ListTile(
-                      leading: AuroraMonogram(
-                        label: '',
-                        icon: _iconFor(n.type),
-                        color: n.read ? AuroraPalette.violet : AuroraPalette.indigo,
-                        size: 48,
-                      ),
+                      leading: PersonMark(initials: '',
+                        icon: _iconFor(n.type), size: 48),
                       title: Text(
                         n.title,
                         style: TextStyle(
@@ -147,7 +136,7 @@ class NotificationsScreen extends StatelessWidget {
                       ),
                       trailing: n.read
                           ? null
-                          : const Icon(Icons.circle, color: AuroraPalette.cyan, size: 13),
+                          : const Icon(Icons.circle, color: SplitwizePalette.positive, size: 13),
                       onTap: () => _open(context, ref, n),
                     ),
                   );

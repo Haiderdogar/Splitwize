@@ -7,7 +7,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
 import '../widgets/state_widgets.dart';
-import '../widgets/aurora_ui.dart';
+import '../widgets/studio_ui.dart';
 import 'bills_tab.dart' show currencyLabel;
 
 /// Currencies pinned to the top of the picker, in code order.
@@ -83,7 +83,7 @@ class CreateGroupScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('New group')),
+      appBar: AppBar(title: const Text('Create group')),
       // Slivers so the friends checklist builds lazily via
       // SliverList.builder; the fixed form sections ride in box slivers.
       body: CustomScrollView(
@@ -94,12 +94,10 @@ class CreateGroupScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const AuroraHero(
+                  const PageIntroduction(
                     eyebrow: 'NEW GROUP',
-                    title: 'Better things\nhappen together.',
-                    subtitle: 'Start a circle for trips, roomies, family or any shared plan.',
-                    icon: Icons.group_add_rounded,
-                    colors: [AuroraPalette.violet, AuroraPalette.coral],
+                    title: 'Create a group.',
+                    description: 'Give it a name and invite the people you share with.',
                   ),
                   const SizedBox(height: 23),
                   // Writes only — never rebuilds on keystrokes.

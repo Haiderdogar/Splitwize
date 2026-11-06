@@ -8,7 +8,7 @@ import '../providers/data_providers.dart';
 import '../providers/monetization_providers.dart';
 import '../widgets/logout_button.dart';
 import '../widgets/paywall_sheet.dart';
-import '../widgets/aurora_ui.dart';
+import '../widgets/studio_ui.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show currencyLabel;
@@ -189,27 +189,41 @@ class ProfileTab extends StatelessWidget {
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 102),
                 children: [
-                  // Header card: avatar, name and email on the
-                  // theme's primary container, so it reads in both
-                  // light and dark mode.
-                  AuroraHero(
-                    eyebrow: 'YOUR SPACE',
-                    title: user?.displayName ?? 'Hello there!',
-                    subtitle: user?.email ?? 'Your shared life, beautifully organised.',
-                    icon: Icons.account_circle_rounded,
-                    colors: const [AuroraPalette.deep, AuroraPalette.violet],
+                  const PageIntroduction(
+                    eyebrow: 'ACCOUNT',
+                    title: 'Your profile.',
+                    description: 'Manage your preferences and notifications.',
                   ),
-                  const SizedBox(height: 24),
-                  const AuroraSectionHeading(
-                    'Your preferences',
-                    subtitle: 'Make Splitwize feel like yours',
-                  ),
+                  SoftPanel(child: Row(children: [
+                    PersonMark(
+                      initials: user?.initials ?? '?',
+                      size: 56,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(user?.displayName ?? 'Splitwize member',
+                          maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 4),
+                        Text(user?.email ?? '',
+                          maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant)),
+                      ],
+                    )),
+                  ])),
+                  const SizedBox(height: 17),
+                  const SectionHeading('Preferences',
+                    subtitle: 'Your app, your settings.'),
                   const SizedBox(height: 8),
                   Card(
                     elevation: 0,
-                    color: colorScheme.surfaceContainerLow,
+                    color: colorScheme.surfaceContainerLowest,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(color: colorScheme.outlineVariant),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: const Column(

@@ -9,7 +9,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../theme.dart';
 import '../widgets/money_text.dart';
-import '../widgets/aurora_ui.dart';
+import '../widgets/studio_ui.dart';
 import '../widgets/split_bar.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show formatMoney;
@@ -87,14 +87,10 @@ class _BillBody extends StatelessWidget {
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
           sliver: SliverToBoxAdapter(
-            child: AuroraHero(
-              eyebrow: 'THE FULL PICTURE',
-              title: 'Bill breakdown',
-              subtitle: bill.title,
-              icon: Icons.receipt_long_rounded,
-              metric: formatMoney(bill.total, bill.currency),
-              metricLabel: 'shared total',
-              colors: const [AuroraPalette.indigo, AuroraPalette.violet],
+            child: PageIntroduction(
+              eyebrow: 'EXPENSE DETAILS',
+              title: bill.title,
+              description: 'Review each person’s share and payment progress.',
             ),
           ),
         ),

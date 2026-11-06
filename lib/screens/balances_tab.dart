@@ -5,104 +5,69 @@ import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../theme.dart';
-import '../widgets/empty_state.dart';
-import '../widgets/aurora_ui.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/money_text.dart';
 import '../widgets/state_widgets.dart';
+import '../widgets/studio_ui.dart';
 import 'bills_tab.dart' show formatMoney;
 
-/// Running net balances per friend across all bills (unpaid shares only).
-/// Positive net = friend owes me; negative net = I owe the friend.
 class BalancesTab extends StatelessWidget {
   const BalancesTab({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(leading: const SplitwizeMenuButton(), title: const Text('Balances')),
-      // Only this subtree reacts to balance state.
-      body: Consumer(
-        builder: (context, ref, _) {
-          // Gate on the bills stream so first load shows a shimmer
-          // (and failures a retry) instead of a premature "all settled".
-          final billsAsync = ref.watch(myBillsProvider);
-          if (billsAsync.isLoading) return const ShimmerList();
-          if (billsAsync.hasError) {
-            return LoadError(
-              message: 'Could not load your balances.',
-              onRetry: () {
-                ref.invalidate(appRepositoryProvider);
-                ref.invalidate(myBillsProvider);
-              },
-            );
-          }
-          final balances = ref.watch(balancesProvider);
-          final myUid = ref.watch(currentUidProvider) ?? '';
-          // Totals are kept per currency — never summed across them.
-          final byCurrency = <String, ({double owed, double owe})>{};
-          for (final b in balances) {
-            final e = byCurrency[b.currency] ?? (owed: 0.0, owe: 0.0);
-            byCurrency[b.currency] = (
-              owed: e.owed + (b.net > 0 ? b.net : 0),
-              owe: e.owe + (b.net < 0 ? b.net.abs() : 0),
-            );
-          }
-
-          if (balances.isEmpty) {
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 105),
-              children: const [
-                AuroraHero(
-                  eyebrow: 'MONEY, MADE SIMPLE',
-                  title: 'All clear.\nAll yours.',
-                  subtitle: 'Your shared balances are looking great.',
-                  icon: Icons.check_circle_rounded,
-                  colors: [AuroraPalette.indigo, AuroraPalette.mint],
-                ),
-                SizedBox(height: 12),
-                _AllSettled(),
-              ],
-            );
-          }
-
-          // Lazy list: only the visible balance cards are built.
-          // Index 0 is the summary card, the rest are friends.
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 105),
-            itemCount: balances.length + 1,
-            itemBuilder: (context, i) {
-              if (i == 0) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AuroraHero(
-                      eyebrow: 'YOUR MONEY MAP',
-                      title: 'Know where\nyou stand.',
-                      subtitle: 'A clearer view of what you owe and what comes back.',
-                      icon: Icons.account_balance_wallet_rounded,
-                      metric: '${balances.length}',
-                      metricLabel: balances.length == 1 ? 'friend balance' : 'friend balances',
-                      colors: const [AuroraPalette.deep, AuroraPalette.violet],
-                    ),
-                    const SizedBox(height: 20),
-                    const AuroraSectionHeading('Overview', subtitle: 'Totals shown separately by currency'),
-                    _SummaryCard(byCurrency: byCurrency),
-                    const SizedBox(height: 18),
-                    const AuroraSectionHeading('People & balances', subtitle: 'Tap a balance to take action'),
-                  ],
-                );
-              }
-              final b = balances[i - 1];
-              return _BalanceCard(
-                balance: b,
-                onSettleUp: () => _settleUp(context, ref, myUid, b),
-                onRemind: () => _remind(context, ref, myUid, b),
-              );
+      appBar: AppBar(
+        leading: const SplitwizeMenuButton(),
+        title: const Text('Balances'),
+      ),
+      body: Consumer(builder: (context, ref, _) {
+        final billsAsync = ref.watch(myBillsProvider);
+        if (billsAsync.isLoading) return const ShimmerList();
+        if (billsAsync.hasError) {
+          return LoadError(
+            message: 'Could not load your balances.',
+            onRetry: () {
+              ref.invalidate(appRepositoryProvider);
+              ref.invalidate(myBillsProvider);
             },
           );
-        },
-      ),
+        }
+        final balances = ref.watch(balancesProvider);
+        final uid = ref.watch(currentUidProvider) ?? '';
+        final byCurrency = <String, ({double owed, double owe})>{};
+        for (final balance in balances) {
+          final previous = byCurrency[balance.currency] ??
+              (owed: 0.0, owe: 0.0);
+          byCurrency[balance.currency] = (
+            owed: previous.owed +
+                (balance.net > 0 ? balance.net : 0.0),
+            owe: previous.owe +
+                (balance.net < 0 ? -balance.net : 0.0),
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 3, 16, 24),
+          itemCount: balances.length + 1,
+          itemBuilder: (context, i) {
+            if (i == 0) {
+              return _BalanceOverview(
+                byCurrency: byCurrency,
+                hasBalances: balances.isNotEmpty,
+              );
+            }
+            final balance = balances[i - 1];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 9),
+              child: _BalanceTile(
+                balance: balance,
+                onSettleUp: () => _settleUp(context, ref, uid, balance),
+                onRemind: () => _remind(context, ref, uid, balance),
+              ),
+            );
+          },
+        );
+      }),
     );
   }
 
@@ -175,110 +140,68 @@ class BalancesTab extends StatelessWidget {
   }
 }
 
-class _AllSettled extends StatelessWidget {
-  const _AllSettled();
-
-  @override
-  Widget build(BuildContext context) {
-    return const EmptyState(
-      icon: Icons.account_balance_wallet_outlined,
-      title: 'All settled up 🎉',
-      subtitle: 'No outstanding balances with anyone.',
-    );
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.byCurrency});
-
-  /// Currency code → (owed to me, I owe) totals in that currency.
+class _BalanceOverview extends StatelessWidget {
+  const _BalanceOverview({
+    required this.byCurrency, required this.hasBalances,
+  });
   final Map<String, ({double owed, double owe})> byCurrency;
+  final bool hasBalances;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final codes = byCurrency.keys.toList()..sort();
-    final multi = codes.length > 1;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Column(
-          children: [
-            for (final code in codes) ...[
-              if (multi)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    code,
-                    style: Theme.of(context).textTheme.labelMedium,
-                  ),
-                ),
-              Row(
-                children: [
-                  Expanded(
-                    child: _Summary(
-                        label: 'You are owed',
-                        amount: byCurrency[code]!.owed,
-                        currency: code,
-                        color: scheme.owed),
-                  ),
-                  Expanded(
-                    child: _Summary(
-                        label: 'You owe',
-                        amount: byCurrency[code]!.owe,
-                        currency: code,
-                        color: scheme.owe),
-                  ),
-                ],
-              ),
-              // Net for this currency, on its own line: the one-glance
-              // figure. Never blended across currencies. Scales down
-              // (never truncates) on narrow screens at large text.
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        _netLabel(
-                            byCurrency[code]!.owed - byCurrency[code]!.owe),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      if (byCurrency[code]!.owed - byCurrency[code]!.owe != 0)
-                        MoneyText(
-                          (byCurrency[code]!.owed - byCurrency[code]!.owe)
-                              .abs(),
-                          currencyCode: code,
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              if (code != codes.last) const Divider(height: 24),
-            ],
-          ],
-        ),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const PageIntroduction(
+        eyebrow: 'SETTLEMENTS',
+        title: 'Keep it balanced.',
+        description: 'A simple view of what you owe and what comes back.',
       ),
-    );
+      if (!hasBalances)
+        const InlineEmpty(
+          icon: Icons.check_circle_outline_rounded,
+          title: 'Everything is settled',
+          message: 'You do not have any outstanding balances.',
+        )
+      else ...[
+        const SectionHeading('Your totals',
+          subtitle: 'Each currency is calculated separately.'),
+        for (final code in codes)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 9),
+            child: SoftPanel(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(code, style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(child: _AmountSummary(
+                    label: 'Owed to you',
+                    amount: byCurrency[code]!.owed,
+                    currency: code, color: scheme.owed)),
+                  const SizedBox(width: 12),
+                  Container(height: 43, width: 1, color: scheme.outlineVariant),
+                  const SizedBox(width: 12),
+                  Expanded(child: _AmountSummary(
+                    label: 'You owe',
+                    amount: byCurrency[code]!.owe,
+                    currency: code, color: scheme.owe)),
+                ]),
+              ],
+            )),
+          ),
+        const SectionHeading('People',
+          subtitle: 'Settle up or send a friendly reminder.'),
+      ],
+    ]);
   }
-
-  String _netLabel(double net) => net == 0
-      ? 'Net · settled'
-      : net > 0
-          ? 'Net · you are owed '
-          : 'Net · you owe ';
 }
 
-class _Summary extends StatelessWidget {
-  const _Summary(
-      {required this.label,
-      required this.amount,
-      required this.currency,
-      required this.color});
-
+class _AmountSummary extends StatelessWidget {
+  const _AmountSummary({
+    required this.label, required this.amount,
+    required this.currency, required this.color,
+  });
   final String label;
   final double amount;
   final String currency;
@@ -286,108 +209,72 @@ class _Summary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 4),
-        // Scale the amount down (never truncate money) if a very
-        // large figure meets a narrow screen / big text setting.
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: MoneyText(
-            amount,
-            currencyCode: currency,
-            style: Theme.of(context).textTheme.titleLarge,
-            color: color,
-          ),
-        ),
-      ],
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: Theme.of(context).textTheme.bodySmall),
+      const SizedBox(height: 5),
+      FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+        child: MoneyText(amount, currencyCode: currency, color: color,
+          style: Theme.of(context).textTheme.titleLarge)),
+    ]);
   }
 }
 
-class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({
+class _BalanceTile extends StatelessWidget {
+  const _BalanceTile({
     required this.balance,
     required this.onSettleUp,
     required this.onRemind,
   });
-
   final FriendBalance balance;
   final VoidCallback onSettleUp;
   final VoidCallback onRemind;
 
-  bool get _iOwe => balance.net < 0;
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final debtColor = _iOwe ? scheme.owe : scheme.owed;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: debtColor.withValues(alpha: .24)),
-      ),
-      // Subtle 8% debt tint over the card fill: scannable without
-      // reading a single word.
-      color: Color.alphaBlend(
-        debtColor.withValues(alpha: 0.08),
-        scheme.surfaceContainerLow,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        child: Row(
-          children: [
-            // Status halo: the ring color says the direction before
-            // any text is read (amber = I owe, green = owed to me).
-            Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: debtColor, width: 2),
-              ),
-              padding: const EdgeInsets.all(2),
-              child: CircleAvatar(child: Text(balance.initials)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    balance.displayName,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    _iOwe
-                        ? 'You owe ${formatMoney(balance.net.abs(), balance.currency)}'
-                        : '${balance.displayName.split(' ').first} owes you ${formatMoney(balance.net, balance.currency)}',
-                    style: TextStyle(
-                      color: debtColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Text(
-                    'Across ${balance.openBills} open bill${balance.openBills == 1 ? '' : 's'}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-            if (_iOwe)
-              FilledButton(
-                onPressed: onSettleUp,
-                child: const Text('Settle up'),
-              )
-            else
-              TextButton(
-                onPressed: onRemind,
-                child: const Text('Remind'),
-              ),
-          ],
+    final owe = balance.net < 0;
+    return SoftPanel(child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          PersonMark(initials: balance.initials),
+          const SizedBox(width: 11),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(balance.displayName,
+                maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 3),
+              Text(
+                '${balance.openBills} open ${balance.openBills == 1 ? 'bill' : 'bills'}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant)),
+            ],
+          )),
+          const SizedBox(width: 5),
+          StatusPill(label: owe ? 'You owe' : 'Owes you', positive: !owe),
+        ]),
+        const SizedBox(height: 14),
+        FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+          child: MoneyText(balance.net.abs(),
+            currencyCode: balance.currency,
+            color: owe ? scheme.owe : scheme.owed,
+            style: Theme.of(context).textTheme.headlineSmall)),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: owe
+            ? FilledButton.icon(
+              onPressed: onSettleUp,
+              icon: const Icon(Icons.check_rounded),
+              label: const Text('Settle up'))
+            : OutlinedButton.icon(
+              onPressed: onRemind,
+              icon: const Icon(Icons.notifications_none_rounded),
+              label: const Text('Send reminder')),
         ),
-      ),
-    );
+      ],
+    ));
   }
 }

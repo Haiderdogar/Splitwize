@@ -12,7 +12,7 @@ import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
 import '../utils/split_math.dart';
 import '../widgets/split_bar.dart';
-import '../widgets/aurora_ui.dart';
+import '../widgets/studio_ui.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show currencySymbol, formatMoney;
 
@@ -27,7 +27,7 @@ class CreateBillScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Split a bill')),
+      appBar: AppBar(title: const Text('New expense')),
       // Slivers so the (potentially long) member list below builds
       // lazily via SliverList.builder; the form sections ride in two
       // fixed box slivers around it.
@@ -39,12 +39,10 @@ class CreateBillScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  AuroraHero(
-                    eyebrow: 'START A NEW SPLIT',
-                    title: 'Every bill.\nMade easier.',
-                    subtitle: 'Add your expense, choose your people and make it fair.',
-                    icon: Icons.receipt_long_rounded,
-                    colors: [AuroraPalette.indigo, AuroraPalette.violet],
+                  PageIntroduction(
+                    eyebrow: 'NEW EXPENSE',
+                    title: 'Add an expense.',
+                    description: 'Enter the amount, then choose who shares it.',
                   ),
                   SizedBox(height: 24),
                   _SectionTitle('Bill'),

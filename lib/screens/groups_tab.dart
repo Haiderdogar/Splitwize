@@ -4,253 +4,239 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
-import '../widgets/empty_state.dart';
-import '../widgets/aurora_ui.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/state_widgets.dart';
+import '../widgets/studio_ui.dart';
 import 'create_group_screen.dart';
 import 'group_detail_screen.dart';
 
 class GroupsTab extends StatelessWidget {
   const GroupsTab({super.key});
 
+  void _create(BuildContext context) => Navigator.of(context).push(
+    MaterialPageRoute(builder: (_) => const CreateGroupScreen()));
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(leading: const SplitwizeMenuButton(), title: const Text('Groups')),
-      // Slivers + builder lists: cards are built lazily, only
-      // for what's on screen.
-      body: CustomScrollView(
-        slivers: [
-          const SliverPadding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
-            sliver: SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AuroraHero(
-                    eyebrow: 'TOGETHER IS BETTER',
-                    title: 'Your circles.\nYour adventures.',
-                    subtitle: 'Create a space for every trip, home, and shared experience.',
-                    icon: Icons.groups_rounded,
-                    colors: [AuroraPalette.indigo, AuroraPalette.cyan],
-                  ),
-                  SizedBox(height: 20),
-                  _SectionTitle('Invites'),
-                  SizedBox(height: 8),
-                ],
-              ),
-            ),
-          ),
-          // Only this subtree reacts to invite state.
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: Consumer(
-              builder: (context, ref, _) {
-                final invitesAsync = ref.watch(groupInvitesProvider);
-                return invitesAsync.when(
-                  loading: () =>
-                      const SliverToBoxAdapter(child: ShimmerRows(count: 1)),
-                  error: (e, _) => SliverToBoxAdapter(
-                    child: LoadError.compact(
-                      message: 'Could not load invites',
-                      onRetry: () {
-                        ref.invalidate(appRepositoryProvider);
-                        ref.invalidate(groupInvitesProvider);
-                      },
-                    ),
-                  ),
-                  data: (invites) {
-                    if (invites.isEmpty) {
-                      return const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text('No pending group invites.'),
-                        ),
-                      );
-                    }
-                    return SliverList.builder(
-                      itemCount: invites.length,
-                      itemBuilder: (itemContext, i) {
-                        final g = invites[i];
-                        return _InviteCard(
-                          group: g,
-                          onAccept: () => runGuarded(
-                            context,
-                            () async =>
-                                (await ref.read(appRepositoryProvider.future))
-                                    .acceptGroupInvite(g.id),
-                            errorLabel: 'Could not join group',
-                          ),
-                          onDecline: () => runGuarded(
-                            context,
-                            () async =>
-                                (await ref.read(appRepositoryProvider.future))
-                                    .declineGroupInvite(g.id),
-                            errorLabel: 'Could not decline invite',
-                          ),
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 16)),
-          const SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            sliver: SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SectionTitle('My groups'),
-                  SizedBox(height: 8),
-                ],
-              ),
-            ),
-          ),
-          // Only this subtree reacts to group state.
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: Consumer(
-              builder: (context, ref, _) {
-                final groupsAsync = ref.watch(myGroupsProvider);
-                return groupsAsync.when(
-                  loading: () =>
-                      const SliverToBoxAdapter(child: ShimmerRows(count: 3)),
-                  error: (e, _) => SliverToBoxAdapter(
-                    child: LoadError.compact(
-                      message: 'Could not load groups',
-                      onRetry: () {
-                        ref.invalidate(appRepositoryProvider);
-                        ref.invalidate(myGroupsProvider);
-                      },
-                    ),
-                  ),
-                  data: (groups) {
-                    if (groups.isEmpty) {
-                      return SliverToBoxAdapter(
-                        child: EmptyState(
-                          icon: Icons.group_outlined,
-                          title: 'No groups yet.',
-                          subtitle:
-                              'Create one and invite your friends to split bills together.',
-                          actionLabel: 'Create group',
-                          onAction: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const CreateGroupScreen(),
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                    return SliverList.builder(
-                      itemCount: groups.length,
-                      itemBuilder: (itemContext, i) {
-                        final g = groups[i];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          elevation: 0,
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            leading: AuroraMonogram(
-                              label: '',
-                              icon: Icons.groups_rounded,
-                              color: i.isEven ? AuroraPalette.indigo : AuroraPalette.coral,
-                              size: 52,
-                            ),
-                            title: Text(g.name,
-                              maxLines: 2, overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w800)),
-                            subtitle: Text(
-                                '${g.members.length} member${g.members.length == 1 ? '' : 's'} · ${g.currency}',
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
-                            trailing: const Icon(Icons.chevron_right_rounded),
-                            onTap: () => Navigator.of(itemContext).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    GroupDetailScreen(groupId: g.id),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
-        ],
+      appBar: AppBar(
+        leading: const SplitwizeMenuButton(),
+        title: const Text('Groups'),
       ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 80),
-        child: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const CreateGroupScreen()),
+      body: CustomScrollView(slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          sliver: SliverToBoxAdapter(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const PageIntroduction(
+                eyebrow: 'SHARED SPACES',
+                title: 'Your groups.',
+                description: 'Keep trips, housemates and shared plans together.',
+              ),
+              FilledButton.icon(
+                onPressed: () => _create(context),
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Create group'),
+              ),
+              const SizedBox(height: 14),
+              const SectionHeading('My groups'),
+            ],
+          )),
         ),
-        icon: const Icon(Icons.add),
-        label: const Text('New group'),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: Consumer(builder: (context, ref, _) {
+            final asyncGroups = ref.watch(myGroupsProvider);
+            return asyncGroups.when(
+              loading: () => const SliverToBoxAdapter(
+                child: ShimmerRows(count: 3)),
+              error: (e, _) => SliverToBoxAdapter(
+                child: LoadError.compact(
+                  message: 'Could not load groups',
+                  onRetry: () {
+                    ref.invalidate(appRepositoryProvider);
+                    ref.invalidate(myGroupsProvider);
+                  },
+                ),
+              ),
+              data: (groups) {
+                if (groups.isEmpty) {
+                  return SliverToBoxAdapter(child: InlineEmpty(
+                    icon: Icons.groups_outlined,
+                    title: 'No groups yet',
+                    message: 'Make a group for a trip, flat or project.',
+                    action: FilledButton(
+                      onPressed: () => _create(context),
+                      child: const Text('Create your first group'),
+                    ),
+                  ));
+                }
+                return SliverList.builder(
+                  itemCount: groups.length,
+                  itemBuilder: (context, i) {
+                    final group = groups[i];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 9),
+                      child: _GroupRow(group: group),
+                    );
+                  },
+                );
+              },
+            );
+          }),
+        ),
+        const SliverPadding(
+          padding: EdgeInsets.fromLTRB(16, 19, 16, 9),
+          sliver: SliverToBoxAdapter(
+            child: SectionHeading('Invitations',
+              subtitle: 'Groups waiting for your response.'),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: Consumer(builder: (context, ref, _) {
+            final asyncInvites = ref.watch(groupInvitesProvider);
+            return asyncInvites.when(
+              loading: () => const SliverToBoxAdapter(
+                child: ShimmerRows(count: 1)),
+              error: (e, _) => SliverToBoxAdapter(
+                child: LoadError.compact(
+                  message: 'Could not load invites',
+                  onRetry: () {
+                    ref.invalidate(appRepositoryProvider);
+                    ref.invalidate(groupInvitesProvider);
+                  },
+                ),
+              ),
+              data: (invites) {
+                if (invites.isEmpty) {
+                  return const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(2, 4, 2, 16),
+                      child: Text('No pending group invitations.'),
+                    ),
+                  );
+                }
+                return SliverList.builder(
+                  itemCount: invites.length,
+                  itemBuilder: (itemContext, i) {
+                    final group = invites[i];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 9),
+                      child: _GroupInvitation(
+                        group: group,
+                        onJoin: () => runGuarded(
+                          context,
+                          () async =>
+                            (await ref.read(appRepositoryProvider.future))
+                              .acceptGroupInvite(group.id),
+                          errorLabel: 'Could not join group',
+                        ),
+                        onDecline: () => runGuarded(
+                          context,
+                          () async =>
+                            (await ref.read(appRepositoryProvider.future))
+                              .declineGroupInvite(group.id),
+                          errorLabel: 'Could not decline invitation',
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          }),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 26)),
+      ]),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Create group',
+        onPressed: () => _create(context),
+        child: const Icon(Icons.add_rounded),
+      ),
+    );
+  }
+}
+
+class _GroupRow extends StatelessWidget {
+  const _GroupRow({required this.group});
+  final BillGroup group;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(19),
+        side: BorderSide(color: scheme.outlineVariant)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(19),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => GroupDetailScreen(groupId: group.id))),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 15),
+          child: Row(children: [
+            const PersonMark(initials: '',
+              icon: Icons.groups_rounded, size: 50),
+            const SizedBox(width: 12),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(group.name, maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 5),
+                Text(
+                  '${group.members.length} ${group.members.length == 1 ? 'member' : 'members'} · ${group.currency}',
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant)),
+              ],
+            )),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+          ]),
         ),
       ),
     );
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return AuroraSectionHeading(text);
-  }
-}
-
-class _InviteCard extends StatelessWidget {
-  const _InviteCard({
-    required this.group,
-    required this.onAccept,
-    required this.onDecline,
+class _GroupInvitation extends StatelessWidget {
+  const _GroupInvitation({
+    required this.group, required this.onJoin, required this.onDecline,
   });
-
   final BillGroup group;
-  final VoidCallback onAccept;
+  final VoidCallback onJoin;
   final VoidCallback onDecline;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: Theme.of(context).colorScheme.secondaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            const CircleAvatar(child: Icon(Icons.group_add)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(group.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const Text('You are invited to join this group'),
-                ],
-              ),
-            ),
-            TextButton(
-              onPressed: onDecline,
-              child: const Text('Decline'),
-            ),
-            FilledButton(
-              onPressed: onAccept,
-              child: const Text('Join'),
-            ),
-          ],
-        ),
-      ),
-    );
+    return SoftPanel(child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          const PersonMark(initials: '',
+            icon: Icons.mark_email_unread_outlined),
+          const SizedBox(width: 12),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(group.name, maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium),
+              const Text('You are invited to join this group.'),
+            ],
+          )),
+        ]),
+        const SizedBox(height: 11),
+        Wrap(spacing: 9, runSpacing: 7, children: [
+          TextButton(onPressed: onDecline, child: const Text('Decline')),
+          FilledButton(onPressed: onJoin, child: const Text('Join group')),
+        ]),
+      ],
+    ));
   }
 }

@@ -6,7 +6,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
 import '../widgets/app_drawer.dart';
-import '../widgets/aurora_ui.dart';
+import '../widgets/studio_ui.dart';
 import '../widgets/state_widgets.dart';
 
 class FriendsTab extends StatelessWidget {
@@ -68,82 +68,37 @@ class _InviteHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final hasFriends =
-            ref.watch(connectionsProvider).value?.isNotEmpty ?? false;
-        return SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          sliver: SliverToBoxAdapter(
-            child: hasFriends
-                ? const _InviteCompactRow()
-                : const _InviteHeroCard(),
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      sliver: SliverToBoxAdapter(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const PageIntroduction(
+            eyebrow: 'PEOPLE',
+            title: 'Better with friends.',
+            description: 'Add friends, share bills, and keep everyone in sync.',
           ),
-        );
-      },
-    );
-  }
-}
-
-/// Compact invite row for users who already have friends: same dialog,
-/// a fraction of the height.
-class _InviteCompactRow extends StatelessWidget {
-  const _InviteCompactRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Row(
-          children: [
-            const AuroraMonogram(label: '', icon: Icons.person_add_alt_1_rounded, color: AuroraPalette.coral, size: 46),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text('Invite friends to split bills together.'),
-            ),
-            TextButton(
-              onPressed: () => showDialog(
-                context: context,
-                builder: (_) => const _AddFriendDialog(),
+          SoftPanel(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                const PersonMark(initials: '',
+                  icon: Icons.person_add_alt_outlined, size: 46),
+                const SizedBox(width: 11),
+                Expanded(child: Text('Invite someone you split with',
+                  style: Theme.of(context).textTheme.titleMedium)),
+              ]),
+              const SizedBox(height: 13),
+              OutlinedButton.icon(
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (_) => const _AddFriendDialog(),
+                ),
+                icon: const Icon(Icons.person_add_alt_1_rounded),
+                label: const Text('Invite by email'),
               ),
-              child: const Text('Invite'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The invite hero: a tonal card that leads the screen, with the same
-/// invite dialog behind its button as the app-bar action.
-class _InviteHeroCard extends StatelessWidget {
-  const _InviteHeroCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return AuroraHero(
-      eyebrow: 'YOUR PEOPLE',
-      title: 'More friends.\nLess maths.',
-      subtitle: 'Invite your favourite people, then split every moment effortlessly.',
-      icon: Icons.people_alt_rounded,
-      colors: const [AuroraPalette.indigo, AuroraPalette.coral],
-      bottom: Align(
-        alignment: Alignment.centerLeft,
-        child: FilledButton.icon(
-          style: FilledButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: AuroraPalette.indigo,
-          ),
-          onPressed: () => showDialog(
-            context: context,
-            builder: (_) => const _AddFriendDialog(),
-          ),
-          icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-          label: const Text('Invite by email'),
-        ),
+            ],
+          )),
+        ]),
       ),
     );
   }
@@ -229,38 +184,28 @@ class _ConnectedHeader extends StatelessWidget {
 /// Compact empty row used by every section: an icon in a tonal circle
 /// plus a title and a muted explanation, inside a standard card.
 class _EmptyRow extends StatelessWidget {
-  const _EmptyRow({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
+  const _EmptyRow({required this.icon, required this.title,
+    required this.subtitle});
   final IconData icon;
   final String title;
   final String subtitle;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-    return Card(
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerHigh,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: scheme.outline),
-        ),
-        title: Text(title, style: text.titleSmall),
-        subtitle: Text(
-          subtitle,
-          style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-        ),
-      ),
+    return SoftPanel(
+      padding: const EdgeInsets.all(13),
+      child: Row(children: [
+        PersonMark(initials: '', icon: icon, size: 44),
+        const SizedBox(width: 12),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 2),
+            Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        )),
+      ]),
     );
   }
 }
@@ -438,20 +383,13 @@ class _Connections extends StatelessWidget {
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 12),
-                    leading: CircleAvatar(
-                      radius: 24,
-                      backgroundColor:
-                          Theme.of(context).colorScheme.primaryContainer,
-                      foregroundColor: Theme.of(context).colorScheme.primary,
-                      child: Text(
-                        f.initials,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
+                    leading: PersonMark(initials: f.initials),
                     title: Text(f.displayName,
+                        maxLines: 2, overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleMedium),
                     subtitle: Text(
                       f.email,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color:
                                 Theme.of(context).colorScheme.onSurfaceVariant,
@@ -527,16 +465,9 @@ class _IncomingCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: scheme.primaryContainer,
-                  foregroundColor: scheme.primary,
-                  child: Text(
-                    request.fromName.isEmpty
-                        ? '?'
-                        : request.fromName[0].toUpperCase(),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                PersonMark(
+                  initials: request.fromName.isEmpty
+                    ? '?' : request.fromName[0].toUpperCase(),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -556,18 +487,15 @@ class _IncomingCard extends StatelessWidget {
                 ),
               ],
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            Wrap(
+              spacing: 8,
+              runSpacing: 5,
+              alignment: WrapAlignment.end,
               children: [
-                TextButton(
-                  onPressed: onDecline,
-                  child: const Text('Decline'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: onAccept,
-                  child: const Text('Accept'),
-                ),
+                TextButton(onPressed: onDecline,
+                  child: const Text('Decline')),
+                FilledButton(onPressed: onAccept,
+                  child: const Text('Accept')),
               ],
             ),
           ],

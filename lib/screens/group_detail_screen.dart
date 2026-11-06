@@ -8,7 +8,7 @@ import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
 import '../utils/debt_simplifier.dart';
 import '../widgets/state_widgets.dart';
-import '../widgets/aurora_ui.dart';
+import '../widgets/studio_ui.dart';
 import 'bill_detail_screen.dart';
 import 'bills_tab.dart' show currencyLabel, formatMoney;
 
@@ -109,14 +109,10 @@ class _GroupBody extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AuroraHero(
-                  eyebrow: 'YOUR CIRCLE',
+                PageIntroduction(
+                  eyebrow: 'SHARED GROUP',
                   title: group.name,
-                  subtitle: 'A shared home for every great memory.',
-                  icon: Icons.groups_rounded,
-                  metric: '${group.members.length}',
-                  metricLabel: group.members.length == 1 ? 'member' : 'members',
-                  colors: const [AuroraPalette.indigo, AuroraPalette.cyan],
+                  description: '${group.members.length} ${group.members.length == 1 ? 'member' : 'members'} · ${group.currency}',
                 ),
                 const SizedBox(height: 12),
                 _GroupCurrencyTile(group: group),
