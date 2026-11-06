@@ -2,6 +2,13 @@
 
 **Editable Figma file:** https://www.figma.com/design/ZaZQoAlKg4TKDvi1yXjesB
 
+**Approved launcher icon:** `assets/icon/app_icon.png` — split receipt / lime coin on forest green.
+
+The matching Android adaptive foreground/background are in `assets/icon/`, and
+the Android/iOS platform launcher images and native splash assets have been
+regenerated from this selected artwork. The original icon is also used on
+the Figma Home and Welcome mockups.
+
 **Home screen:** https://www.figma.com/design/ZaZQoAlKg4TKDvi1yXjesB?node-id=3-2
 
 The Figma file is a visual reference for the Flutter UI already implemented in
