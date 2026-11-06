@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
-/// Shared elements for the Splitwize 2026 minimal financial design system.
+/// Shared elements for Splitwize's minimal financial design system.
 class SplitwizeMark extends StatelessWidget {
   const SplitwizeMark({super.key, this.size = 40});
   final double size;
