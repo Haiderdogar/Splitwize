@@ -26,19 +26,28 @@ class SignIn extends _$SignIn {
   @override
   bool build() => false;
 
-  /// Returns null on success, an error message otherwise.
+  /// Returns null on success/cancellation, an error message otherwise.
   Future<String?> signIn() async {
+    // The button is disabled while busy; also guard overlapping calls from
+    // callbacks that were already queued before the widget rebuilt.
+    if (state) return null;
     state = true;
     try {
-      final user = await ref.read(authServiceProvider).signInWithGoogle();
-      if (user != null) {
-        await ref.read(notificationServiceProvider).init(user.uid);
-      }
+      // A successful Firebase sign-in updates authStateChangesProvider,
+      // replacing SignInScreen with HomeShell. Since this generated provider
+      // is autoDispose, it may be destroyed *during* this await.
+      await ref.read(authServiceProvider).signInWithGoogle();
+
+      // Notification registration is owned by initNotificationsProvider,
+      // which AuthFlow watches after the auth state changes. Running it here
+      // again is redundant and could outlive the sign-in button's provider.
       return null;
     } catch (e) {
       return 'Sign-in failed: $e';
     } finally {
-      state = false;
+      // Riverpod 3 rejects any use of a disposed Notifier/Ref. After the
+      // sign-in screen disappears, the async login can still finish.
+      if (ref.mounted) state = false;
     }
   }
 }
