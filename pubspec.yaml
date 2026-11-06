@@ -75,19 +75,22 @@ flutter_launcher_icons:
 # The native launch screen stays visible until Flutter's first frame.
 # main() already completes Firebase startup before runApp(), so no runtime
 # preserve/remove calls or artificial startup delay are needed.
+# One consistent native launch appearance in every system theme.
+# The green matches the dominant forest shade of the approved icon
+# (assets/icon/app_icon.png). Keep the icon centered, with no extra text.
 flutter_native_splash:
   android: true
   ios: true
   web: false
-  color: "#FAF9F5"
-  color_dark: "#111B19"
+  color: "#013A27"
+  color_dark: "#013A27"
   image: assets/splash/splash_icon.png
   image_dark: assets/splash/splash_icon.png
   android_gravity: center
   ios_content_mode: center
   fullscreen: false
   android_12:
-    color: "#FAF9F5"
-    color_dark: "#111B19"
+    color: "#013A27"
+    color_dark: "#013A27"
     image: assets/splash/splash_android12.png
     image_dark: assets/splash/splash_android12.png
