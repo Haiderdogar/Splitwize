@@ -1,5 +1,13 @@
 # Splitwize
 
+## Mobile UI/UX design
+
+The editable **[Splitwize Figma design](https://www.figma.com/design/ZaZQoAlKg4TKDvi1yXjesB)**
+contains 10 mobile screen concepts for the clean forest-green and soft-lime
+financial interface. See [the Figma-to-Flutter design handoff](docs/FIGMA_DESIGN_HANDOFF.md)
+for the screen-to-code mapping, design tokens and implementation notes.
+
+
 Split bills with friends and groups. Firebase backend with Google Sign-In,
 Cloud Firestore storage, and push notifications to everyone a bill is split with.
 

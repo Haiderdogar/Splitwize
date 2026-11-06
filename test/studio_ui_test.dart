@@ -54,4 +54,24 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(SplitwizeMark), findsOneWidget);
   });
+  testWidgets('section headings keep trailing actions accessible',
+      (tester) async {
+    var tapped = false;
+    await tester.pumpWidget(MaterialApp(
+      theme: splitwizeLightTheme,
+      home: Scaffold(
+        body: SectionHeading(
+          'Recent expenses',
+          trailing: TextButton(
+            onPressed: () => tapped = true,
+            child: const Text('See all'),
+          ),
+        ),
+      ),
+    ));
+    expect(find.text('Recent expenses'), findsOneWidget);
+    await tester.tap(find.text('See all'));
+    expect(tapped, isTrue);
+  });
+
 }

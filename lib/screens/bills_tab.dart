@@ -226,23 +226,53 @@ class _HomeOverview extends StatelessWidget {
           label: const Text('New group'),
         ),
       ]),
-      SectionHeading('Recent expenses',
+      SectionHeading(
+        'Recent expenses',
         subtitle: billCount == 0
-          ? 'Your expenses will show up here.'
-          : '$billCount recorded'),
-      Wrap(spacing: 8, runSpacing: 0, children: [
-        for (final item in <(_ExpenseFilter, String)>[
-          (_ExpenseFilter.all, 'All'),
-          (_ExpenseFilter.open, 'Open'),
-          (_ExpenseFilter.settled, 'Settled'),
-        ])
-          ChoiceChip(
-            label: Text(item.$2),
-            selected: filter == item.$1,
-            onSelected: (_) => onFilter(item.$1),
+            ? 'Your expenses will show up here.'
+            : '$billCount recorded',
+        trailing: PopupMenuButton<_ExpenseFilter>(
+          tooltip: 'Filter expenses',
+          onSelected: onFilter,
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              value: _ExpenseFilter.all,
+              child: Text('All expenses'),
+            ),
+            PopupMenuItem(
+              value: _ExpenseFilter.open,
+              child: Text('Open expenses'),
+            ),
+            PopupMenuItem(
+              value: _ExpenseFilter.settled,
+              child: Text('Settled expenses'),
+            ),
+          ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  switch (filter) {
+                    _ExpenseFilter.all => 'See all',
+                    _ExpenseFilter.open => 'Open',
+                    _ExpenseFilter.settled => 'Settled',
+                  },
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(width: 4),
+                Icon(Icons.keyboard_arrow_down_rounded,
+                    size: 17, color: Theme.of(context).colorScheme.primary),
+              ],
+            ),
           ),
-      ]),
-      const SizedBox(height: 13),
+        ),
+      ),
+      const SizedBox(height: 5),
       if (billCount == 0)
         InlineEmpty(
           icon: Icons.receipt_long_outlined,
