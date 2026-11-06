@@ -18,32 +18,27 @@ jobs:
           fetch-depth: 0
       - name: Download user-approved icon source
         run: |
-          curl --fail --location --retry 3 --output assets/icon/app_icon.png "https://at.adobe.com/CX61ImlOWQp0Rvti"
+          curl --fail --location --retry 3 --output assets/icon/app_icon.png "https://at.adobe.com/llGfUcPxdRa1qKHy"
+          echo '0c9056651cf13c0cd569720b08049c21d482185a61ad3ba242282ff799b692c5  assets/icon/app_icon.png' | sha256sum --check
           file assets/icon/app_icon.png
           python -m pip install 'Pillow>=10,<13'
           python - <<'PY'
-          from PIL import Image,ImageDraw
+          from PIL import Image
           from pathlib import Path
           root=Path('assets/icon')
+          # Keep app_icon.png exactly byte-for-byte as the user's uploaded PNG.
           original=Image.open(root/'app_icon.png')
           original.load()
-          if original.width < 900 or original.height < 900: raise RuntimeError('Unexpected icon dimensions')
-          img=original.convert('RGB').resize((1024,1024),Image.Resampling.LANCZOS)
-          img.save(root/'app_icon.png',optimize=True)
-          # Device masks use a separate transparent foreground.
-          foreground=img.convert('RGBA')
-          ImageDraw.floodfill(foreground,(0,0),(0,0,0,0),thresh=24)
-          pixels=list(foreground.getdata())
-          result=[]
-          for r,g,b,a in pixels:
-              if r<100 and g<155 and b<145 and g>r+10 and g>b-20: a=0
-              result.append((r,g,b,a))
-          foreground.putdata(result)
-          foreground=foreground.resize((840,840),Image.Resampling.LANCZOS)
-          canvas=Image.new('RGBA',(1024,1024),(0,0,0,0))
-          canvas.alpha_composite(foreground,(92,92))
-          canvas.save(root/'adaptive_foreground.png',optimize=True)
-          Image.new('RGB',(1024,1024),(4,62,41)).save(root/'adaptive_background.png')
+          if original.format != 'PNG' or original.size != (1254,1254):
+              raise RuntimeError('Uploaded icon has unexpected format or dimensions')
+          # Android adaptive icons are layered and system-masked; generate
+          # derivatives without altering the exact master asset.
+          rgba=original.convert('RGBA')
+          foreground=Image.new('RGBA',(1024,1024),(0,0,0,0))
+          artwork=rgba.resize((850,850),Image.Resampling.LANCZOS)
+          foreground.alpha_composite(artwork,(87,87))
+          foreground.save(root/'adaptive_foreground.png', optimize=True)
+          Image.new('RGB',(1024,1024),(3,68,39)).save(root/'adaptive_background.png')
           PY
       - uses: subosito/flutter-action@v2
         with:
@@ -61,7 +56,7 @@ jobs:
         run: |
           git add assets/icon/ assets/splash/ android/app/src/main/res/ ios/Runner/Assets.xcassets/ ios/Runner/Base.lproj/LaunchScreen.storyboard ios/Runner/Info.plist
           if git diff --cached --quiet; then exit 0; fi
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Apply selected receipt icon to Android and iOS'
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Apply exact uploaded Splitwize icon to Android and iOS'
           git reset --hard HEAD
           git pull --rebase origin main
           git push origin HEAD:main
