@@ -93,15 +93,15 @@ class NotificationsScreen extends StatelessWidget {
                 separatorBuilder: (_, __) => const SizedBox(height: 6),
                 itemBuilder: (context, i) {
                   if (i == 0) {
-                    return Column(
+                    return const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const PageIntroduction(
+                        PageIntroduction(
                           eyebrow: 'ACTIVITY',
                           title: 'Notifications.',
                           description: 'Bills, payments and invites in one place.',
                         ),
-                        const SectionHeading('Recent updates'),
+                        SectionHeading('Recent updates'),
                       ],
                     );
                   }
