@@ -248,7 +248,9 @@ class CreateBillForm extends _$CreateBillForm {
   void autoSelect(List<AppUser> members) {
     final key = state.groupId;
     if (key == null || state.selectionInitializedFor == key ||
-        members.isEmpty) return;
+        members.isEmpty) {
+      return;
+    }
     final uid = ref.read(currentUidProvider);
     state = state.copyWith(
       selected: members.where((m) => m.uid == uid).map((m) => m.uid).toSet(),
