@@ -156,7 +156,10 @@ class CreateBillForm extends _$CreateBillForm {
 
   void toggleMember(String uid, bool selected) {
     // The creator must always be included in a shared expense.
-    if (!selected && uid == ref.read(currentUidProvider)) return;
+    if (!selected && state.groupId != null &&
+        uid == ref.read(currentUidProvider)) {
+      return;
+    }
     final next = Set<String>.of(state.selected);
     if (selected) {
       next.add(uid);

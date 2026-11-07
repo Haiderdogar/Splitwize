@@ -27,6 +27,7 @@ void main() {
   late AppRepository repo;
   late ProviderContainer container;
   late ProviderSubscription<AsyncValue<List<AppUser>>> sub;
+  late ProviderSubscription<AsyncValue<List<BillGroup>>> groupsSub;
   late ProviderSubscription<CreateBillFormState> formSub;
 
   const friendC = AppUser(
@@ -67,7 +68,9 @@ void main() {
     // reachable (submit reads its .value), so load it here too and
     // keep it alive for the test.
     sub = container.listen(createBillMembersProvider, (_, __) {});
+    groupsSub = container.listen(myGroupsProvider, (_, __) {});
     await container.read(createBillMembersProvider.future);
+    await container.read(myGroupsProvider.future);
     // Likewise, the screen's Consumers keep the (autoDispose) form
     // provider alive while submit() is in flight; mirror that here.
     formSub = container.listen(createBillFormProvider, (_, __) {});
@@ -77,6 +80,7 @@ void main() {
 
   tearDown(() async {
     formSub.close();
+    groupsSub.close();
     sub.close();
     container.dispose();
     repo.dispose();
