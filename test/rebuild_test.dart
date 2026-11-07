@@ -347,6 +347,14 @@ void main() {
         ),
       );
       await tester.pump();
+      // New Expense must begin with the form itself, without the old
+      // promotional introduction taking up the top of the screen.
+      expect(find.text('NEW EXPENSE'), findsNothing);
+      expect(find.text('Add an expense.'), findsNothing);
+      expect(find.text('Enter the amount, then choose who shares it.'),
+          findsNothing);
+      expect(find.text('Title'), findsOneWidget);
+      expect(find.text('Bill amount'), findsOneWidget);
       // Without a group, no members or Select All control are shown.
       expect(find.byType(Checkbox), findsNothing);
       expect(find.text('Select all'), findsNothing);
