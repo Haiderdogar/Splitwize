@@ -59,14 +59,13 @@ class SignIn extends _$SignIn {
 class CreateBillFormState {
   final String title;
   final String subtotal; // raw text from the field
-  final double tipPercent;
   final String? groupId;
   final Set<String> selected; // uids to split between
   final String splitType; // equal | percentage | custom
   final Map<String, String> percents; // uid -> raw text
   final Map<String, String> amounts; // uid -> raw text
   final bool saving;
-  final String? selectionInitializedFor; // groupId (or 'friends') or null
+  final String? selectionInitializedFor; // groupId or null
 
   /// Local path of the compressed receipt photo (optional), stored in the
   /// app documents folder until SyncService uploads it to Firebase Storage.
@@ -78,7 +77,6 @@ class CreateBillFormState {
   const CreateBillFormState({
     this.title = '',
     this.subtotal = '',
-    this.tipPercent = 15,
     this.groupId,
     this.selected = const {},
     this.splitType = 'equal',
@@ -100,16 +98,11 @@ class CreateBillFormState {
     return (value * 100).round() / 100;
   }
 
-  double get total {
-    final value = subtotalValue * (1 + tipPercent / 100);
-    if (!value.isFinite || value.abs() > 90071992547409) return 0;
-    return (value * 100).round() / 100;
-  }
+  double get total => subtotalValue;
 
   CreateBillFormState copyWith({
     String? title,
     String? subtotal,
-    double? tipPercent,
     Set<String>? selected,
     String? splitType,
     Map<String, String>? percents,
@@ -123,7 +116,6 @@ class CreateBillFormState {
     return CreateBillFormState(
       title: title ?? this.title,
       subtotal: subtotal ?? this.subtotal,
-      tipPercent: tipPercent ?? this.tipPercent,
       groupId: groupId,
       selected: selected ?? this.selected,
       splitType: splitType ?? this.splitType,
@@ -147,18 +139,15 @@ class CreateBillForm extends _$CreateBillForm {
 
   void setSubtotal(String v) => state = state.copyWith(subtotal: v);
 
-  void setTip(double v) => state = state.copyWith(tipPercent: v);
-
   void setSplitType(String v) => state = state.copyWith(splitType: v);
 
-  /// Switching groups resets the selection; the UI re-runs [autoSelect]
-  /// when the new member list arrives. (The receipt photo is kept —
-  /// it belongs to the bill, not the group.)
+  /// A new group starts with a fresh selection and empty share inputs,
+  /// while the expense details and receipt are preserved.
   void setGroup(String? id) {
+    if (state.groupId == id) return;
     state = CreateBillFormState(
       title: state.title,
       subtotal: state.subtotal,
-      tipPercent: state.tipPercent,
       groupId: id,
       splitType: state.splitType,
       receiptPath: state.receiptPath,
@@ -166,6 +155,8 @@ class CreateBillForm extends _$CreateBillForm {
   }
 
   void toggleMember(String uid, bool selected) {
+    // The creator must always be included in a shared expense.
+    if (!selected && uid == ref.read(currentUidProvider)) return;
     final next = Set<String>.of(state.selected);
     if (selected) {
       next.add(uid);
@@ -173,6 +164,17 @@ class CreateBillForm extends _$CreateBillForm {
       next.remove(uid);
     }
     state = state.copyWith(selected: next);
+  }
+
+  /// Select everyone in this group, or clear everybody except the creator.
+  void selectAllMembers(List<AppUser> members, bool selectAll) {
+    if (state.groupId == null) return;
+    final uid = ref.read(currentUidProvider);
+    state = state.copyWith(
+      selected: selectAll
+          ? members.map((m) => m.uid).toSet()
+          : members.where((m) => m.uid == uid).map((m) => m.uid).toSet(),
+    );
   }
 
   void setPercent(String uid, String v) {
@@ -241,18 +243,15 @@ class CreateBillForm extends _$CreateBillForm {
     }
   }
 
-  /// Pre-selects members the first time a member list loads for the current
-  /// group choice: everyone in group mode, just me in friends mode.
-  /// Called from the UI via `ref.listen`; never clobbers manual choices.
+  /// The creator is the only default participant for a selected group.
+  /// Never overwrite subsequent manual selections.
   void autoSelect(List<AppUser> members) {
-    final key = state.groupId ?? '__friends__';
-    if (state.selectionInitializedFor == key || members.isEmpty) return;
+    final key = state.groupId;
+    if (key == null || state.selectionInitializedFor == key ||
+        members.isEmpty) return;
     final uid = ref.read(currentUidProvider);
-    final selected = state.groupId != null
-        ? members.map((m) => m.uid).toSet()
-        : members.where((m) => m.uid == uid).map((m) => m.uid).toSet();
     state = state.copyWith(
-      selected: selected,
+      selected: members.where((m) => m.uid == uid).map((m) => m.uid).toSet(),
       selectionInitializedFor: key,
     );
   }
@@ -276,6 +275,7 @@ class CreateBillForm extends _$CreateBillForm {
   Future<String?> _submit(CreateBillFormState draft) async {
     final uid = ref.read(currentUidProvider);
     if (uid == null) return 'Not signed in.';
+    if (draft.groupId == null) return 'Select a group first.';
     final members =
         ref.read(createBillMembersProvider).value ?? const <AppUser>[];
     final selectedMembers =
@@ -285,10 +285,10 @@ class CreateBillForm extends _$CreateBillForm {
     if (draft.subtotalValue <= 0 || draft.total <= 0) {
       return 'Enter a valid bill amount.';
     }
-    if (!draft.tipPercent.isFinite || draft.tipPercent < 0) {
-      return 'Enter a valid tip percentage.';
+    if (selectedMembers.length < 2 ||
+        !selectedMembers.any((member) => member.uid == uid)) {
+      return 'Select at least two group members, including yourself.';
     }
-    if (selectedMembers.isEmpty) return 'Select at least one person.';
 
     late final AppRepository repo;
     late final AppUser me;
@@ -302,15 +302,12 @@ class CreateBillForm extends _$CreateBillForm {
       if (profile == null) return 'Profile not found.';
       me = profile;
       currency = me.currencyCode;
-      if (draft.groupId != null) {
-        final groups = await ref.read(myGroupsProvider.future);
-        for (final g in groups) {
-          if (g.id == draft.groupId) {
-            groupName = g.name;
-            currency = g.currency;
-          }
-        }
-      }
+      final groups = await ref.read(myGroupsProvider.future);
+      final matches = groups.where((g) => g.id == draft.groupId);
+      if (matches.isEmpty) return 'Selected group is no longer available.';
+      final group = matches.first;
+      groupName = group.name;
+      currency = group.currency;
     } catch (e) {
       return 'Could not create bill: $e';
     }
@@ -401,7 +398,7 @@ class CreateBillForm extends _$CreateBillForm {
       await repo.createBill(
         title: draft.title.trim(),
         subtotal: draft.subtotalValue,
-        tipPercent: draft.tipPercent,
+        tipPercent: 0,
         creator: me,
         groupId: draft.groupId,
         groupName: groupName,
@@ -417,10 +414,7 @@ class CreateBillForm extends _$CreateBillForm {
   }
 }
 
-/// The currency a new bill will be created in, for display while the
-/// form is filled: the selected group's currency, or my default
-/// currency for friend bills. Mirrors the resolution in
-/// [CreateBillForm.submit].
+/// Currency for the selected group, or the user's default while choosing.
 @riverpod
 String billFormCurrency(Ref ref) {
   final uid = ref.watch(currentUidProvider);
@@ -435,19 +429,14 @@ String billFormCurrency(Ref ref) {
   return ref.watch(currentAppUserProvider).value?.currencyCode ?? 'USD';
 }
 
-/// People available to split with: group members, or me + my connections.
+/// Load only the selected group's members, never people from other groups.
 @riverpod
 Future<List<AppUser>> createBillMembers(Ref ref) async {
-  final uid = ref.watch(currentUidProvider);
-  if (uid == null) return const [];
   final groupId = ref.watch(createBillFormProvider.select((s) => s.groupId));
-  if (groupId != null) {
-    return ref.watch(groupMembersProvider(groupId).future);
+  if (groupId == null || ref.watch(currentUidProvider) == null) {
+    return const <AppUser>[];
   }
-  final repo = await ref.watch(appRepositoryProvider.future);
-  final me = await repo.getUser(uid);
-  final conns = await repo.fetchConnections();
-  return [if (me != null) me, ...conns];
+  return ref.watch(groupMembersProvider(groupId).future);
 }
 
 // ---------------------------------------------------------------------------

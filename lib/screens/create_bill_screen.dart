@@ -12,12 +12,10 @@ import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
 import '../utils/split_math.dart';
 import '../widgets/split_bar.dart';
-import '../widgets/studio_ui.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show currencySymbol, formatMoney;
 
-/// Create a bill: title, amount + tip, pick a group (or friends),
-/// choose who it splits between, then equal / percentage / custom shares.
+/// Add a group expense with selected members and equal/percentage/custom shares.
 ///
 /// State lives in [CreateBillForm]; only the widgets that display changing
 /// state are wrapped in [Consumer] — fields just call the notifier.
@@ -39,25 +37,14 @@ class CreateBillScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  PageIntroduction(
-                    eyebrow: 'NEW EXPENSE',
-                    title: 'Add an expense.',
-                    description: 'Enter the amount, then choose who shares it.',
-                  ),
-                  SizedBox(height: 24),
-                  _SectionTitle('Bill'),
                   _TitleField(),
                   SizedBox(height: 12),
                   _SubtotalField(),
-                  SizedBox(height: 12),
-                  _TipSection(),
-                  SizedBox(height: 8),
-                  _SectionTitle('Receipt (optional)'),
-                  _ReceiptSection(),
-                  SizedBox(height: 8),
-                  _SectionTitle('Who is splitting?'),
+                  SizedBox(height: 16),
                   _GroupPicker(),
-                  SizedBox(height: 8),
+                  SizedBox(height: 12),
+                  _ReceiptSection(),
+                  SizedBox(height: 10),
                 ],
               ),
             ),
@@ -72,10 +59,7 @@ class CreateBillScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _SectionTitle('How to split?'),
-                  _SplitTypeSection(),
-                  SizedBox(height: 24),
-                  _CreateButton(),
+                  _SplitAndSubmitSection(),
                 ],
               ),
             ),
@@ -160,169 +144,152 @@ class _SubtotalField extends StatelessWidget {
   }
 }
 
-class _TipSection extends StatelessWidget {
-  const _TipSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final tip =
-            ref.watch(createBillFormProvider.select((s) => s.tipPercent));
-        final total = ref.watch(createBillFormProvider.select((s) => s.total));
-        final currency = ref.watch(billFormCurrencyProvider);
-        final notifier = ref.read(createBillFormProvider.notifier);
-        return Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Tip'),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: Text(
-                    '${tip.toStringAsFixed(0)}%  •  Total ${formatMoney(total, currency)}',
-                    textAlign: TextAlign.end,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            Wrap(
-              spacing: 8,
-              children: [0, 10, 15, 18, 20].map((p) {
-                return ChoiceChip(
-                  label: Text('$p%'),
-                  selected: tip == p.toDouble(),
-                  onSelected: (_) => notifier.setTip(p.toDouble()),
-                );
-              }).toList(),
-            ),
-            Slider(
-              value: tip,
-              min: 0,
-              max: 30,
-              divisions: 30,
-              label: '${tip.toStringAsFixed(0)}%',
-              onChanged: notifier.setTip,
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _GroupPicker extends StatelessWidget {
+class _GroupPicker extends ConsumerWidget {
   const _GroupPicker();
 
   @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final groupsAsync = ref.watch(myGroupsProvider);
-        final groupId =
-            ref.watch(createBillFormProvider.select((s) => s.groupId));
-        return groupsAsync.when(
-          loading: () => DropdownButtonFormField<String?>(
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Group (optional)',
-              border: OutlineInputBorder(),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groupsAsync = ref.watch(myGroupsProvider);
+    final groupId =
+        ref.watch(createBillFormProvider.select((s) => s.groupId));
+    return groupsAsync.when(
+      loading: () => DropdownButtonFormField<String>(
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'Group',
+          hintText: 'Choose a group',
+          border: OutlineInputBorder(),
+        ),
+        items: const [],
+        onChanged: null,
+      ),
+      error: (e, _) => LoadError.compact(
+        message: 'Could not load groups',
+        onRetry: () {
+          ref.invalidate(appRepositoryProvider);
+          ref.invalidate(myGroupsProvider);
+        },
+      ),
+      data: (groups) => DropdownButtonFormField<String>(
+        key: ValueKey(groupId),
+        isExpanded: true,
+        initialValue: groupId,
+        decoration: InputDecoration(
+          labelText: 'Group',
+          hintText: 'Choose a group',
+          helperText: groups.isEmpty ? 'Create a group to split expenses.' : null,
+          border: const OutlineInputBorder(),
+        ),
+        items: [
+          for (final group in groups)
+            DropdownMenuItem<String>(
+              value: group.id,
+              child: Text(group.name, maxLines: 1,
+                overflow: TextOverflow.ellipsis),
             ),
-            items: const [],
-            onChanged: null,
-          ),
-          error: (e, _) => LoadError.compact(
-            message: 'Could not load groups',
-            onRetry: () {
-              ref.invalidate(appRepositoryProvider);
-              ref.invalidate(myGroupsProvider);
-            },
-          ),
-          data: (groups) => DropdownButtonFormField<String?>(
-            // Take the field's width and ellipsize long group names
-            // instead of overflowing the form.
-            isExpanded: true,
-            initialValue: groupId,
-            decoration: const InputDecoration(
-              labelText: 'Group (optional)',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              const DropdownMenuItem<String?>(
-                value: null,
-                child: Text('No group — pick friends'),
-              ),
-              ...groups.map((g) => DropdownMenuItem<String?>(
-                    value: g.id,
-                    child: Text(g.name),
-                  )),
-            ],
-            onChanged: (v) =>
-                ref.read(createBillFormProvider.notifier).setGroup(v),
-          ),
-        );
-      },
+        ],
+        onChanged: groups.isEmpty
+            ? null
+            : ref.read(createBillFormProvider.notifier).setGroup,
+      ),
     );
   }
 }
 
-class _MembersSection extends StatelessWidget {
+class _MembersSection extends ConsumerWidget {
   const _MembersSection();
 
   @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        // Side-effect only: pre-select members when the list first loads.
-        ref.listen(createBillMembersProvider, (_, next) {
-          next.whenData((members) =>
-              ref.read(createBillFormProvider.notifier).autoSelect(members));
-        });
-        // Only the member list itself is watched here. Selection
-        // state is NOT watched at this level: each row watches only
-        // its own membership (see [_MemberRow]), so ticking one
-        // person rebuilds that one row — not the whole list. (The
-        // old version watched the whole `selected` set here, so
-        // every tick rebuilt every row, including the percent /
-        // custom amount fields of people you weren't touching.)
-        final membersAsync = ref.watch(createBillMembersProvider);
-        final myUid = ref.watch(currentUidProvider);
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Do not load or display participants before choosing a group.
+    final groupId = ref.watch(createBillFormProvider.select((s) => s.groupId));
+    if (groupId == null) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+    ref.listen(createBillMembersProvider, (_, next) {
+      next.whenData((members) =>
+          ref.read(createBillFormProvider.notifier).autoSelect(members));
+    });
+    final membersAsync = ref.watch(createBillMembersProvider);
+    final myUid = ref.watch(currentUidProvider);
 
-        return membersAsync.when(
-          loading: () => const SliverToBoxAdapter(child: ShimmerRows(count: 3)),
-          error: (e, _) => SliverToBoxAdapter(
-            child: LoadError.compact(
-              message: 'Could not load people',
-              onRetry: () {
-                ref.invalidate(appRepositoryProvider);
-                ref.invalidate(createBillMembersProvider);
-              },
+    return membersAsync.when(
+      loading: () => const SliverToBoxAdapter(child: ShimmerRows(count: 3)),
+      error: (e, _) => SliverToBoxAdapter(
+        child: LoadError.compact(
+          message: 'Could not load group members',
+          onRetry: () {
+            ref.invalidate(appRepositoryProvider);
+            ref.invalidate(createBillMembersProvider);
+          },
+        ),
+      ),
+      data: (members) {
+        if (members.length < 2) {
+          return const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text('Add another member to this group to split an expense.'),
             ),
-          ),
-          data: (members) {
-            if (members.isEmpty) {
-              return const SliverToBoxAdapter(
-                child: Text('No one to split with yet — add friends first.'),
-              );
+          );
+        }
+        return SliverList.builder(
+          itemCount: members.length + 1,
+          itemBuilder: (itemContext, index) {
+            if (index == 0) {
+              return _MemberSelectionHeader(members: members);
             }
-            return SliverList.builder(
-              itemCount: members.length,
-              itemBuilder: (itemContext, i) {
-                final m = members[i];
-                return _MemberRow(
-                  member: m,
-                  isMe: m.uid == myUid,
-                );
-              },
+            final member = members[index - 1];
+            return _MemberRow(
+              member: member,
+              isMe: member.uid == myUid,
             );
           },
         );
       },
+    );
+  }
+}
+
+class _MemberSelectionHeader extends ConsumerWidget {
+  const _MemberSelectionHeader({required this.members});
+
+  final List<AppUser> members;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected =
+        ref.watch(createBillFormProvider.select((s) => s.selected));
+    final selectedCount =
+        members.where((member) => selected.contains(member.uid)).length;
+    final allSelected = selectedCount == members.length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(
+              child: Text(
+                'Participants  ·  $selectedCount of ${members.length}',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            TextButton(
+              onPressed: () => ref.read(createBillFormProvider.notifier)
+                  .selectAllMembers(members, !allSelected),
+              child: Text(allSelected ? 'Clear others' : 'Select all'),
+            ),
+          ]),
+          if (selectedCount < 2)
+            Text(
+              'Select at least one other member.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -412,6 +379,27 @@ class _MemberRow extends StatelessWidget {
   }
 }
 
+/// Hide split options until a group has been selected.
+class _SplitAndSubmitSection extends ConsumerWidget {
+  const _SplitAndSubmitSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groupId = ref.watch(createBillFormProvider.select((s) => s.groupId));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (groupId != null) ...[
+          const _SectionTitle('Split method'),
+          const _SplitTypeSection(),
+          const SizedBox(height: 20),
+        ],
+        const _CreateButton(),
+      ],
+    );
+  }
+}
+
 class _SplitTypeSection extends StatelessWidget {
   const _SplitTypeSection();
 
@@ -464,7 +452,7 @@ class _SplitTypeSection extends StatelessWidget {
               onSelectionChanged: (s) => notifier.setSplitType(s.first),
             ),
             const SizedBox(height: 8),
-            if (splitType == 'equal' && selectedCount > 0)
+            if (splitType == 'equal' && selectedCount >= 2)
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -477,7 +465,7 @@ class _SplitTypeSection extends StatelessWidget {
             // Live split preview: the motif bar, updating as shares
             // are typed, plus what's left to allocate for percentage
             // and custom splits (equal splits are always exact).
-            if (selectedCount > 0 && total > 0) ...[
+            if (selectedCount >= 2 && total > 0) ...[
               const SizedBox(height: 12),
               SplitBar(
                   segments: _previewSegments(
@@ -517,10 +505,12 @@ class _CreateButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer(
       builder: (context, ref, _) {
+        final ready = ref.watch(createBillFormProvider.select(
+            (s) => s.groupId != null && s.selected.length >= 2));
         final saving =
             ref.watch(createBillFormProvider.select((s) => s.saving));
         return FilledButton.icon(
-          onPressed: saving
+          onPressed: saving || !ready
               ? null
               : () async {
                   final err =

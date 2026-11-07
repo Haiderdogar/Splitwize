@@ -330,7 +330,15 @@ void main() {
         ProviderScope(
           overrides: [
             currentUidProvider.overrideWith((ref) => 'me'),
-            myGroupsProvider.overrideWith((ref) => Stream.value([])),
+            myGroupsProvider.overrideWith((ref) => Stream.value([
+              const BillGroup(
+                id: 'g1',
+                name: 'Team trip',
+                createdBy: 'me',
+                members: ['me', 'fa', 'fb'],
+                invited: [],
+              ),
+            ])),
             currentAppUserProvider.overrideWith((ref) => Stream.value(meUser)),
             createBillMembersProvider
                 .overrideWith((ref) async => [meUser, friendA, friendB]),
@@ -339,11 +347,25 @@ void main() {
         ),
       );
       await tester.pump();
+      // Without a group, no members or Select All control are shown.
+      expect(find.byType(Checkbox), findsNothing);
+      expect(find.text('Select all'), findsNothing);
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Team trip').last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
       final boxes = find.byType(Checkbox);
       expect(boxes, findsNWidgets(3));
-      // Row order is [me, friendA, friendB]; me's box is disabled.
+      // Only the creator is selected automatically; other members are opt-in.
+      expect(tester.widget<Checkbox>(boxes.at(0)).value, isTrue);
+      expect(tester.widget<Checkbox>(boxes.at(1)).value, isFalse);
+      final submitButton = find.byType(FilledButton);
+      expect(tester.widget<FilledButton>(submitButton).onPressed, isNull,
+          reason: 'A creator-only split must not be submitted');
       await tester.tap(boxes.at(1));
       await tester.pump();
+      expect(tester.widget<FilledButton>(submitButton).onPressed, isNotNull);
       final container = ProviderScope.containerOf(tester.element(boxes.at(1)));
       expect(
         container.read(createBillFormProvider).selected,
@@ -351,6 +373,14 @@ void main() {
       );
       expect(tester.widget<Checkbox>(boxes.at(1)).value, isTrue);
       expect(tester.widget<Checkbox>(boxes.at(2)).value, isFalse);
+      await tester.tap(find.text('Select all'));
+      await tester.pump();
+      expect(tester.widget<Checkbox>(boxes.at(1)).value, isTrue);
+      expect(tester.widget<Checkbox>(boxes.at(2)).value, isTrue);
+      await tester.tap(find.text('Clear others'));
+      await tester.pump();
+      expect(tester.widget<Checkbox>(boxes.at(0)).value, isTrue);
+      expect(tester.widget<Checkbox>(boxes.at(1)).value, isFalse);
       expect(tester.takeException(), isNull);
     });
 

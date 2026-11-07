@@ -34,6 +34,14 @@ void main() {
     displayName: 'Friend C',
     email: 'c@example.com',
   );
+  const selectedGroup = BillGroup(
+    id: 'g1',
+    name: 'Team expenses',
+    createdBy: uid,
+    members: ['me', 'fa', 'fb', 'fc'],
+    invited: [],
+    currency: 'PKR',
+  );
 
   setUp(() async {
     await LocalDatabase.deleteForUid(uid);
@@ -53,7 +61,7 @@ void main() {
       appRepositoryProvider.overrideWith((ref) async => repo),
       createBillMembersProvider
           .overrideWith((ref) async => [meUser, friendA, friendB, friendC]),
-      myGroupsProvider.overrideWith((ref) => Stream.value(const [])),
+      myGroupsProvider.overrideWith((ref) => Stream.value([selectedGroup])),
     ]);
     // The screen always has the member list loaded before submit is
     // reachable (submit reads its .value), so load it here too and
@@ -63,6 +71,8 @@ void main() {
     // Likewise, the screen's Consumers keep the (autoDispose) form
     // provider alive while submit() is in flight; mirror that here.
     formSub = container.listen(createBillFormProvider, (_, __) {});
+    // Form tests simulate a user who has selected a group.
+    container.read(createBillFormProvider.notifier).setGroup('g1');
   });
 
   tearDown(() async {
@@ -78,7 +88,6 @@ void main() {
   void fillValid() {
     form().setTitle('Team lunch');
     form().setSubtotal('100');
-    form().setTip(0);
     form().toggleMember('me', true);
     form().toggleMember('fa', true);
     form().toggleMember('fb', true);
@@ -133,7 +142,47 @@ void main() {
     test('nobody selected is rejected', () async {
       form().setTitle('X');
       form().setSubtotal('50');
-      expect(await form().submit(), contains('Select at least one'));
+      expect(await form().submit(), contains('at least two'));
+    });
+  });
+
+  group('selection rules', () {
+    test('group is required before creating an expense', () async {
+      fillValid();
+      form().setGroup(null);
+      expect(await form().submit(), contains('Select a group first'));
+      expect(await repo.watchMyBills().first, isEmpty);
+    });
+
+    test('the creator alone cannot create an expense', () async {
+      form().setTitle('Lunch');
+      form().setSubtotal('100');
+      form().toggleMember('me', true);
+      expect(await form().submit(), contains('at least two'));
+    });
+
+    test('Select All and Clear Others only affect the chosen group', () {
+      form().autoSelect([meUser, friendA, friendB]);
+      expect(container.read(createBillFormProvider).selected, {'me'});
+      form().selectAllMembers([meUser, friendA, friendB], true);
+      expect(container.read(createBillFormProvider).selected, {'me', 'fa', 'fb'});
+      form().selectAllMembers([meUser, friendA, friendB], false);
+      expect(container.read(createBillFormProvider).selected, {'me'});
+      form().toggleMember('me', false);
+      expect(container.read(createBillFormProvider).selected, {'me'});
+    });
+
+    test('changing groups resets checked people and share amounts', () {
+      fillValid();
+      form().setPercent('fa', '50');
+      form().setAmount('fa', '10');
+      form().setGroup('g2');
+      final draft = container.read(createBillFormProvider);
+      expect(draft.selected, isEmpty);
+      expect(draft.percents, isEmpty);
+      expect(draft.amounts, isEmpty);
+      expect(draft.title, 'Team lunch');
+      expect(draft.subtotal, '100');
     });
   });
 
@@ -162,15 +211,15 @@ void main() {
       expect(await repo.watchMyBills().first, isEmpty);
     });
 
-    test('subtotal and tip total use the same cents as the stored shares',
+    test('new expenses do not add a tip and preserve exact cents',
         () async {
       fillValid();
       form().setSubtotal('10.009');
-      form().setTip(10);
       expect(await form().submit(), isNull);
       final bill = (await repo.watchMyBills().first).single;
       expect(bill.subtotal, 10.01);
-      expect(bill.total, 11.01);
+      expect(bill.total, 10.01);
+      expect(bill.tipPercent, 0);
       expect(bill.splits.fold<double>(0, (sum, s) => sum + s.amount),
           closeTo(bill.total, 0.00001));
     });
@@ -185,22 +234,20 @@ void main() {
       expect(sum, closeTo(100.0, 0.0001));
     });
 
-    test('tip is included in the total before splitting', () async {
+    test('equal split does not add a tip', () async {
       form().setTitle('Dinner');
       form().setSubtotal('1000');
-      form().setTip(10);
       form().toggleMember('me', true);
       form().toggleMember('fa', true);
       expect(await form().submit(), isNull);
       final bill = (await repo.watchMyBills().first).single;
-      expect(bill.total, 1100);
-      expect(bill.splits.map((s) => s.amount), [550, 550]);
+      expect(bill.total, 1000);
+      expect(bill.splits.map((s) => s.amount), [500, 500]);
     });
 
     test('percentage split computes shares and stores percents', () async {
       form().setTitle('Rent');
       form().setSubtotal('200');
-      form().setTip(0);
       form().setSplitType('percentage');
       form().toggleMember('me', true);
       form().toggleMember('fa', true);
@@ -233,7 +280,6 @@ void main() {
     test('custom amounts must add up to the total', () async {
       form().setTitle('Shopping');
       form().setSubtotal('90');
-      form().setTip(0);
       form().setSplitType('custom');
       form().toggleMember('me', true);
       form().toggleMember('fa', true);
@@ -253,8 +299,8 @@ void main() {
     test('comma decimal separator is accepted', () async {
       form().setTitle('Coffee');
       form().setSubtotal('12,50');
-      form().setTip(0);
       form().toggleMember('me', true);
+      form().toggleMember('fa', true);
       expect(await form().submit(), isNull);
       final bill = (await repo.watchMyBills().first).single;
       expect(bill.total, 12.5);
@@ -262,13 +308,14 @@ void main() {
   });
 
   group('currency resolution', () {
-    test('friend bill uses my default currency', () async {
-      await repo.setMyCurrency('PKR');
+    test('group bill uses its currency rather than the profile currency',
+        () async {
+      await repo.setMyCurrency('USD');
       fillValid();
       expect(await form().submit(), isNull);
       final bill = (await repo.watchMyBills().first).single;
       expect(bill.currency, 'PKR');
-      expect(bill.groupId, isNull);
+      expect(bill.groupId, 'g1');
     });
   });
 }
