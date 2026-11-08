@@ -36,11 +36,25 @@ class AuthService {
     final result = await _auth.signInWithCredential(credential);
     final user = result.user;
     if (user != null) {
+      // GoogleSignInAccount carries the account's profile information even
+      // when the Firebase User object lacks displayName or photoURL.
+      final googleName = googleUser.displayName?.trim() ?? '';
+      final firebaseName = user.displayName?.trim() ?? '';
+      final email = googleUser.email.trim().isNotEmpty
+          ? googleUser.email.trim()
+          : (user.email?.trim() ?? '');
+      final displayName = googleName.isNotEmpty
+          ? googleName
+          : firebaseName.isNotEmpty
+              ? firebaseName
+              : email.contains('@')
+                  ? email.split('@').first
+                  : 'Splitwize member';
       final profile = AppUser(
         uid: user.uid,
-        displayName: user.displayName ?? 'Friend',
-        email: user.email ?? '',
-        photoUrl: user.photoURL,
+        displayName: displayName,
+        email: email,
+        photoUrl: googleUser.photoUrl ?? user.photoURL,
       );
       await _db.upsertUser(profile);
       await _secure.saveSession(profile);

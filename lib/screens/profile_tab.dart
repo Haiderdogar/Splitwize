@@ -3,6 +3,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/models.dart';
+
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/monetization_providers.dart';
@@ -157,6 +159,23 @@ class _PushNotificationsTile extends StatelessWidget {
   }
 }
 
+/// Prefer the authenticated Google identity over an old placeholder profile.
+/// Retain cached details when offline or while authentication is restoring.
+String _profileName(AppUser? cached, String? googleName, String email) {
+  final fromGoogle = googleName?.trim() ?? '';
+  if (fromGoogle.isNotEmpty && fromGoogle.toLowerCase() != 'friend') {
+    return fromGoogle;
+  }
+  final saved = cached?.displayName.trim() ?? '';
+  if (saved.isNotEmpty &&
+      saved.toLowerCase() != 'friend' &&
+      saved.toLowerCase() != 'splitwize member') {
+    return saved;
+  }
+  if (email.contains('@')) return email.split('@').first;
+  return email.isEmpty ? 'Splitwize member' : email;
+}
+
 class ProfileTab extends StatelessWidget {
   const ProfileTab({super.key});
 
@@ -169,6 +188,7 @@ class ProfileTab extends StatelessWidget {
       body: Consumer(
         builder: (context, ref, _) {
           final userAsync = ref.watch(currentAppUserProvider);
+          final googleAccount = ref.watch(authStateChangesProvider).value;
           return userAsync.when(
             loading: () =>
                 const ShimmerList(count: 5, padding: EdgeInsets.all(16)),
@@ -180,43 +200,73 @@ class ProfileTab extends StatelessWidget {
               },
             ),
             data: (user) {
-              // UI-only regrouping: every tile below, and every tap
-              // handler inside them, is unchanged. They are just
-              // grouped into cards under a header card, instead of
-              // one flat list of tiles.
               final colorScheme = Theme.of(context).colorScheme;
+              // Use Google Auth's live profile when an old local cache
+              // still contains the default display name ("Friend").
+              final googleEmail = googleAccount?.email?.trim() ?? '';
+              final savedEmail = user?.email.trim() ?? '';
+              final email = googleEmail.isNotEmpty ? googleEmail : savedEmail;
+              final displayName =
+                  _profileName(user, googleAccount?.displayName, email);
+              final photoUrl = googleAccount?.photoURL?.trim().isNotEmpty == true
+                  ? googleAccount!.photoURL!.trim()
+                  : (user?.photoUrl?.trim() ?? '');
+              final nameParts = displayName.split(RegExp(r'\s+'));
+              final initials = nameParts.length > 1
+                  ? '${nameParts.first[0]}${nameParts.last[0]}'.toUpperCase()
+                  : displayName[0].toUpperCase();
               const divider = Divider(height: 1, indent: 56, endIndent: 16);
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 102),
                 children: [
-                  const PageIntroduction(
-                    eyebrow: 'ACCOUNT',
-                    title: 'Your profile.',
-                    description: 'Manage your preferences and notifications.',
-                  ),
-                  SoftPanel(child: Row(children: [
-                    PersonMark(
-                      initials: user?.initials ?? '?',
-                      size: 56,
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  SoftPanel(
+                    child: Row(
                       children: [
-                        Text(user?.displayName ?? 'Splitwize member',
-                          maxLines: 2, overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(height: 4),
-                        Text(user?.email ?? '',
-                          maxLines: 2, overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant)),
+                        if (photoUrl.isEmpty)
+                          PersonMark(initials: initials, size: 56)
+                        else
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: Image.network(
+                              photoUrl,
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  PersonMark(initials: initials, size: 56),
+                            ),
+                          ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                displayName,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              if (email.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  email,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                       ],
-                    )),
-                  ])),
+                    ),
+                  ),
                   const SizedBox(height: 17),
-                  const SectionHeading('Preferences',
-                    subtitle: 'Your app, your settings.'),
+                  const SectionHeading('Preferences'),
                   const SizedBox(height: 8),
                   Card(
                     elevation: 0,

@@ -208,15 +208,32 @@ Future<void> initSync(Ref ref) async {
     if (fb != null) {
       me = AppUser(
         uid: fb.uid,
-        displayName: fb.displayName ?? 'Friend',
+        displayName: (fb.displayName?.trim().isNotEmpty ?? false)
+            ? fb.displayName!.trim()
+            : ((fb.email?.contains('@') ?? false)
+                ? fb.email!.split('@').first
+                : 'Splitwize member'),
         email: fb.email ?? '',
         photoUrl: fb.photoURL,
       );
     }
   }
   if (me != null) {
-    // Keep the local cache and secure session fresh (no remote write —
-    // the profile is unchanged).
+    // Repair a profile cached as "Friend" using the Google identity saved
+    // during sign-in, without resetting the user's preferred currency.
+    final session = await ref.read(secureStorageServiceProvider).loadSession();
+    if (session != null &&
+        session.uid == uid &&
+        (me.displayName.trim().isEmpty ||
+            me.displayName.trim().toLowerCase() == 'friend') &&
+        session.displayName.trim().isNotEmpty &&
+        session.displayName.trim().toLowerCase() != 'friend') {
+      me = me.copyWith(
+        displayName: session.displayName.trim(),
+        email: session.email.isNotEmpty ? session.email : me.email,
+        photoUrl: session.photoUrl,
+      );
+    }
     await repo.cacheMyProfile(me);
   }
 

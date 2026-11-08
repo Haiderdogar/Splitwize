@@ -477,6 +477,37 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('profile: replaces cached Friend placeholder with email name',
+        (tester) async {
+      const stale = AppUser(
+        uid: 'me',
+        displayName: 'Friend',
+        email: 'google.user@example.com',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentUidProvider.overrideWith((ref) => 'me'),
+            currentAppUserProvider.overrideWith((ref) => Stream.value(stale)),
+            authStateChangesProvider.overrideWith((ref) => Stream.value(null)),
+            notificationAuthorizationStatusProvider
+                .overrideWith((ref) async => AuthorizationStatus.authorized),
+            syncStatusProvider
+                .overrideWith((ref) => Stream.value(const SyncState())),
+            adFreeStatusProvider.overrideWith(() => _FakeAdFreeStatus(false)),
+            themeModeSettingProvider.overrideWith(() => _FakeThemeMode()),
+          ],
+          child: const MaterialApp(home: ProfileTab()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Friend'), findsNothing);
+      expect(find.text('google.user'), findsOneWidget);
+      expect(find.text('google.user@example.com'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('profile: push tile reads the cached provider status',
         (tester) async {
       await tester.pumpWidget(
@@ -484,6 +515,7 @@ void main() {
           overrides: [
             currentUidProvider.overrideWith((ref) => 'me'),
             currentAppUserProvider.overrideWith((ref) => Stream.value(meUser)),
+            authStateChangesProvider.overrideWith((ref) => Stream.value(null)),
             notificationAuthorizationStatusProvider
                 .overrideWith((ref) async => AuthorizationStatus.authorized),
             syncStatusProvider
@@ -497,6 +529,10 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Me Myself'), findsOneWidget);
+      expect(find.text('me@example.com'), findsOneWidget);
+      expect(find.text('Your profile.'), findsNothing);
+      expect(find.text('Manage your preferences and notifications.'),
+          findsNothing);
       expect(
         find.text('On — you will be notified of new bills'),
         findsOneWidget,
