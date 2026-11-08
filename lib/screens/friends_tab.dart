@@ -18,24 +18,13 @@ class FriendsTab extends StatelessWidget {
       appBar: AppBar(
         leading: const SplitwizeMenuButton(),
         title: const Text('Friends'),
-        actions: [
-          IconButton(
-            tooltip: 'Add friend',
-            icon: const Icon(Icons.person_add),
-            onPressed: () => showDialog(
-              context: context,
-              builder: (_) => const _AddFriendDialog(),
-            ),
-          ),
-        ],
       ),
       // Slivers + builder lists: request/friend cards are built
       // lazily, only for what's on screen.
       body: const CustomScrollView(
         slivers: [
-          _InviteHeader(),
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
             sliver: SliverToBoxAdapter(child: _RequestsHeader()),
           ),
           SliverPadding(
@@ -54,51 +43,17 @@ class FriendsTab extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: 12),
             sliver: _Connections(),
           ),
-          SliverToBoxAdapter(child: SizedBox(height: 12)),
+          // Leave enough scroll space for the add-friend button.
+          SliverToBoxAdapter(child: SizedBox(height: 96)),
         ],
       ),
-    );
-  }
-}
-
-/// The invite lead: the full hero card for new users, collapsing to a
-/// compact row once friends exist so it stops pushing the list down.
-class _InviteHeader extends StatelessWidget {
-  const _InviteHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-      sliver: SliverToBoxAdapter(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const PageIntroduction(
-            eyebrow: 'PEOPLE',
-            title: 'Better with friends.',
-            description: 'Add friends, share bills, and keep everyone in sync.',
-          ),
-          SoftPanel(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                const PersonMark(initials: '',
-                  icon: Icons.person_add_alt_outlined, size: 46),
-                const SizedBox(width: 11),
-                Expanded(child: Text('Invite someone you split with',
-                  style: Theme.of(context).textTheme.titleMedium)),
-              ]),
-              const SizedBox(height: 13),
-              OutlinedButton.icon(
-                onPressed: () => showDialog(
-                  context: context,
-                  builder: (_) => const _AddFriendDialog(),
-                ),
-                icon: const Icon(Icons.person_add_alt_1_rounded),
-                label: const Text('Invite by email'),
-              ),
-            ],
-          )),
-        ]),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Add friend',
+        onPressed: () => showDialog<void>(
+          context: context,
+          builder: (_) => const _AddFriendDialog(),
+        ),
+        child: const Icon(Icons.person_add_alt_1_rounded),
       ),
     );
   }

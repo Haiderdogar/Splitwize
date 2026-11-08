@@ -27,6 +27,7 @@ import 'package:splitwize/providers/form_providers.dart';
 import 'package:splitwize/providers/monetization_providers.dart';
 import 'package:splitwize/screens/create_bill_screen.dart';
 import 'package:splitwize/screens/create_group_screen.dart';
+import 'package:splitwize/screens/friends_tab.dart';
 import 'package:splitwize/screens/groups_tab.dart';
 import 'package:splitwize/screens/profile_tab.dart';
 import 'package:splitwize/services/firestore_service.dart';
@@ -452,6 +453,42 @@ void main() {
       await tester.pump();
       expect(find.text('Create group & send invites').hitTestable(),
           findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('friends: remove hero and invite card, use one FAB',
+        (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentUidProvider.overrideWith((ref) => 'me'),
+            incomingRequestsProvider.overrideWith(
+                (ref) => Stream.value(const <ConnectionRequest>[])),
+            outgoingRequestsProvider.overrideWith(
+                (ref) => Stream.value(const <ConnectionRequest>[])),
+            connectionsProvider.overrideWith(
+                (ref) => Stream.value([friendA, friendB])),
+          ],
+          child: const MaterialApp(home: FriendsTab()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('PEOPLE'), findsNothing);
+      expect(find.text('Better with friends.'), findsNothing);
+      expect(find.text('Invite someone you split with'), findsNothing);
+      expect(find.text('Invite by email'), findsNothing);
+      expect(find.text('Requests'), findsOneWidget);
+      expect(find.text('Connected'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+      expect(find.byTooltip('Add friend'), findsOneWidget);
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Add friend'), findsOneWidget);
+      expect(find.text('Email'), findsOneWidget);
+      expect(find.text('Search'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
