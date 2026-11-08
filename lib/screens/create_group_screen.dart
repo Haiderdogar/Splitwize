@@ -7,7 +7,6 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
 import '../widgets/state_widgets.dart';
-import '../widgets/studio_ui.dart';
 import 'bills_tab.dart' show currencyLabel;
 
 /// Currencies pinned to the top of the picker, in code order.
@@ -69,9 +68,49 @@ class _FriendCheckRow extends StatelessWidget {
           onChanged: (v) => notifier.toggle(friend.uid, v ?? false),
           secondary: CircleAvatar(child: Text(friend.initials)),
           title: Text(friend.displayName),
-          subtitle: Text(friend.email),
+          dense: true,
         );
       },
+    );
+  }
+}
+
+/// Displays every connected friend with an explicit bulk-selection action.
+/// This is limited to connected people: pending friend requests cannot be invited.
+class _FriendsSelectHeader extends ConsumerWidget {
+  const _FriendsSelectHeader({required this.friends});
+
+  final List<AppUser> friends;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(
+        createGroupFormProvider.select((state) => state.selected));
+    final allSelected =
+        friends.isNotEmpty && friends.every((f) => selected.contains(f.uid));
+    final count = friends.where((f) => selected.contains(f.uid)).length;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              friends.isEmpty ? 'Invite friends' : 'Invite friends ($count/${friends.length})',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ),
+          if (friends.isNotEmpty)
+            TextButton(
+              onPressed: () => ref
+                  .read(createGroupFormProvider.notifier)
+                  .selectAllFriends(friends, !allSelected),
+              child: Text(allSelected ? 'Clear all' : 'Select all'),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -94,12 +133,6 @@ class CreateGroupScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const PageIntroduction(
-                    eyebrow: 'NEW GROUP',
-                    title: 'Create a group.',
-                    description: 'Give it a name and invite the people you share with.',
-                  ),
-                  const SizedBox(height: 23),
                   // Writes only — never rebuilds on keystrokes.
                   Consumer(
                     builder: (context, ref, _) => TextField(
@@ -115,16 +148,7 @@ class CreateGroupScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   const _CurrencyField(),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Invite friends (they join after accepting)',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                ],
+                  const SizedBox(height: 12),                ],
               ),
             ),
           ),
@@ -150,65 +174,81 @@ class CreateGroupScreen extends StatelessWidget {
                     ),
                   ),
                   data: (conns) {
-                    if (conns.isEmpty) {
-                      return const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          child: Text(
-                              'No connected friends yet. Add friends from the Friends tab first.'),
-                        ),
-                      );
-                    }
+                    // Show ALL connected friends, not just selected ones.
+                    // Keep the header inside this sliver so it shares the
+                    // same data snapshot as the checklist.
+                    final friends = [
+                      for (final friend in conns)
+                        if (friend.uid != ref.read(currentUidProvider)) friend,
+                    ];
                     return SliverList.builder(
-                      itemCount: conns.length,
-                      itemBuilder: (itemContext, i) =>
-                          _FriendCheckRow(friend: conns[i]),
+                      itemCount: friends.length + (friends.isEmpty ? 2 : 1),
+                      itemBuilder: (itemContext, i) {
+                        if (i == 0) {
+                          return _FriendsSelectHeader(friends: friends);
+                        }
+                        if (friends.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.fromLTRB(4, 8, 4, 16),
+                            child: Text('No friends yet. Add friends in the Friends tab.'),
+                          );
+                        }
+                        return _FriendCheckRow(friend: friends[i - 1]);
+                      },
                     );
                   },
                 );
               },
             ),
           ),
-          // Only the button reacts to the saving state.
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-            sliver: SliverToBoxAdapter(
-              child: Consumer(
-                builder: (context, ref, _) {
-                  final saving = ref
-                      .watch(createGroupFormProvider.select((s) => s.saving));
-                  return FilledButton.icon(
-                    onPressed: saving
-                        ? null
-                        : () async {
-                            final err = await ref
-                                .read(createGroupFormProvider.notifier)
-                                .submit();
-                            if (!context.mounted) return;
-                            if (err == null) {
-                              Navigator.of(context).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content:
-                                        Text('Group created — invites sent.')),
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(err)),
-                              );
-                            }
-                          },
-                    icon: const Icon(Icons.group_add),
-                    label: const FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text('Create group & send invites'),
-                    ),
-                  );
-                },
-              ),
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          child: SizedBox(
+            height: 52,
+            child: Consumer(
+              builder: (context, ref, _) {
+                final saving =
+                    ref.watch(createGroupFormProvider.select((s) => s.saving));
+                return FilledButton.icon(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          final err = await ref
+                              .read(createGroupFormProvider.notifier)
+                              .submit();
+                          if (!context.mounted) return;
+                          if (err == null) {
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content:
+                                      Text('Group created — invites sent.')),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(err)),
+                            );
+                          }
+                        },
+                  icon: saving
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.group_add),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Create group & send invites'),
+                  ),
+                );
+              },
             ),
           ),
-        ],
+        ),
       ),
     );
   }

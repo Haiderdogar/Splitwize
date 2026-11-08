@@ -500,6 +500,21 @@ class CreateGroupForm extends _$CreateGroupForm {
     state = state.copyWith(selected: next);
   }
 
+  /// Bulk invite or clear all friends currently shown in the checklist.
+  /// The creator is never included in the invitee selection.
+  void selectAllFriends(List<AppUser> friends, bool selected) {
+    final me = ref.read(currentUidProvider);
+    final uids = friends.where((friend) => friend.uid != me)
+        .map((friend) => friend.uid).toSet();
+    final next = Set<String>.of(state.selected);
+    if (selected) {
+      next.addAll(uids);
+    } else {
+      next.removeAll(uids);
+    }
+    state = state.copyWith(selected: next);
+  }
+
   /// Returns null on success, an error message otherwise.
   Future<String?> submit() async {
     final name = state.name.trim();

@@ -392,6 +392,67 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('create-group: no intro, all friends and sticky submit',
+        (tester) async {
+      tester.view.physicalSize = const Size(360, 720);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          currentUidProvider.overrideWith((ref) => 'me'),
+          currentAppUserProvider.overrideWith((ref) => Stream.value(meUser)),
+          connectionsProvider.overrideWith(
+              (ref) => Stream.value([friendA, friendB])),
+        ],
+        child: const MaterialApp(home: CreateGroupScreen()),
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('NEW GROUP'), findsNothing);
+      expect(find.text('Create a group.'), findsNothing);
+      expect(find.text('Give it a name and invite the people you share with.'),
+          findsNothing);
+      expect(find.text('Group name'), findsOneWidget);
+      expect(find.text('Friend A'), findsOneWidget);
+      expect(find.text('Friend B'), findsOneWidget);
+
+      // The primary action belongs to Scaffold, not the scroll content.
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+      expect(scaffold.bottomNavigationBar, isNotNull);
+      expect(find.text('Create group & send invites'), findsOneWidget);
+
+      final boxes = find.byType(CheckboxListTile);
+      expect(boxes, findsNWidgets(2));
+      expect(tester.widget<CheckboxListTile>(boxes.at(0)).value, isFalse);
+      expect(tester.widget<CheckboxListTile>(boxes.at(1)).value, isFalse);
+      await tester.tap(find.text('Select all'));
+      await tester.pump();
+      expect(tester.widget<CheckboxListTile>(boxes.at(0)).value, isTrue);
+      expect(tester.widget<CheckboxListTile>(boxes.at(1)).value, isTrue);
+
+      final container = ProviderScope.containerOf(tester.element(boxes.at(0)));
+      expect(container.read(createGroupFormProvider).selected, {'fa', 'fb'});
+
+      await tester.tap(find.text('Clear all'));
+      await tester.pump();
+      expect(container.read(createGroupFormProvider).selected, isEmpty);
+
+      await tester.tap(find.text('Friend A'));
+      await tester.pump();
+      expect(container.read(createGroupFormProvider).selected, {'fa'});
+
+      // The footer stays visible after the list scrolls.
+      await tester.drag(find.byType(CustomScrollView),
+          const Offset(0, -350));
+      await tester.pump();
+      expect(find.text('Create group & send invites').hitTestable(),
+          findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('profile: push tile reads the cached provider status',
         (tester) async {
       await tester.pumpWidget(
