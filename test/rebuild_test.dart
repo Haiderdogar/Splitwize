@@ -26,6 +26,7 @@ import 'package:splitwize/providers/data_providers.dart' hide group;
 import 'package:splitwize/providers/form_providers.dart';
 import 'package:splitwize/providers/monetization_providers.dart';
 import 'package:splitwize/screens/create_bill_screen.dart';
+import 'package:splitwize/screens/create_group_screen.dart';
 import 'package:splitwize/screens/profile_tab.dart';
 import 'package:splitwize/services/firestore_service.dart';
 import 'package:splitwize/services/secure_storage_service.dart';
