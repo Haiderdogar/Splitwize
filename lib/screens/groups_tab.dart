@@ -24,25 +24,11 @@ class GroupsTab extends StatelessWidget {
         title: const Text('Groups'),
       ),
       body: CustomScrollView(slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-          sliver: SliverToBoxAdapter(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const PageIntroduction(
-                eyebrow: 'SHARED SPACES',
-                title: 'Your groups.',
-                description: 'Keep trips, housemates and shared plans together.',
-              ),
-              FilledButton.icon(
-                onPressed: () => _create(context),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Create group'),
-              ),
-              const SizedBox(height: 14),
-              const SectionHeading('My groups'),
-            ],
-          )),
+        const SliverPadding(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+          sliver: SliverToBoxAdapter(
+            child: SectionHeading('My groups'),
+          ),
         ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),

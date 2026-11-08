@@ -27,6 +27,7 @@ import 'package:splitwize/providers/form_providers.dart';
 import 'package:splitwize/providers/monetization_providers.dart';
 import 'package:splitwize/screens/create_bill_screen.dart';
 import 'package:splitwize/screens/create_group_screen.dart';
+import 'package:splitwize/screens/groups_tab.dart';
 import 'package:splitwize/screens/profile_tab.dart';
 import 'package:splitwize/services/firestore_service.dart';
 import 'package:splitwize/services/secure_storage_service.dart';
@@ -451,6 +452,28 @@ void main() {
       await tester.pump();
       expect(find.text('Create group & send invites').hitTestable(),
           findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('groups: intro banner removed, group list and FAB remain',
+        (tester) async {
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          myGroupsProvider.overrideWith((ref) => Stream.value(const <BillGroup>[])),
+          groupInvitesProvider.overrideWith(
+              (ref) => Stream.value(const <BillGroup>[])),
+        ],
+        child: const MaterialApp(home: GroupsTab()),
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Your groups.'), findsNothing);
+      expect(find.text('Keep trips, housemates and shared plans together.'),
+          findsNothing);
+      expect(find.text('My groups'), findsOneWidget);
+      expect(find.text('Invitations'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
