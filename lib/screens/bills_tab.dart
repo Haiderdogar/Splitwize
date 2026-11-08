@@ -13,7 +13,6 @@ import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
 import 'bill_detail_screen.dart';
 import 'create_bill_screen.dart';
-import 'create_group_screen.dart';
 import 'notifications_screen.dart';
 
 export '../utils/money.dart';
@@ -34,9 +33,6 @@ class _BillsTabState extends ConsumerState<BillsTab> {
 
   void _addExpense() => Navigator.of(context).push(
     MaterialPageRoute(builder: (_) => const CreateBillScreen()));
-
-  void _createGroup() => Navigator.of(context).push(
-    MaterialPageRoute(builder: (_) => const CreateGroupScreen()));
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +110,6 @@ class _BillsTabState extends ConsumerState<BillsTab> {
                       filter: _filter,
                       onFilter: (v) => setState(() => _filter = v),
                       onAdd: _addExpense,
-                      onGroup: _createGroup,
                     );
                   }
                   return Padding(
@@ -147,7 +142,6 @@ class _HomeOverview extends StatelessWidget {
     required this.filter,
     required this.onFilter,
     required this.onAdd,
-    required this.onGroup,
   });
 
   final int billCount;
@@ -157,18 +151,12 @@ class _HomeOverview extends StatelessWidget {
   final _ExpenseFilter filter;
   final ValueChanged<_ExpenseFilter> onFilter;
   final VoidCallback onAdd;
-  final VoidCallback onGroup;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final codes = balances.keys.toList()..sort();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const PageIntroduction(
-        eyebrow: 'YOUR SPACE',
-        title: 'Your money, together.',
-        description: 'Keep shared expenses clear and easy to settle.',
-      ),
       SoftPanel(
         fill: scheme.primaryContainer,
         border: false,
@@ -213,19 +201,6 @@ class _HomeOverview extends StatelessWidget {
               owe: balances[code]!.owe,
             ),
           ),
-      const SectionHeading('Quick actions'),
-      Wrap(spacing: 9, runSpacing: 9, children: [
-        FilledButton.icon(
-          onPressed: onAdd,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('Add expense'),
-        ),
-        OutlinedButton.icon(
-          onPressed: onGroup,
-          icon: const Icon(Icons.group_add_outlined),
-          label: const Text('New group'),
-        ),
-      ]),
       SectionHeading(
         'Recent expenses',
         subtitle: billCount == 0

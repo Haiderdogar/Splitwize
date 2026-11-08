@@ -300,6 +300,32 @@ void main() {
     'HomeShell': const HomeShell(),
   };
 
+  testWidgets('Balances hides the highlighted introduction', (tester) async {
+    addTearDown(() => tester.view.reset());
+    await pumpAt(tester, const BalancesTab(), size: const Size(390, 844));
+    expect(find.text('SETTLEMENTS'), findsNothing);
+    expect(find.text('Keep it balanced.'), findsNothing);
+    expect(find.text('A simple view of what you owe and what comes back.'),
+        findsNothing);
+    expect(find.text('Your totals'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Home keeps summaries and FAB without intro or quick actions',
+      (tester) async {
+    addTearDown(() => tester.view.reset());
+    await pumpAt(tester, const BillsTab(), size: const Size(390, 844));
+    expect(find.text('YOUR SPACE'), findsNothing);
+    expect(find.text('Your money, together.'), findsNothing);
+    expect(find.text('Keep shared expenses clear and easy to settle.'),
+        findsNothing);
+    expect(find.text('Quick actions'), findsNothing);
+    expect(find.text('New group'), findsNothing);
+    expect(find.text('AT A GLANCE'), findsOneWidget);
+    expect(find.byType(FloatingActionButton), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final size in [const Size(640, 360), const Size(320, 568)]) {
     testWidgets('open drawer fits $size at 2x text', (tester) async {
       addTearDown(() => tester.view.reset());

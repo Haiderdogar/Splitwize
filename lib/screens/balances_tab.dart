@@ -152,11 +152,6 @@ class _BalanceOverview extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final codes = byCurrency.keys.toList()..sort();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const PageIntroduction(
-        eyebrow: 'SETTLEMENTS',
-        title: 'Keep it balanced.',
-        description: 'A simple view of what you owe and what comes back.',
-      ),
       if (!hasBalances)
         const InlineEmpty(
           icon: Icons.check_circle_outline_rounded,
