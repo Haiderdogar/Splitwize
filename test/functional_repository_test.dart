@@ -215,6 +215,92 @@ void main() {
     });
   });
 
+  group('merchant payments and reimbursements', () {
+    Future<String> createSharedDinner() => repo.createBill(
+          title: 'Hotel dinner',
+          subtotal: 900,
+          tipPercent: 0,
+          creator: meUser,
+          groupId: 'g1',
+          splitType: 'equal',
+          splits: const [
+            BillSplit(uid: 'me', displayName: 'Me Myself', amount: 300),
+            BillSplit(uid: 'fa', displayName: 'Friend A', amount: 300),
+            BillSplit(uid: 'fb', displayName: 'Friend B', amount: 300),
+          ],
+          merchantPayments: const {'me': 200, 'fa': 700},
+          currency: 'PKR',
+        );
+
+    test('stores payer map and exact debt obligations offline', () async {
+      final id = await createSharedDinner();
+      final bill = (await repo.billById(id))!;
+      expect(bill.createdBy, 'me');
+      expect(bill.merchantPayments, {'me': 200, 'fa': 700});
+      expect(bill.outstanding, 400);
+      expect(await outboxTypes(), ['bill.create']);
+      expect(repo.computeBalances([bill]), hasLength(1));
+      final myBalance = repo.computeBalances([bill]).single;
+      expect(myBalance.uid, 'fa');
+      expect(myBalance.iOweThem, 100);
+      expect(myBalance.owesMe, 0);
+
+      final friendRepo = AppRepository(
+        db: db,
+        remote: FirestoreService(),
+        secure: SecureStorageService(),
+        myUid: 'fa',
+      );
+      addTearDown(friendRepo.dispose);
+      final balances = friendRepo.computeBalances([bill]);
+      expect(balances, hasLength(2));
+      expect(balances.fold<double>(0, (sum, b) => sum + b.owesMe), 400);
+    });
+
+    test('settling a debt never changes original merchant payments', () async {
+      final id = await createSharedDinner();
+      var bill = (await repo.billById(id))!;
+      final mine = bill.paymentDebts.singleWhere(
+          (d) => d.debtorUid == 'me');
+      expect(await repo.setPaymentDebtSettled(
+          billId: id, debtId: mine.id, settledAmount: 100), isTrue);
+      bill = (await repo.billById(id))!;
+      expect(bill.outstanding, 300);
+      expect(bill.merchantPayments, {'me': 200, 'fa': 700});
+      expect(await outboxTypes(), ['bill.create', 'bill.setDebt']);
+      expect(await repo.setPaymentDebtSettled(
+          billId: id, debtId: mine.id, settledAmount: 100), isFalse);
+      expect(await outboxTypes(), ['bill.create', 'bill.setDebt']);
+    });
+
+    test('Settle up with friend affects only debts I owe that friend', () async {
+      final id = await createSharedDinner();
+      expect(await repo.settleUpWithFriend('fa', currency: 'PKR'), 1);
+      final bill = (await repo.billById(id))!;
+      expect(bill.outstanding, 300);
+      expect(bill.paymentDebts.singleWhere((d) => d.debtorUid == 'me')
+          .isSettled, isTrue);
+      expect(bill.paymentDebts.singleWhere((d) => d.debtorUid == 'fb')
+          .isSettled, isFalse);
+    });
+
+    test('simplified group transfer allocations settle the correct debts',
+        () async {
+      final id = await createSharedDinner();
+      final bill = (await repo.billById(id))!;
+      final plan = simplifyGroupDebts([bill]);
+      final allocations = plan.byCurrency.single.transfers
+          .expand((transfer) => transfer.allocations).toList();
+      expect(allocations, hasLength(2));
+      expect(allocations.every((a) => a.debtId != null), isTrue);
+      expect(await repo.applySettlementAllocations(allocations), 2);
+      final settled = (await repo.billById(id))!;
+      expect(settled.outstanding, 0);
+      expect(settled.fullySettled, isTrue);
+      expect(settled.merchantPayments, {'me': 200, 'fa': 700});
+    });
+  });
+
   group('balances + settle up', () {
     Future<void> seedBills() async {
       // I created; A owes me 300 USD, B owes me 100 USD.

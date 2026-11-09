@@ -207,6 +207,12 @@ class SyncService {
         await _pushBillCreate(Map<String, dynamic>.from(p['bill'] as Map));
       case 'group.create':
         await remote.pushGroup(Map<String, dynamic>.from(p['group'] as Map));
+      case 'bill.setDebt':
+        await remote.setPaymentDebtSettled(
+          billId: p['billId'] as String,
+          debtId: p['debtId'] as String,
+          settledAmount: (p['settledAmount'] as num).toDouble(),
+        );
       case 'bill.setPaid':
         await remote.setSplitPaid(
           billId: p['billId'] as String,

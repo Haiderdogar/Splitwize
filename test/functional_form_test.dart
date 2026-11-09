@@ -95,6 +95,7 @@ void main() {
     form().toggleMember('me', true);
     form().toggleMember('fa', true);
     form().toggleMember('fb', true);
+    form().setPayer('me');
   }
 
   group('validation', () {
@@ -243,6 +244,7 @@ void main() {
       form().setSubtotal('1000');
       form().toggleMember('me', true);
       form().toggleMember('fa', true);
+      form().setPayer('me');
       expect(await form().submit(), isNull);
       final bill = (await repo.watchMyBills().first).single;
       expect(bill.total, 1000);
@@ -256,6 +258,7 @@ void main() {
       form().toggleMember('me', true);
       form().toggleMember('fa', true);
       form().toggleMember('fb', true);
+      form().setPayer('me');
       form().setPercent('me', '50');
       form().setPercent('fa', '25');
       form().setPercent('fb', '25');
@@ -294,6 +297,7 @@ void main() {
       expect(await repo.watchMyBills().first, isEmpty);
 
       form().setAmount('fa', '50');
+      form().setPayer('me');
       expect(await form().submit(), isNull);
       final bill = (await repo.watchMyBills().first).single;
       final byUid = {for (final s in bill.splits) s.uid: s.amount};
@@ -305,9 +309,83 @@ void main() {
       form().setSubtotal('12,50');
       form().toggleMember('me', true);
       form().toggleMember('fa', true);
+      form().setPayer('me');
       expect(await form().submit(), isNull);
       final bill = (await repo.watchMyBills().first).single;
       expect(bill.total, 12.5);
+    });
+  });
+
+  group('who paid the merchant', () {
+    test('payer is required even if the recorder was selected', () async {
+      form().setTitle('Dinner');
+      form().setSubtotal('900');
+      form().toggleMember('me', true);
+      form().toggleMember('fa', true);
+      expect(await form().submit(), contains('who paid'));
+    });
+
+    test('another group member can pay while I record the expense', () async {
+      form().setTitle('Dinner');
+      form().setSubtotal('900');
+      form().toggleMember('me', true);
+      form().toggleMember('fa', true);
+      form().toggleMember('fb', true);
+      form().setPayer('fa');
+      expect(await form().submit(), isNull);
+      final bill = (await repo.watchMyBills().first).single;
+      expect(bill.createdBy, 'me');
+      expect(bill.merchantPayments, {'fa': 900});
+      expect(bill.paymentDebts.map((d) => d.amount),
+          containsAll([300.0, 300.0]));
+    });
+
+    test('200 plus 700 for a 900 bill produces correct obligations',
+        () async {
+      form().setTitle('Shared dinner');
+      form().setSubtotal('900');
+      form().toggleMember('me', true);
+      form().toggleMember('fa', true);
+      form().toggleMember('fb', true);
+      form().setPaymentMode('multiple');
+      form().setMerchantPayment('me', '200');
+      form().setMerchantPayment('fa', '700');
+      form().setMerchantPayment('fb', '0');
+      expect(await form().submit(), isNull);
+      final bill = (await repo.watchMyBills().first).single;
+      expect(bill.merchantPayments, {'me': 200.0, 'fa': 700.0});
+      expect(bill.paymentDebts, hasLength(2));
+      final debts = {for (final d in bill.paymentDebts) d.debtorUid: d};
+      expect(debts['me']!.creditorUid, 'fa');
+      expect(debts['me']!.amount, 100);
+      expect(debts['fb']!.creditorUid, 'fa');
+      expect(debts['fb']!.amount, 300);
+    });
+
+    test('reject contributions that do not cover the full bill', () async {
+      form().setTitle('Shared dinner');
+      form().setSubtotal('900');
+      form().toggleMember('me', true);
+      form().toggleMember('fa', true);
+      form().toggleMember('fb', true);
+      form().setPaymentMode('multiple');
+      form().setMerchantPayment('me', '200');
+      form().setMerchantPayment('fa', '600');
+      expect(await form().submit(), contains('Payments total'));
+      expect(await repo.watchMyBills().first, isEmpty);
+    });
+
+    test('unselecting a payer clears their payment and choice', () {
+      form().toggleMember('me', true);
+      form().toggleMember('fa', true);
+      form().setPayer('fa');
+      form().toggleMember('fa', false);
+      expect(container.read(createBillFormProvider).payerUid, isNull);
+      form().setPaymentMode('multiple');
+      form().toggleMember('fa', true);
+      form().setMerchantPayment('fa', '300');
+      form().toggleMember('fa', false);
+      expect(container.read(createBillFormProvider).payments, isEmpty);
     });
   });
 

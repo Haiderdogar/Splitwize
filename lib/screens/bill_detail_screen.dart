@@ -48,6 +48,14 @@ class BillDetailScreen extends StatelessWidget {
                   await repo.setSplitPaid(
                       billId: bill.id, uid: uid, paid: paid);
                 },
+                onToggleDebt: (debt, settled) async {
+                  final repo = await ref.read(appRepositoryProvider.future);
+                  await repo.setPaymentDebtSettled(
+                    billId: bill.id,
+                    debtId: debt.id,
+                    settledAmount: settled ? debt.amount : 0,
+                  );
+                },
                 onRemoveReceipt: () async {
                   final repo = await ref.read(appRepositoryProvider.future);
                   await repo.removeReceiptPhoto(bill.id);
@@ -66,19 +74,25 @@ class _BillBody extends StatelessWidget {
     required this.bill,
     required this.myUid,
     required this.onTogglePaid,
+    required this.onToggleDebt,
     required this.onRemoveReceipt,
   });
 
   final Bill bill;
   final String myUid;
   final Future<void> Function(String uid, bool paid) onTogglePaid;
+  final Future<void> Function(BillDebt debt, bool settled) onToggleDebt;
   final Future<void> Function() onRemoveReceipt;
 
   @override
   Widget build(BuildContext context) {
     final isCreator = bill.createdBy == myUid;
-    final progress =
-        bill.splits.isEmpty ? 0.0 : bill.paidCount / bill.splits.length;
+    final debtsTotal =
+        bill.paymentDebts.fold<double>(0, (sum, d) => sum + d.amount);
+    final progress = bill.hasPaymentLedger
+        ? (debtsTotal == 0 ? 1.0
+            : (1 - bill.outstanding / debtsTotal).clamp(0.0, 1.0))
+        : (bill.splits.isEmpty ? 0.0 : bill.paidCount / bill.splits.length);
 
     // Slivers + a builder list: share tiles are built lazily,
     // only for what's on screen.
@@ -113,10 +127,11 @@ class _BillBody extends StatelessWidget {
                     _KVRow(
                         label: 'Subtotal',
                         value: formatMoney(bill.subtotal, bill.currency)),
-                    _KVRow(
-                        label: 'Tip (${bill.tipPercent.toStringAsFixed(0)}%)',
-                        value: formatMoney(
-                            bill.total - bill.subtotal, bill.currency)),
+                    if (bill.tipPercent > 0)
+                      _KVRow(
+                          label: 'Tip (${bill.tipPercent.toStringAsFixed(0)}%)',
+                          value: formatMoney(
+                              bill.total - bill.subtotal, bill.currency)),
                     const Divider(),
                     _KVRow(
                         label: 'Total',
@@ -130,7 +145,11 @@ class _BillBody extends StatelessWidget {
                     Text(
                       bill.fullySettled
                           ? 'Fully settled 🎉'
-                          : '${bill.paidCount} of ${bill.splits.length} paid • ${formatMoney(bill.outstanding, bill.currency)} outstanding',
+                          : bill.hasPaymentLedger
+                              ? '${formatMoney(bill.outstanding, bill.currency)} '
+                                  'still to settle between friends'
+                              : '${bill.paidCount} of ${bill.splits.length} paid • '
+                                  '${formatMoney(bill.outstanding, bill.currency)} outstanding',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 8),
@@ -160,6 +179,68 @@ class _BillBody extends StatelessWidget {
             ),
           ),
         ),
+        if (bill.hasPaymentLedger) ...[
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+            sliver: SliverToBoxAdapter(
+              child: Text('Paid at the restaurant',
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold)),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverToBoxAdapter(
+              child: Card(child: Padding(
+                padding: const EdgeInsets.all(15),
+                child: Column(children: [
+                  for (final split in bill.splits)
+                    if ((bill.merchantPayments[split.uid] ?? 0) > 0)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        child: Row(children: [
+                          Expanded(child: Text(split.displayName,
+                              maxLines: 2, overflow: TextOverflow.ellipsis)),
+                          const SizedBox(width: 10),
+                          MoneyText(bill.merchantPayments[split.uid]!,
+                              currencyCode: bill.currency),
+                        ]),
+                      ),
+                ]),
+              )),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            sliver: SliverToBoxAdapter(
+              child: Text('Who owes whom',
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold)),
+            ),
+          ),
+          if (bill.paymentDebts.isEmpty)
+            const SliverPadding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverToBoxAdapter(
+                child: Text('Everyone already covered their own share.'),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverList.builder(
+                itemCount: bill.paymentDebts.length,
+                itemBuilder: (context, i) => _PaymentDebtTile(
+                  debt: bill.paymentDebts[i],
+                  currency: bill.currency,
+                  canUpdate: isCreator ||
+                      bill.paymentDebts[i].debtorUid == myUid ||
+                      bill.paymentDebts[i].creditorUid == myUid,
+                  onToggle: onToggleDebt,
+                ),
+              ),
+            ),
+        ],
         if (bill.receiptImageUrl != null || bill.receiptLocalPath != null)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -210,12 +291,68 @@ class _BillBody extends StatelessWidget {
               myUid: myUid,
               isCreator: isCreator,
               currencyCode: bill.currency,
+              usesPaymentLedger: bill.hasPaymentLedger,
               onTogglePaid: onTogglePaid,
             ),
           ),
         ),
         const SliverToBoxAdapter(child: SizedBox(height: 16)),
       ],
+    );
+  }
+}
+
+/// A real transfer between a debtor and the person who fronted money.
+class _PaymentDebtTile extends StatelessWidget {
+  const _PaymentDebtTile({
+    required this.debt,
+    required this.currency,
+    required this.canUpdate,
+    required this.onToggle,
+  });
+
+  final BillDebt debt;
+  final String currency;
+  final bool canUpdate;
+  final Future<void> Function(BillDebt debt, bool settled) onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${debt.debtorName} owes ${debt.creditorName}',
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 5),
+          Text(debt.isSettled
+              ? 'Settled'
+              : '${formatMoney(debt.remainingAmount, currency)} remaining',
+              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 7),
+          Row(children: [
+            Expanded(child: MoneyText(debt.amount,
+                currencyCode: currency)),
+            if (canUpdate)
+              TextButton(
+                onPressed: () async {
+                  try {
+                    await onToggle(debt, !debt.isSettled);
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Could not update: $e')),
+                      );
+                    }
+                  }
+                },
+                child: Text(debt.isSettled ? 'Undo' : 'Mark settled'),
+              ),
+          ]),
+        ]),
+      ),
     );
   }
 }
@@ -265,6 +402,7 @@ class _SplitTile extends StatelessWidget {
     required this.myUid,
     required this.isCreator,
     required this.currencyCode,
+    required this.usesPaymentLedger,
     required this.onTogglePaid,
   });
 
@@ -272,6 +410,7 @@ class _SplitTile extends StatelessWidget {
   final String myUid;
   final bool isCreator;
   final String currencyCode;
+  final bool usesPaymentLedger;
   final Future<void> Function(String uid, bool paid) onTogglePaid;
 
   bool get _isMine => split.uid == myUid;
@@ -312,7 +451,9 @@ class _SplitTile extends StatelessWidget {
                     children: [
                       if (split.percent != null)
                         Text('${split.percent!.toStringAsFixed(1)}%  •  '),
-                      Chip(
+                      if (usesPaymentLedger)
+                        const Text('Share of expense')
+                      else Chip(
                         label: Text(split.paid
                             ? 'Paid'
                             : split.isPartiallyPaid
@@ -343,7 +484,7 @@ class _SplitTile extends StatelessWidget {
               split.amount,
               currencyCode: currencyCode,
             ),
-            if (_canToggle)
+            if (_canToggle && !usesPaymentLedger)
               TextButton(
                 onPressed: () async {
                   try {

@@ -390,11 +390,130 @@ class _SplitAndSubmitSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (groupId != null) ...[
+          if (ref.watch(createBillFormProvider.select(
+            (state) => state.selected.length >= 2,
+          ))) ...[
+            const _SectionTitle('Who paid the bill?'),
+            const _PaymentSection(),
+            const SizedBox(height: 16),
+          ],
           const _SectionTitle('Split method'),
           const _SplitTypeSection(),
           const SizedBox(height: 20),
         ],
         const _CreateButton(),
+      ],
+    );
+  }
+}
+
+/// Merchant contributions are separate from the share each person owes.
+/// Selecting a payer never marks a participant as having settled a debt.
+class _PaymentSection extends ConsumerWidget {
+  const _PaymentSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final form = ref.watch(createBillFormProvider);
+    final members = ref.watch(createBillMembersProvider).value ?? const <AppUser>[];
+    final selected = members.where((m) => form.selected.contains(m.uid)).toList();
+    final notifier = ref.read(createBillFormProvider.notifier);
+    final currency = ref.watch(billFormCurrencyProvider);
+    final symbol = currencySymbol(currency);
+
+    final paidCents = form.paymentMode == 'single'
+        ? (form.payerUid == null ? 0 : (form.total * 100).round())
+        : selected.fold<int>(0, (sum, member) {
+            final value = double.tryParse(
+                (form.payments[member.uid] ?? '').replaceAll(',', '.')) ?? 0;
+            return sum + (value.isFinite && value >= 0
+                ? (value * 100).round() : 0);
+          });
+    final totalCents = (form.total * 100).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(spacing: 8, runSpacing: 6, children: [
+          ChoiceChip(
+            label: const Text('One person paid'),
+            selected: form.paymentMode == 'single',
+            onSelected: (chosen) {
+              if (chosen) notifier.setPaymentMode('single');
+            },
+          ),
+          ChoiceChip(
+            label: const Text('Multiple people paid'),
+            selected: form.paymentMode == 'multiple',
+            onSelected: (chosen) {
+              if (chosen) notifier.setPaymentMode('multiple');
+            },
+          ),
+        ]),
+        const SizedBox(height: 10),
+        if (form.paymentMode == 'single')
+          DropdownButtonFormField<String>(
+            key: ValueKey('payer-${form.payerUid}-${form.selected.length}'),
+            isExpanded: true,
+            initialValue: form.payerUid,
+            decoration: const InputDecoration(
+              labelText: 'Paid by (required)',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              for (final member in selected)
+                DropdownMenuItem<String>(
+                  value: member.uid,
+                  child: Text(member.displayName,
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: notifier.setPayer,
+          )
+        else ...[
+          for (final member in selected)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                Expanded(
+                  child: Text(member.displayName,
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 135,
+                  child: TextField(
+                    key: ValueKey('merchant-payment-${member.uid}'),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Paid',
+                      prefixText: '$symbol ',
+                      hintText: '0',
+                      border: const OutlineInputBorder(),
+                    ),
+                    onChanged: (v) =>
+                        notifier.setMerchantPayment(member.uid, v),
+                  ),
+                ),
+              ]),
+            ),
+          Text(
+            'Paid: ${formatMoney(paidCents / 100, currency)} '
+            '/ ${formatMoney(form.total, currency)}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: paidCents == totalCents
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.error,
+            ),
+          ),
+        ],
+        const SizedBox(height: 4),
+        Text(
+          'Their payments will be compared with their split shares to '
+          'calculate who reimburses whom.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
       ],
     );
   }
@@ -506,7 +625,10 @@ class _CreateButton extends StatelessWidget {
     return Consumer(
       builder: (context, ref, _) {
         final ready = ref.watch(createBillFormProvider.select(
-            (s) => s.groupId != null && s.selected.length >= 2));
+            (s) => s.groupId != null &&
+                s.selected.length >= 2 &&
+                (s.paymentMode == 'multiple' ||
+                    (s.payerUid != null && s.selected.contains(s.payerUid)))));
         final saving =
             ref.watch(createBillFormProvider.select((s) => s.saving));
         return FilledButton.icon(

@@ -376,8 +376,14 @@ void main() {
           reason: 'A creator-only split must not be submitted');
       await tester.tap(boxes.at(1));
       await tester.pump();
-      expect(tester.widget<FilledButton>(submitButton).onPressed, isNotNull);
+      // Choosing participants alone is not sufficient: the user must say
+      // who actually paid the restaurant.
+      expect(find.text('Who paid the bill?'), findsOneWidget);
+      expect(tester.widget<FilledButton>(submitButton).onPressed, isNull);
       final container = ProviderScope.containerOf(tester.element(boxes.at(1)));
+      container.read(createBillFormProvider.notifier).setPayer('fa');
+      await tester.pump();
+      expect(tester.widget<FilledButton>(submitButton).onPressed, isNotNull);
       expect(
         container.read(createBillFormProvider).selected,
         contains('fa'),

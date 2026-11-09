@@ -1,5 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+bool _paymentMapsEqual(Map<String, double> a, Map<String, double> b) {
+  if (a.length != b.length) return false;
+  for (final key in a.keys) {
+    if (a[key] != b[key]) return false;
+  }
+  return true;
+}
+
 /// Element-wise list equality (Dart's `List ==` is identity only).
 /// Used by the model `==` operators below and by the repository's
 /// change stream, so a re-query that returns the same content does
@@ -412,6 +420,80 @@ class BillSplit {
       );
 }
 
+/// One remaining obligation created by the initial merchant payments.
+/// A participant can have multiple creditors; this ledger avoids assuming
+/// that the bill creator paid the merchant. Values are stored in cents.
+class BillDebt {
+  final String id;
+  final String debtorUid;
+  final String debtorName;
+  final String creditorUid;
+  final String creditorName;
+  final double amount;
+  final double settledAmount;
+
+  const BillDebt({
+    required this.id,
+    required this.debtorUid,
+    required this.debtorName,
+    required this.creditorUid,
+    required this.creditorName,
+    required this.amount,
+    this.settledAmount = 0,
+  });
+
+  factory BillDebt.fromMap(Map<String, dynamic> map) => BillDebt(
+        id: map['id'] as String? ?? '',
+        debtorUid: map['debtorUid'] as String? ?? '',
+        debtorName: map['debtorName'] as String? ?? '',
+        creditorUid: map['creditorUid'] as String? ?? '',
+        creditorName: map['creditorName'] as String? ?? '',
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+        settledAmount: (map['settledAmount'] as num?)?.toDouble() ?? 0,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'debtorUid': debtorUid,
+        'debtorName': debtorName,
+        'creditorUid': creditorUid,
+        'creditorName': creditorName,
+        'amount': amount,
+        'settledAmount': settledAmount,
+      };
+
+  double get remainingAmount =>
+      ((amount - settledAmount).clamp(0, amount) * 100).round() / 100;
+
+  bool get isSettled => remainingAmount < 0.005;
+
+  BillDebt copyWith({double? settledAmount}) => BillDebt(
+        id: id,
+        debtorUid: debtorUid,
+        debtorName: debtorName,
+        creditorUid: creditorUid,
+        creditorName: creditorName,
+        amount: amount,
+        settledAmount: settledAmount ?? this.settledAmount,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BillDebt &&
+          id == other.id &&
+          debtorUid == other.debtorUid &&
+          debtorName == other.debtorName &&
+          creditorUid == other.creditorUid &&
+          creditorName == other.creditorName &&
+          amount == other.amount &&
+          settledAmount == other.settledAmount;
+
+  @override
+  int get hashCode => Object.hash(id, debtorUid, debtorName, creditorUid,
+      creditorName, amount, settledAmount);
+}
+
 /// A bill stored in `bills/{billId}`.
 class Bill {
   final String id;
@@ -426,6 +508,17 @@ class Bill {
   final String? groupName;
   final List<String> participantIds;
   final List<BillSplit> splits;
+
+  /// Merchant payments are immutable after creation; the expense's creator
+  /// need not be a payer. Empty on legacy bills written before this feature.
+  final Map<String, double> merchantPayments;
+
+  /// Who pays whom to settle the expense, with separate settlement progress.
+  /// Legacy bills use [splits] instead.
+  final List<BillDebt> paymentDebts;
+
+  bool get hasPaymentLedger => merchantPayments.isNotEmpty;
+
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -459,6 +552,8 @@ class Bill {
     this.groupName,
     required this.participantIds,
     required this.splits,
+    this.merchantPayments = const {},
+    this.paymentDebts = const [],
     this.createdAt,
     this.updatedAt,
     this.receiptImageUrl,
@@ -488,6 +583,18 @@ class Bill {
       participantIds:
           List<String>.from((map['participantIds'] as List?) ?? const []),
       splits: splits,
+      merchantPayments: Map<String, double>.from(
+        (map['merchantPayments'] as Map?)?.map(
+              (key, value) => MapEntry(
+                key.toString(), (value as num).toDouble(),
+              ),
+            ) ??
+            const <String, double>{},
+      ),
+      paymentDebts: [
+        for (final row in (map['paymentDebts'] as List?) ?? const [])
+          BillDebt.fromMap(Map<String, dynamic>.from(row as Map)),
+      ],
       createdAt: dateFrom(map['createdAt']),
       updatedAt: dateFrom(map['updatedAt']),
       receiptImageUrl: map['receiptImageUrl'] as String?,
@@ -509,6 +616,9 @@ class Bill {
         'groupName': groupName,
         'participantIds': participantIds,
         'splits': splits.map((s) => s.toMap()).toList(),
+        if (hasPaymentLedger) 'merchantPayments': merchantPayments,
+        if (hasPaymentLedger)
+          'paymentDebts': paymentDebts.map((d) => d.toMap()).toList(),
         'createdAt': createdAt,
         'updatedAt': updatedAt,
         'receiptImageUrl': receiptImageUrl,
@@ -519,6 +629,7 @@ class Bill {
 
   Bill copyWith({
     List<BillSplit>? splits,
+    List<BillDebt>? paymentDebts,
     DateTime? updatedAt,
     String? receiptImageUrl,
     String? receiptLocalPath,
@@ -538,6 +649,8 @@ class Bill {
       groupName: groupName,
       participantIds: participantIds,
       splits: splits ?? this.splits,
+      merchantPayments: merchantPayments,
+      paymentDebts: paymentDebts ?? this.paymentDebts,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       receiptImageUrl: clearReceiptImageUrl
@@ -588,6 +701,8 @@ class Bill {
           groupName == other.groupName &&
           _listEquals(participantIds, other.participantIds) &&
           _listEquals(splits, other.splits) &&
+          _listEquals(paymentDebts, other.paymentDebts) &&
+          _paymentMapsEqual(merchantPayments, other.merchantPayments) &&
           createdAt == other.createdAt &&
           receiptImageUrl == other.receiptImageUrl &&
           receiptLocalPath == other.receiptLocalPath &&
@@ -608,6 +723,11 @@ class Bill {
         groupName,
         Object.hashAll(participantIds),
         Object.hashAll(splits),
+        Object.hashAll(paymentDebts),
+        Object.hashAll([
+          for (final key in (merchantPayments.keys.toList()..sort()))
+            Object.hash(key, merchantPayments[key]),
+        ]),
         createdAt,
         receiptImageUrl,
         receiptLocalPath,
@@ -617,11 +737,18 @@ class Bill {
 
   /// Settlement helpers. A partially settled share (see
   /// [BillSplit.paidAmount]) counts as paid only once nothing remains.
-  int get paidCount => splits.where((s) => s.isFullyPaid).length;
+  int get paidCount => hasPaymentLedger
+      ? splits.where((share) => !paymentDebts.any(
+          (debt) => debt.debtorUid == share.uid && !debt.isSettled)).length
+      : splits.where((s) => s.isFullyPaid).length;
 
-  double get outstanding => splits.fold(0.0, (a, s) => a + s.remainingAmount);
+  double get outstanding => hasPaymentLedger
+      ? paymentDebts.fold(0.0, (a, d) => a + d.remainingAmount)
+      : splits.fold(0.0, (a, s) => a + s.remainingAmount);
 
-  bool get fullySettled => splits.isNotEmpty && paidCount == splits.length;
+  bool get fullySettled => hasPaymentLedger
+      ? paymentDebts.every((debt) => debt.isSettled)
+      : splits.isNotEmpty && paidCount == splits.length;
 }
 
 /// Net balance with one friend **in one currency**, computed from unpaid

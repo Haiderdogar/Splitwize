@@ -27,6 +27,9 @@ class SplitAllocation {
   final String billId;
   final String splitUid;
 
+  /// New-style ledger debt identifier (null for legacy shares).
+  final String? debtId;
+
   /// Amount of that share settled by this entry (> 0, ≤ the share's
   /// remaining amount at plan time).
   final double amount;
@@ -35,6 +38,7 @@ class SplitAllocation {
     required this.billId,
     required this.splitUid,
     required this.amount,
+    this.debtId,
   });
 }
 
@@ -146,10 +150,11 @@ GroupSettlementPlan simplifyGroupDebts(List<Bill> bills) {
 
 /// One not-yet-settled slice of a share, in FIFO order per debt edge.
 class _Slice {
-  _Slice(this.billId, this.splitUid, this.remaining);
+  _Slice(this.billId, this.splitUid, this.remaining, {this.debtId});
 
   final String billId;
   final String splitUid;
+  final String? debtId;
   double remaining;
 }
 
@@ -176,7 +181,8 @@ class _Edge {
       s.remaining = _round2(s.remaining - take);
       left = _round2(left - take);
       out.add(SplitAllocation(
-          billId: s.billId, splitUid: s.splitUid, amount: _round2(take)));
+          billId: s.billId, splitUid: s.splitUid,
+          debtId: s.debtId, amount: _round2(take)));
     }
     return out;
   }
@@ -192,6 +198,21 @@ CurrencySettlement? _simplifyCurrency(List<Bill> bills, String currency) {
 
   for (final bill in bills) {
     names[bill.createdBy] = bill.createdByName;
+    if (bill.hasPaymentLedger) {
+      // New bills have actual debtor → creditor edges based on merchant
+      // contributions minus consumed shares, not on who entered the bill.
+      for (final debt in bill.paymentDebts) {
+        names[debt.debtorUid] = debt.debtorName;
+        names[debt.creditorUid] = debt.creditorName;
+        final remaining = debt.remainingAmount;
+        if (remaining <= _eps) continue;
+        openAmount += remaining;
+        edgeFor(debt.debtorUid, debt.creditorUid).slices.add(
+          _Slice(bill.id, debt.debtorUid, remaining, debtId: debt.id),
+        );
+      }
+      continue;
+    }
     for (final s in bill.splits) {
       if (s.displayName.isNotEmpty) names[s.uid] = s.displayName;
       // The creator's own share is not a debt, and settled shares

@@ -64,6 +64,9 @@ class CreateBillFormState {
   final String splitType; // equal | percentage | custom
   final Map<String, String> percents; // uid -> raw text
   final Map<String, String> amounts; // uid -> raw text
+  final String paymentMode; // single | multiple merchant payers
+  final String? payerUid; // required when a single friend paid
+  final Map<String, String> payments; // uid -> raw merchant payment
   final bool saving;
   final String? selectionInitializedFor; // groupId or null
 
@@ -82,6 +85,9 @@ class CreateBillFormState {
     this.splitType = 'equal',
     this.percents = const {},
     this.amounts = const {},
+    this.paymentMode = 'single',
+    this.payerUid,
+    this.payments = const {},
     this.saving = false,
     this.selectionInitializedFor,
     this.receiptPath,
@@ -107,6 +113,10 @@ class CreateBillFormState {
     String? splitType,
     Map<String, String>? percents,
     Map<String, String>? amounts,
+    String? paymentMode,
+    String? payerUid,
+    bool clearPayer = false,
+    Map<String, String>? payments,
     bool? saving,
     String? selectionInitializedFor,
     String? receiptPath,
@@ -121,6 +131,9 @@ class CreateBillFormState {
       splitType: splitType ?? this.splitType,
       percents: percents ?? this.percents,
       amounts: amounts ?? this.amounts,
+      paymentMode: paymentMode ?? this.paymentMode,
+      payerUid: clearPayer ? null : (payerUid ?? this.payerUid),
+      payments: payments ?? this.payments,
       saving: saving ?? this.saving,
       selectionInitializedFor:
           selectionInitializedFor ?? this.selectionInitializedFor,
@@ -150,6 +163,7 @@ class CreateBillForm extends _$CreateBillForm {
       subtotal: state.subtotal,
       groupId: id,
       splitType: state.splitType,
+      // Group changes clear prior payer selections and payment inputs.
       receiptPath: state.receiptPath,
     );
   }
@@ -166,17 +180,50 @@ class CreateBillForm extends _$CreateBillForm {
     } else {
       next.remove(uid);
     }
-    state = state.copyWith(selected: next);
+    final remainingPayments = Map<String, String>.of(state.payments)
+      ..removeWhere((key, value) => !next.contains(key));
+    state = state.copyWith(
+      selected: next,
+      payments: remainingPayments,
+      clearPayer: state.payerUid != null && !next.contains(state.payerUid),
+    );
   }
 
   /// Select everyone in this group, or clear everybody except the creator.
   void selectAllMembers(List<AppUser> members, bool selectAll) {
     if (state.groupId == null) return;
     final uid = ref.read(currentUidProvider);
+    final next = selectAll
+        ? members.map((m) => m.uid).toSet()
+        : members.where((m) => m.uid == uid).map((m) => m.uid).toSet();
+    final remainingPayments = Map<String, String>.of(state.payments)
+      ..removeWhere((key, value) => !next.contains(key));
     state = state.copyWith(
-      selected: selectAll
-          ? members.map((m) => m.uid).toSet()
-          : members.where((m) => m.uid == uid).map((m) => m.uid).toSet(),
+      selected: next,
+      payments: remainingPayments,
+      clearPayer: state.payerUid != null && !next.contains(state.payerUid),
+    );
+  }
+
+  /// The recorder may choose any selected member as the merchant payer.
+  void setPayer(String? uid) {
+    if (uid != null && !state.selected.contains(uid)) return;
+    state = state.copyWith(payerUid: uid, clearPayer: uid == null);
+  }
+
+  void setPaymentMode(String mode) {
+    if (mode != 'single' && mode != 'multiple') return;
+    state = state.copyWith(
+      paymentMode: mode,
+      clearPayer: mode != 'single',
+      payments: const {},
+    );
+  }
+
+  void setMerchantPayment(String uid, String value) {
+    if (!state.selected.contains(uid)) return;
+    state = state.copyWith(
+      payments: Map<String, String>.of(state.payments)..[uid] = value,
     );
   }
 
@@ -397,9 +444,44 @@ class CreateBillForm extends _$CreateBillForm {
       }
     }
 
+    // Merchant payments must be explicit, independently of who records
+    // the expense. Validate in integer cents; even one unpaid cent blocks
+    // submission rather than silently altering someone's share.
+    final totalCents = (total * 100).round();
+    final merchantPayments = <String, double>{};
+    if (draft.paymentMode == 'single') {
+      final payer = draft.payerUid;
+      if (payer == null || !selectedMembers.any((m) => m.uid == payer)) {
+        return 'Choose who paid the restaurant bill.';
+      }
+      merchantPayments[payer] = total;
+    } else if (draft.paymentMode == 'multiple') {
+      var amountPaidCents = 0;
+      for (final member in selectedMembers) {
+        final text = (draft.payments[member.uid] ?? '0').trim();
+        final amount = double.tryParse(text.replaceAll(',', '.'));
+        if (amount == null || !amount.isFinite ||
+            amount < 0 || amount > 90071992547409) {
+          return 'Enter a valid payment for ${member.displayName}.';
+        }
+        final cents = (amount * 100).round();
+        amountPaidCents += cents;
+        if (cents > 0) merchantPayments[member.uid] = cents / 100;
+      }
+      if (merchantPayments.isEmpty) {
+        return 'Select at least one friend who paid the bill.';
+      }
+      if (amountPaidCents != totalCents) {
+        return 'Payments total ${formatMoney(amountPaidCents / 100, currency)} '
+            'but the bill is ${formatMoney(total, currency)}.';
+      }
+    } else {
+      return 'Choose how the bill was paid.';
+    }
+
     try {
-      // Local-first: the bill is created in SQLite instantly (works
-      // offline) and queued for Firestore sync in the background.
+      // Local-first: store who paid the merchant and calculate exactly
+      // who must reimburse whom. The creator need not be the payer.
       await repo.createBill(
         title: draft.title.trim(),
         subtotal: draft.subtotalValue,
@@ -409,6 +491,7 @@ class CreateBillForm extends _$CreateBillForm {
         groupName: groupName,
         splitType: draft.splitType,
         splits: splits,
+        merchantPayments: merchantPayments,
         receiptLocalPath: draft.receiptPath,
         currency: currency,
       );

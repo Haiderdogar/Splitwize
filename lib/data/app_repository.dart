@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../services/firestore_service.dart';
 import '../services/secure_storage_service.dart';
 import '../utils/debt_simplifier.dart';
+import '../utils/payment_ledger.dart';
 import 'local_database.dart';
 
 /// Local-first data access for the whole app.
@@ -212,11 +213,18 @@ class AppRepository {
     String? groupName,
     required String splitType,
     required List<BillSplit> splits,
+    Map<String, double>? merchantPayments,
     String? receiptLocalPath,
     required String currency,
   }) async {
     final total = (subtotal * (1 + tipPercent / 100) * 100).round() / 100;
     final participantIds = splits.map((s) => s.uid).toSet().toList();
+    // Legacy programmatic callers may omit merchantPayments. New expenses
+    // must provide them so the recorder is never confused with the payer.
+    final paidAtMerchant = merchantPayments ?? const <String, double>{};
+    final paymentDebts = paidAtMerchant.isEmpty
+        ? const <BillDebt>[]
+        : buildPaymentDebts(splits: splits, merchantPayments: paidAtMerchant);
     if (!participantIds.contains(creator.uid)) {
       participantIds.add(creator.uid);
     }
@@ -234,6 +242,8 @@ class AppRepository {
       groupName: groupName,
       participantIds: participantIds,
       splits: splits,
+      merchantPayments: paidAtMerchant,
+      paymentDebts: paymentDebts,
       createdAt: now,
       updatedAt: now,
       receiptLocalPath: receiptLocalPath,
@@ -304,9 +314,58 @@ class AppRepository {
   }) async {
     final bill = await billById(billId);
     if (bill == null) return;
+    if (bill.hasPaymentLedger) {
+      // A recorded restaurant payment is NOT the same as a settlement.
+      // Settle the debtor's explicit obligations instead of changing
+      // their consumption share.
+      for (final debt in bill.paymentDebts.where((d) => d.debtorUid == uid)) {
+        await setPaymentDebtSettled(
+          billId: billId,
+          debtId: debt.id,
+          settledAmount: paid ? debt.amount : 0,
+        );
+      }
+      return;
+    }
     final split = bill.splits.where((s) => s.uid == uid).firstOrNull;
     if (split == null) return;
     await _setSplitSettledAmount(bill, split, paid ? split.amount : 0);
+  }
+
+  /// Records a transfer between a debtor and creditor on a new-style bill.
+  /// Absolute amounts make offline retries idempotent. Only the ledger debt
+  /// changes; original merchant contributions and shares remain immutable.
+  Future<bool> setPaymentDebtSettled({
+    required String billId,
+    required String debtId,
+    required double settledAmount,
+  }) async {
+    final bill = await billById(billId);
+    if (bill == null || !bill.hasPaymentLedger) return false;
+    final debt = bill.paymentDebts.where((d) => d.id == debtId).firstOrNull;
+    if (debt == null) return false;
+    if (!settledAmount.isFinite) throw ArgumentError('Invalid settlement.');
+    final target =
+        (settledAmount.clamp(0, debt.amount) * 100).round() / 100;
+    if ((target - debt.settledAmount).abs() < 0.005) return false;
+    final changed = [
+      for (final d in bill.paymentDebts)
+        d.id == debtId ? d.copyWith(settledAmount: target) : d,
+    ];
+    final now = DateTime.now();
+    final syncState = await db.billSyncState(bill.id) ?? 'synced';
+    await db.upsertBill(
+      bill.id,
+      bill.copyWith(paymentDebts: changed, updatedAt: now).toMap(),
+      syncState: syncState,
+    );
+    await db.enqueue('bill.setDebt', {
+      'billId': bill.id,
+      'debtId': debtId,
+      'settledAmount': target,
+    });
+    _mutated();
+    return true;
   }
 
   /// Sets how much of one share is settled (0…share amount) — the
@@ -368,12 +427,25 @@ class AppRepository {
         // have updated the same bill.
         final bill = await billById(entry.key);
         if (bill == null) break;
-        final split =
-            bill.splits.where((s) => s.uid == alloc.splitUid).firstOrNull;
-        if (split == null) continue;
-        if (await _setSplitSettledAmount(
-            bill, split, split.settledAmount + alloc.amount)) {
-          touched++;
+        if (alloc.debtId != null) {
+          final debt =
+              bill.paymentDebts.where((d) => d.id == alloc.debtId).firstOrNull;
+          if (debt == null) continue;
+          if (await setPaymentDebtSettled(
+            billId: bill.id,
+            debtId: debt.id,
+            settledAmount: debt.settledAmount + alloc.amount,
+          )) {
+            touched++;
+          }
+        } else {
+          final split =
+              bill.splits.where((s) => s.uid == alloc.splitUid).firstOrNull;
+          if (split == null) continue;
+          if (await _setSplitSettledAmount(
+              bill, split, split.settledAmount + alloc.amount)) {
+            touched++;
+          }
         }
       }
     }
@@ -388,8 +460,24 @@ class AppRepository {
     final bills = await _myBills();
     var count = 0;
     for (final bill in bills) {
-      if (bill.createdBy != friendUid) continue;
       if (currency != null && bill.currency != currency) continue;
+      if (bill.hasPaymentLedger) {
+        // Only debts from me to the chosen friend, not debts to others.
+        for (final debt in bill.paymentDebts.where(
+          (d) => d.debtorUid == myUid && d.creditorUid == friendUid &&
+              !d.isSettled,
+        )) {
+          if (await setPaymentDebtSettled(
+            billId: bill.id,
+            debtId: debt.id,
+            settledAmount: debt.amount,
+          )) {
+            count++;
+          }
+        }
+        continue;
+      }
+      if (bill.createdBy != friendUid) continue;
       for (final s in bill.splits) {
         if (s.uid == myUid && !s.isFullyPaid) {
           await setSplitPaid(billId: bill.id, uid: myUid, paid: true);
@@ -413,6 +501,27 @@ class AppRepository {
     final currencies = <String, String>{};
     final openBills = <String, Set<String>>{};
     for (final bill in bills) {
+      if (bill.hasPaymentLedger) {
+        for (final debt in bill.paymentDebts) {
+          final remaining = debt.remainingAmount;
+          if (remaining < 0.005) continue;
+          if (debt.creditorUid == myUid) {
+            final key = '${debt.debtorUid}|${bill.currency}';
+            owesMe[key] = (owesMe[key] ?? 0) + remaining;
+            names[key] = debt.debtorName;
+            currencies[key] = bill.currency;
+            (openBills[key] ??= <String>{}).add(bill.id);
+          }
+          if (debt.debtorUid == myUid) {
+            final key = '${debt.creditorUid}|${bill.currency}';
+            iOwe[key] = (iOwe[key] ?? 0) + remaining;
+            names[key] = debt.creditorName;
+            currencies[key] = bill.currency;
+            (openBills[key] ??= <String>{}).add(bill.id);
+          }
+        }
+        continue;
+      }
       final iCreated = bill.createdBy == myUid;
       for (final s in bill.splits) {
         // Partially settled shares (group debt simplification) count

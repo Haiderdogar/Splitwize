@@ -423,6 +423,45 @@ class FirestoreService {
     });
   }
 
+  /// Apply one recorded settlement transactionally; retries are idempotent.
+  /// Never mutate merchantPayments (who actually paid the restaurant).
+  Future<void> setPaymentDebtSettled({
+    required String billId,
+    required String debtId,
+    required double settledAmount,
+  }) async {
+    final ref = _db.collection('bills').doc(billId);
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) return;
+      final data = snap.data() as Map<String, dynamic>;
+      final debts = ((data['paymentDebts'] as List?) ?? const [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      var changed = false;
+      for (final debt in debts) {
+        if (debt['id'] != debtId) continue;
+        final amount = (debt['amount'] as num?)?.toDouble() ?? 0;
+        if (!settledAmount.isFinite) {
+          throw ArgumentError('Invalid settlement amount.');
+        }
+        final target =
+            (settledAmount.clamp(0, amount) * 100).round() / 100;
+        final previous = (debt['settledAmount'] as num?)?.toDouble() ?? 0;
+        if ((target - previous).abs() < 0.005) break;
+        debt['settledAmount'] = target;
+        changed = true;
+        break;
+      }
+      if (changed) {
+        tx.update(ref, {
+          'paymentDebts': debts,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  }
+
   // ------------------------------------------------------- notifications
 
   /// Client-side inbox write (friend requests, group invites, reminders).
