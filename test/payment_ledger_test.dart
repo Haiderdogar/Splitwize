@@ -125,8 +125,8 @@ void main() {
         splitType: 'equal',
         createdBy: 'a',
         createdByName: 'A',
-        participantIds: const ['a', 'b'],
-        splits: const [
+        participantIds: ['a', 'b'],
+        splits: [
           BillSplit(uid: 'a', displayName: 'A', amount: 100),
           BillSplit(uid: 'b', displayName: 'B', amount: 100),
         ],
