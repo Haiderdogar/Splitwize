@@ -132,6 +132,58 @@ exports.notifyBillPaid = onDocumentUpdated(
       const b = beforeSplits.find((x) => x.uid === a.uid);
       return !b || !b.paid;
     });
+    // New expenses carry an explicit debtor → creditor ledger. Who
+    // recorded the bill is not necessarily who paid the restaurant.
+    // A settlement must notify the actual creditor, not the creator.
+    if (after.merchantPayments && Object.keys(after.merchantPayments).length) {
+      const oldDebts = before.paymentDebts || [];
+      const newDebts = after.paymentDebts || [];
+      const changes = newDebts.map((debt) => {
+        const old = oldDebts.find((d) => d.id === debt.id);
+        const previous = Number((old && old.settledAmount) || 0);
+        const current = Number(debt.settledAmount || 0);
+        return { debt, delta: current - previous };
+      }).filter(({ debt, delta }) =>
+        delta > 0.005 && debt.creditorUid && debt.debtorUid);
+      if (!changes.length) return;
+
+      const db = admin.firestore();
+      const batch = db.batch();
+      for (const { debt, delta } of changes) {
+        batch.set(db.collection("notifications").doc(), {
+          toUid: debt.creditorUid,
+          title: "Settlement recorded",
+          body: `${debt.debtorName || "A friend"} settled ${money(delta, after.currency || 'USD')} for "${after.title || "a bill"}".`,
+          type: "bill_paid",
+          billId: String(billId),
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      for (const { debt, delta } of changes) {
+        try {
+          const snap = await db.collection("users").doc(debt.creditorUid).get();
+          if (!snap.exists) continue;
+          const tokens = snap.get("fcmTokens") || [];
+          if (!tokens.length) continue;
+          const res = await admin.messaging().sendEachForMulticast({
+            tokens,
+            notification: {
+              title: "Settlement recorded",
+              body: `${debt.debtorName || "A friend"} settled ${money(delta, after.currency || 'USD')} for "${after.title || "a bill"}".`,
+            },
+            data: { type: "bill_paid", billId: String(billId) },
+          });
+          await pruneBadTokens(db, debt.creditorUid, tokens, res.responses);
+        } catch (e) {
+          console.error(`Settlement FCM failed for ${debt.creditorUid}`, e);
+        }
+      }
+      return;
+    }
+
     if (newlyPaid.length === 0) return;
 
     const db = admin.firestore();

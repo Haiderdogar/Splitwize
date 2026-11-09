@@ -222,6 +222,13 @@ class AppRepository {
     // Legacy programmatic callers may omit merchantPayments. New expenses
     // must provide them so the recorder is never confused with the payer.
     final paidAtMerchant = merchantPayments ?? const <String, double>{};
+    if (paidAtMerchant.isNotEmpty) {
+      final shareCents = splits.fold<int>(
+        0, (sum, split) => sum + (split.amount * 100).round());
+      if (shareCents != (total * 100).round()) {
+        throw ArgumentError('Split shares must equal the bill total.');
+      }
+    }
     final paymentDebts = paidAtMerchant.isEmpty
         ? const <BillDebt>[]
         : buildPaymentDebts(splits: splits, merchantPayments: paidAtMerchant);

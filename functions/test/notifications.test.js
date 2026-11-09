@@ -87,6 +87,35 @@ test('transient push failures do not remove registered tokens', async () => {
   assert.equal(h.inbox.length, 1);
 });
 
+test('new ledger settlement notifies the actual merchant creditor, not creator', async () => {
+  const h = harness(deadResponses);
+  const before = {
+    createdBy: 'me', title: 'Hotel dinner', currency: 'PKR',
+    splits: [{ uid: 'me', amount: 300 }, { uid: 'fa', amount: 300 }],
+    merchantPayments: { me: 200, fa: 700 },
+    paymentDebts: [{
+      id: 'me|fa', debtorUid: 'me', debtorName: 'Recorder',
+      creditorUid: 'fa', creditorName: 'Friend A',
+      amount: 100, settledAmount: 0,
+    }],
+  };
+  const after = {
+    ...before,
+    paymentDebts: [{ ...before.paymentDebts[0], settledAmount: 100 }],
+  };
+  const event = (a, b) => ({ params: { billId: 'b1' }, data: {
+    before: { data: () => a }, after: { data: () => b },
+  } });
+  await h.notifyBillPaid(event(before, after));
+  assert.equal(h.inbox.length, 1);
+  assert.equal(h.inbox[0].toUid, 'fa');
+  assert.equal(h.inbox[0].title, 'Settlement recorded');
+  assert.match(h.inbox[0].body, /PKR 100\.00/);
+  assert.equal(h.pushes.length, 1);
+  await h.notifyBillPaid(event(after, { ...after, updatedAt: 123 }));
+  assert.equal(h.inbox.length, 1);
+});
+
 test('only a newly paid share notifies the creator; unrelated updates stay silent', async () => {
   const h = harness(deadResponses);
   const before = { createdBy: 'me', title: 'Lunch', splits: [{ uid: 'friend', paid: false, amount: 15 }] };
