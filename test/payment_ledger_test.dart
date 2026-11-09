@@ -116,7 +116,7 @@ void main() {
     });
 
     test('old bills without a payment ledger remain compatible', () {
-      final old = Bill(
+      const old = Bill(
         id: 'old',
         title: 'Legacy dinner',
         subtotal: 200,
