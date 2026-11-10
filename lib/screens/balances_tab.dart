@@ -247,17 +247,18 @@ class _BalanceTile extends StatelessWidget {
               Text('${balance.openBills} open ${balance.openBills == 1 ? 'bill' : 'bills'}',
                   style: Theme.of(context).textTheme.bodySmall),
             ])),
-          const SizedBox(width: 6),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(owe ? 'Net: you owe' : owed ? 'Net: owes you' : 'Net zero',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: scheme.onSurfaceVariant)),
-            MoneyText(balance.net.abs(), currencyCode: balance.currency,
-                color: owe ? scheme.owe : owed ? scheme.owed : scheme.onSurface,
-                style: Theme.of(context).textTheme.titleMedium),
-          ]),
         ]),
         const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: Text(owe ? 'Net: you owe' : owed ? 'Net: owes you' : 'Net zero',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant))),
+          const SizedBox(width: 8),
+          FittedBox(fit: BoxFit.scaleDown, child:
+            MoneyText(balance.net.abs(), currencyCode: balance.currency,
+              color: owe ? scheme.owe : owed ? scheme.owed : scheme.onSurface,
+              style: Theme.of(context).textTheme.titleMedium)),
+        ]),
         Text('You owe ${formatMoney(balance.iOweThem, balance.currency)} · '
           'Owes you ${formatMoney(balance.owesMe, balance.currency)}',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(

@@ -126,6 +126,45 @@ class _GroupBody extends StatelessWidget {
                     label: const Text('Add expense to group'),
                   ),
                 ),
+              ],
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          sliver: _SimplifyDebtsSection(groupId: group.id),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          sliver: SliverToBoxAdapter(
+            child: Text(
+              'Bills in this group',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: _GroupBills(groupId: group.id),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          sliver: SliverToBoxAdapter(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Group settings', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              _GroupCurrencyTile(group: group),
+            ],
+          )),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          sliver: SliverToBoxAdapter(
+            child: Column(children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -174,40 +213,8 @@ class _GroupBody extends StatelessWidget {
                     ),
                   ],
                 ),
-              ],
-            ),
+            ]),
           ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          sliver: _SimplifyDebtsSection(groupId: group.id),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          sliver: SliverToBoxAdapter(
-            child: Text(
-              'Bills in this group',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: _GroupBills(groupId: group.id),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          sliver: SliverToBoxAdapter(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Group settings', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              _GroupCurrencyTile(group: group),
-            ],
-          )),
         ),
         // Only the member list reacts to member state.
         SliverPadding(
