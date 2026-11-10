@@ -105,7 +105,6 @@ class _BillsTabState extends ConsumerState<BillsTab> {
                     return _HomeOverview(
                       billCount: bills.length,
                       visibleCount: visible.length,
-                      openCount: bills.where((b) => !b.fullySettled).length,
                       balances: byCurrency,
                       filter: _filter,
                       onFilter: (v) => setState(() => _filter = v),
@@ -137,7 +136,6 @@ class _HomeOverview extends StatelessWidget {
   const _HomeOverview({
     required this.billCount,
     required this.visibleCount,
-    required this.openCount,
     required this.balances,
     required this.filter,
     required this.onFilter,
@@ -146,7 +144,6 @@ class _HomeOverview extends StatelessWidget {
 
   final int billCount;
   final int visibleCount;
-  final int openCount;
   final Map<String, ({double owed, double owe})> balances;
   final _ExpenseFilter filter;
   final ValueChanged<_ExpenseFilter> onFilter;
@@ -154,34 +151,8 @@ class _HomeOverview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final codes = balances.keys.toList()..sort();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SoftPanel(
-        fill: scheme.primaryContainer,
-        border: false,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(child: Text('AT A GLANCE',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: scheme.onPrimaryContainer, letterSpacing: 1.1,
-                fontWeight: FontWeight.w800))),
-            Icon(Icons.account_balance_wallet_outlined,
-              color: scheme.onPrimaryContainer),
-          ]),
-          const SizedBox(height: 12),
-          Text(openCount == 0 ? 'All caught up' :
-              '$openCount open ${openCount == 1 ? 'expense' : 'expenses'}',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: scheme.onPrimaryContainer)),
-          const SizedBox(height: 5),
-          Text(billCount == 0
-              ? 'Add your first expense to get started.'
-              : '$billCount total ${billCount == 1 ? 'expense' : 'expenses'} tracked',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: scheme.onPrimaryContainer)),
-        ]),
-      ),
       const SectionHeading('Your balances',
         subtitle: 'Amounts are kept separate by currency.'),
       if (codes.isEmpty)

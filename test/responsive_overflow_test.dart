@@ -311,7 +311,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Home keeps summaries and FAB without intro or quick actions',
+  testWidgets('Home keeps balances, expenses and FAB without redundant cards',
       (tester) async {
     addTearDown(() => tester.view.reset());
     await pumpAt(tester, const BillsTab(), size: const Size(390, 844));
@@ -321,7 +321,9 @@ void main() {
         findsNothing);
     expect(find.text('Quick actions'), findsNothing);
     expect(find.text('New group'), findsNothing);
-    expect(find.text('AT A GLANCE'), findsOneWidget);
+    expect(find.text('AT A GLANCE'), findsNothing);
+    expect(find.text('Your balances'), findsOneWidget);
+    expect(find.text('Recent expenses'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
