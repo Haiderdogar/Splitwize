@@ -42,10 +42,8 @@ class BalancesTab extends StatelessWidget {
           final previous = byCurrency[balance.currency] ??
               (owed: 0.0, owe: 0.0);
           byCurrency[balance.currency] = (
-            owed: previous.owed +
-                (balance.net > 0 ? balance.net : 0.0),
-            owe: previous.owe +
-                (balance.net < 0 ? -balance.net : 0.0),
+            owed: previous.owed + balance.owesMe,
+            owe: previous.owe + balance.iOweThem,
           );
         }
         return ListView.builder(
@@ -78,10 +76,14 @@ class BalancesTab extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Settle up?'),
+        title: const Text('Record repayment?'),
         content: Text(
-          'Mark your ${b.openBills} outstanding share${b.openBills == 1 ? '' : 's'} '
-          '(${formatMoney(b.iOweThem, b.currency)}) with ${b.displayName} as paid?',
+          'You owe ${b.displayName} ${formatMoney(b.iOweThem, b.currency)}. '
+          'They owe you ${formatMoney(b.owesMe, b.currency)}. '
+          'The net balance is ${formatMoney(b.net.abs(), b.currency)}.\n\n'
+          'This will mark your full ${formatMoney(b.iOweThem, b.currency)} '
+          'outstanding debt to this person as paid, not just the net amount. '
+          'No money is transferred by Splitwize.',
         ),
         actions: [
           TextButton(
@@ -90,7 +92,7 @@ class BalancesTab extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Settle up'),
+            child: const Text('Mark my debt paid'),
           ),
         ],
       ),
@@ -124,7 +126,7 @@ class BalancesTab extends StatelessWidget {
         toUid: b.uid,
         title: 'Payment reminder',
         body:
-            '${me?.displayName ?? 'A friend'} reminds you: you owe ${formatMoney(b.owesMe, b.currency)} across ${b.openBills} bill${b.openBills == 1 ? '' : 's'}.',
+            '${me?.displayName ?? 'A Splitwize member'} reminds you: you owe ${formatMoney(b.owesMe, b.currency)} across ${b.openBills} bill${b.openBills == 1 ? '' : 's'}.',
         type: 'reminder',
       );
       if (context.mounted) {
@@ -188,7 +190,7 @@ class _BalanceOverview extends StatelessWidget {
             )),
           ),
         const SectionHeading('People',
-          subtitle: 'Settle up or send a friendly reminder.'),
+          subtitle: 'Review debts, record repayments, or send reminders.'),
       ],
     ]);
   }
@@ -229,49 +231,51 @@ class _BalanceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final owe = balance.net < 0;
-    return SoftPanel(child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    final owe = balance.net < -0.005;
+    final owed = balance.net > 0.005;
+    return SoftPanel(
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
           PersonMark(initials: balance.initials),
           const SizedBox(width: 11),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(balance.displayName,
-                maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 3),
-              Text(
-                '${balance.openBills} open ${balance.openBills == 1 ? 'bill' : 'bills'}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              Text(balance.displayName, maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium),
+              Text('${balance.openBills} open ${balance.openBills == 1 ? 'bill' : 'bills'}',
+                  style: Theme.of(context).textTheme.bodySmall),
+            ])),
+          const SizedBox(width: 6),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(owe ? 'Net: you owe' : owed ? 'Net: owes you' : 'Net zero',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: scheme.onSurfaceVariant)),
-            ],
-          )),
-          const SizedBox(width: 5),
-          StatusPill(label: owe ? 'You owe' : 'Owes you', positive: !owe),
+            MoneyText(balance.net.abs(), currencyCode: balance.currency,
+                color: owe ? scheme.owe : owed ? scheme.owed : scheme.onSurface,
+                style: Theme.of(context).textTheme.titleMedium),
+          ]),
         ]),
-        const SizedBox(height: 14),
-        FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
-          child: MoneyText(balance.net.abs(),
-            currencyCode: balance.currency,
-            color: owe ? scheme.owe : scheme.owed,
-            style: Theme.of(context).textTheme.headlineSmall)),
-        const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerRight,
-          child: owe
-            ? FilledButton.icon(
+        const SizedBox(height: 10),
+        Text('You owe ${formatMoney(balance.iOweThem, balance.currency)} · '
+          'Owes you ${formatMoney(balance.owesMe, balance.currency)}',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: scheme.onSurfaceVariant)),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 6, children: [
+          if (balance.iOweThem > 0.005)
+            FilledButton.icon(
               onPressed: onSettleUp,
               icon: const Icon(Icons.check_rounded),
-              label: const Text('Settle up'))
-            : OutlinedButton.icon(
+              label: const Text('Record repayment')),
+          if (balance.owesMe > 0.005)
+            OutlinedButton.icon(
               onPressed: onRemind,
               icon: const Icon(Icons.notifications_none_rounded),
-              label: const Text('Send reminder')),
-        ),
-      ],
-    ));
+              label: const Text('Remind')),
+        ]),
+      ]),
+    );
   }
 }

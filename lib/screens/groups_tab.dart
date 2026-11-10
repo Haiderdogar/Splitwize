@@ -49,7 +49,25 @@ class GroupsTab extends StatelessWidget {
                 ),
               ),
               data: (groups) {
-                if (groups.isEmpty) {
+                final bills = ref.watch(myBillsProvider).value;
+                final groupBills = <String, List<Bill>>{};
+                for (final bill in bills ?? <Bill>[]) {
+                  if (bill.groupId != null) {
+                    (groupBills[bill.groupId!] ??= <Bill>[]).add(bill);
+                  }
+                }
+                DateTime lastActivity(BillGroup group) {
+                  final entries = groupBills[group.id] ?? const <Bill>[];
+                  var recent = group.createdAt ?? DateTime(1970);
+                  for (final bill in entries) {
+                    final when = bill.createdAt;
+                    if (when != null && when.isAfter(recent)) recent = when;
+                  }
+                  return recent;
+                }
+                final ordered = [...groups]
+                  ..sort((a, b) => lastActivity(b).compareTo(lastActivity(a)));
+                if (ordered.isEmpty) {
                   return SliverToBoxAdapter(child: InlineEmpty(
                     icon: Icons.groups_outlined,
                     title: 'No groups yet',
@@ -61,12 +79,15 @@ class GroupsTab extends StatelessWidget {
                   ));
                 }
                 return SliverList.builder(
-                  itemCount: groups.length,
+                  itemCount: ordered.length,
                   itemBuilder: (context, i) {
-                    final group = groups[i];
+                    final group = ordered[i];
+                    final entries = groupBills[group.id] ?? const <Bill>[];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 9),
-                      child: _GroupRow(group: group),
+                      child: _GroupRow(group: group,
+                        totalBills: bills == null ? null : entries.length,
+                        unsettledBills: entries.where((bill) => !bill.fullySettled).length),
                     );
                   },
                 );
@@ -87,8 +108,10 @@ class GroupsTab extends StatelessWidget {
 }
 
 class _GroupRow extends StatelessWidget {
-  const _GroupRow({required this.group});
+  const _GroupRow({required this.group, this.totalBills, required this.unsettledBills});
   final BillGroup group;
+  final int? totalBills;
+  final int unsettledBills;
 
   @override
   Widget build(BuildContext context) {
@@ -120,6 +143,14 @@ class _GroupRow extends StatelessWidget {
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant)),
+                if (totalBills != null) ...[
+                  const SizedBox(height: 3),
+                  Text(totalBills == 0 ? 'No expenses yet' :
+                    unsettledBills == 0 ? 'All settled' :
+                    '$unsettledBills unsettled ${unsettledBills == 1 ? 'expense' : 'expenses'}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant)),
+                ],
               ],
             )),
             const SizedBox(width: 6),

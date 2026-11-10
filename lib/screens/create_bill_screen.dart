@@ -20,8 +20,25 @@ import 'bills_tab.dart' show currencySymbol, formatMoney;
 ///
 /// State lives in [CreateBillForm]; only the widgets that display changing
 /// state are wrapped in [Consumer] — fields just call the notifier.
-class CreateBillScreen extends StatelessWidget {
-  const CreateBillScreen({super.key});
+class CreateBillScreen extends ConsumerStatefulWidget {
+  const CreateBillScreen({super.key, this.initialGroupId});
+  final String? initialGroupId;
+
+  @override
+  ConsumerState<CreateBillScreen> createState() => _CreateBillScreenState();
+}
+
+class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialGroupId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(createBillFormProvider.notifier)
+            .setGroup(widget.initialGroupId);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

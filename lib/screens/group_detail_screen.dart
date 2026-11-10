@@ -11,6 +11,7 @@ import '../utils/current_user_identity.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
 import 'bill_detail_screen.dart';
+import 'create_bill_screen.dart';
 import 'bills_tab.dart' show currencyLabel, formatMoney;
 
 /// The group's currency row: shows the current currency and lets any
@@ -115,9 +116,16 @@ class _GroupBody extends StatelessWidget {
                   title: group.name,
                   description: '${group.members.length} ${group.members.length == 1 ? 'member' : 'members'} · ${group.currency}',
                 ),
-                const SizedBox(height: 12),
-                _GroupCurrencyTile(group: group),
-                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) =>
+                        CreateBillScreen(initialGroupId: group.id))),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add expense to group'),
+                  ),
+                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -169,6 +177,37 @@ class _GroupBody extends StatelessWidget {
               ],
             ),
           ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          sliver: _SimplifyDebtsSection(groupId: group.id),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          sliver: SliverToBoxAdapter(
+            child: Text(
+              'Bills in this group',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: _GroupBills(groupId: group.id),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          sliver: SliverToBoxAdapter(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Group settings', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              _GroupCurrencyTile(group: group),
+            ],
+          )),
         ),
         // Only the member list reacts to member state.
         SliverPadding(
@@ -229,26 +268,6 @@ class _GroupBody extends StatelessWidget {
             sliver: _InvitedList(group: group),
           ),
         ],
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          sliver: _SimplifyDebtsSection(groupId: group.id),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          sliver: SliverToBoxAdapter(
-            child: Text(
-              'Bills in this group',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: _GroupBills(groupId: group.id),
-        ),
         const SliverToBoxAdapter(child: SizedBox(height: 16)),
       ],
     );

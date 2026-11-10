@@ -10,8 +10,15 @@ import '../widgets/app_notification_button.dart';
 import '../widgets/studio_ui.dart';
 import '../widgets/state_widgets.dart';
 
-class FriendsTab extends StatelessWidget {
+class FriendsTab extends StatefulWidget {
   const FriendsTab({super.key});
+
+  @override
+  State<FriendsTab> createState() => _FriendsTabState();
+}
+
+class _FriendsTabState extends State<FriendsTab> {
+  String _query = '';
 
   @override
   Widget build(BuildContext context) {
@@ -22,18 +29,34 @@ class FriendsTab extends StatelessWidget {
         actions: const [AppNotificationButton(), SizedBox(width: 5)],
       ),
       // Connected friends only; requests have their own tab.
-      body: const CustomScrollView(
+      body: CustomScrollView(
         slivers: [
-          SliverPadding(
+          const SliverPadding(
             padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
             sliver: SliverToBoxAdapter(child: _ConnectedHeader()),
           ),
+          SliverToBoxAdapter(
+            child: Consumer(builder: (context, ref, _) {
+              final count = ref.watch(connectionsProvider).value?.length ?? 0;
+              if (count <= 8) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Search friends by name or email',
+                    prefixIcon: Icon(Icons.search_rounded),
+                  ),
+                  onChanged: (value) => setState(() => _query = value),
+                ),
+              );
+            }),
+          ),
           SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: 12),
-            sliver: _Connections(),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            sliver: _Connections(query: _query),
           ),
           // Leave enough scroll space for the add-friend button.
-          SliverToBoxAdapter(child: SizedBox(height: 96)),
+          const SliverToBoxAdapter(child: SizedBox(height: 96)),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -137,7 +160,8 @@ class _EmptyRow extends StatelessWidget {
 }
 
 class _Connections extends StatelessWidget {
-  const _Connections();
+  const _Connections({required this.query});
+  final String query;
 
   @override
   Widget build(BuildContext context) {
@@ -157,6 +181,10 @@ class _Connections extends StatelessWidget {
             ),
           ),
           data: (friends) {
+            final keyword = query.trim().toLowerCase();
+            final visible = keyword.isEmpty ? friends : friends.where((friend) =>
+              friend.displayName.toLowerCase().contains(keyword) ||
+              friend.email.toLowerCase().contains(keyword)).toList();
             if (friends.isEmpty) {
               return const SliverToBoxAdapter(
                 child: _EmptyRow(
@@ -166,10 +194,16 @@ class _Connections extends StatelessWidget {
                 ),
               );
             }
+            if (visible.isEmpty) {
+              return const SliverToBoxAdapter(child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('No friends match your search.'),
+              ));
+            }
             return SliverList.builder(
-              itemCount: friends.length,
+              itemCount: visible.length,
               itemBuilder: (itemContext, i) {
-                final f = friends[i];
+                final f = visible[i];
                 return Card(
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
@@ -186,10 +220,18 @@ class _Connections extends StatelessWidget {
                                 Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
-                    trailing: IconButton(
-                      tooltip: 'Remove',
-                      icon: const Icon(Icons.person_remove_outlined),
-                      onPressed: () => _confirmRemove(context, ref, myUid, f),
+                    trailing: PopupMenuButton<String>(
+                      tooltip: 'Friend options',
+                      icon: const Icon(Icons.more_vert_rounded),
+                      onSelected: (action) {
+                        if (action == 'remove') {
+                          _confirmRemove(context, ref, myUid, f);
+                        }
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'remove',
+                          child: Text('Remove friend')),
+                      ],
                     ),
                   ),
                 );
@@ -327,11 +369,17 @@ class _AddFriendDialog extends StatelessWidget {
               onPressed: () async {
                 final err = await notifier.sendInvite();
                 if (!context.mounted) return;
-                Navigator.of(context).pop();
+                if (err != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(err)),
+                  );
+                  return;
+                }
                 final name = ref.read(addFriendProvider).found?.displayName ??
                     'your friend';
+                Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(err ?? 'Invite sent to $name.')),
+                  SnackBar(content: Text('Invite sent to $name.')),
                 );
               },
               child: const Text('Send invite'),
