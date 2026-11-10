@@ -11,6 +11,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
 import '../utils/split_math.dart';
+import '../utils/current_user_identity.dart';
 import '../widgets/split_bar.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show currencySymbol, formatMoney;
@@ -318,6 +319,12 @@ class _MemberRow extends StatelessWidget {
         final splitType =
             ref.watch(createBillFormProvider.select((s) => s.splitType));
         final currencyCode = ref.watch(billFormCurrencyProvider);
+        final google = ref.watch(authStateChangesProvider).value;
+        final identity = resolveCurrentUserIdentity(
+          cached: ref.watch(currentAppUserProvider).value,
+          googleName: google?.displayName,
+          googleEmail: google?.email,
+        );
         final notifier = ref.read(createBillFormProvider.notifier);
         return Card(
           margin: const EdgeInsets.only(bottom: 6),
@@ -332,12 +339,23 @@ class _MemberRow extends StatelessWidget {
                       ? null
                       : (v) => notifier.toggleMember(member.uid, v ?? false),
                 ),
-                CircleAvatar(child: Text(member.initials)),
+                CircleAvatar(child: Text(isMe ? identity.initials : member.initials)),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    isMe ? '${member.displayName} (you)' : member.displayName,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isMe ? '${identity.name} (you)' : member.displayName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      if (isMe && identity.email.isNotEmpty)
+                        Text(identity.email, maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
                   ),
                 ),
                 if (selected && splitType == 'percentage')
@@ -420,6 +438,13 @@ class _PaymentSection extends ConsumerWidget {
     final notifier = ref.read(createBillFormProvider.notifier);
     final currency = ref.watch(billFormCurrencyProvider);
     final symbol = currencySymbol(currency);
+    final myUid = ref.watch(currentUidProvider);
+    final google = ref.watch(authStateChangesProvider).value;
+    final identity = resolveCurrentUserIdentity(
+      cached: ref.watch(currentAppUserProvider).value,
+      googleName: google?.displayName,
+      googleEmail: google?.email,
+    );
 
     final paidCents = form.paymentMode == 'single'
         ? (form.payerUid == null ? 0 : (form.total * 100).round())
@@ -464,7 +489,8 @@ class _PaymentSection extends ConsumerWidget {
               for (final member in selected)
                 DropdownMenuItem<String>(
                   value: member.uid,
-                  child: Text(member.displayName,
+                  child: Text(member.uid == myUid
+                      ? '${identity.name} (you)' : member.displayName,
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
             ],
@@ -476,7 +502,8 @@ class _PaymentSection extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(children: [
                 Expanded(
-                  child: Text(member.displayName,
+                  child: Text(member.uid == myUid
+                      ? '${identity.name} (you)' : member.displayName,
                       maxLines: 2, overflow: TextOverflow.ellipsis),
                 ),
                 const SizedBox(width: 12),
