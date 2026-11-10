@@ -233,6 +233,8 @@ class _BillBody extends StatelessWidget {
                 itemBuilder: (context, i) => _PaymentDebtTile(
                   debt: bill.paymentDebts[i],
                   currency: bill.currency,
+                  myUid: myUid,
+                  myIdentity: myIdentity,
                   canUpdate: isCreator ||
                       bill.paymentDebts[i].debtorUid == myUid ||
                       bill.paymentDebts[i].creditorUid == myUid,
@@ -274,7 +276,8 @@ class _BillBody extends StatelessWidget {
               segments: [
                 for (var i = 0; i < bill.splits.length; i++)
                   SplitSegment(
-                    label: bill.splits[i].displayName,
+                    label: bill.splits[i].uid == myUid
+                        ? myIdentity.name : bill.splits[i].displayName,
                     value: bill.splits[i].amount,
                     color: splitHues[i % splitHues.length],
                   ),
@@ -308,25 +311,38 @@ class _PaymentDebtTile extends StatelessWidget {
   const _PaymentDebtTile({
     required this.debt,
     required this.currency,
+    required this.myUid,
+    required this.myIdentity,
     required this.canUpdate,
     required this.onToggle,
   });
 
   final BillDebt debt;
   final String currency;
+  final String myUid;
+  final CurrentUserIdentity myIdentity;
   final bool canUpdate;
   final Future<void> Function(BillDebt debt, bool settled) onToggle;
 
   @override
   Widget build(BuildContext context) {
+    final debtorName = debt.debtorUid == myUid
+        ? '${myIdentity.name} (you)' : debt.debtorName;
+    final creditorName = debt.creditorUid == myUid
+        ? '${myIdentity.name} (you)' : debt.creditorName;
     return Card(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('${debt.debtorName} owes ${debt.creditorName}',
+          Text('$debtorName owes $creditorName',
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleSmall),
+          if (myIdentity.email.isNotEmpty &&
+              (debt.debtorUid == myUid || debt.creditorUid == myUid))
+            Text(myIdentity.email, maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 5),
           Text(debt.isSettled
               ? 'Settled'
@@ -431,8 +447,8 @@ class _SplitTile extends StatelessWidget {
         child: Row(
           children: [
             CircleAvatar(
-              child: Text(split.displayName.isEmpty
-                  ? '?'
+              child: Text(_isMine ? myIdentity.initials[0]
+                  : split.displayName.isEmpty ? '?'
                   : split.displayName[0].toUpperCase()),
             ),
             const SizedBox(width: 12),
