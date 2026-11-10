@@ -48,10 +48,7 @@ class _BillsTabState extends ConsumerState<BillsTab> {
           const SizedBox(width: 9),
           Text('Splitwize', style: Theme.of(context).textTheme.titleLarge),
         ]),
-        actions: [
-          const AppNotificationButton(),
-          const SizedBox(width: 5),
-        ],
+        actions: const [AppNotificationButton(), SizedBox(width: 5)],
       ),
       body: Column(children: [
         Expanded(
