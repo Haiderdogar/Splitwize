@@ -11,7 +11,7 @@ import '../providers/monetization_providers.dart';
 import '../widgets/logout_button.dart';
 import '../widgets/paywall_sheet.dart';
 import '../widgets/studio_ui.dart';
-import '../widgets/app_drawer.dart';
+import '../utils/current_user_identity.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show currencyLabel;
 
@@ -161,21 +161,6 @@ class _PushNotificationsTile extends StatelessWidget {
 
 /// Prefer the authenticated Google identity over an old placeholder profile.
 /// Retain cached details when offline or while authentication is restoring.
-String _profileName(AppUser? cached, String? googleName, String email) {
-  final fromGoogle = googleName?.trim() ?? '';
-  if (fromGoogle.isNotEmpty && fromGoogle.toLowerCase() != 'friend') {
-    return fromGoogle;
-  }
-  final saved = cached?.displayName.trim() ?? '';
-  if (saved.isNotEmpty &&
-      saved.toLowerCase() != 'friend' &&
-      saved.toLowerCase() != 'splitwize member') {
-    return saved;
-  }
-  if (email.contains('@')) return email.split('@').first;
-  return email.isEmpty ? 'Splitwize member' : email;
-}
-
 class ProfileTab extends StatelessWidget {
   const ProfileTab({super.key});
 
@@ -183,7 +168,7 @@ class ProfileTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-          leading: const SplitwizeMenuButton(), title: const Text('Profile')),
+          leading: const BackButton(), title: const Text('Profile & settings')),
       // Only this subtree reacts to profile state.
       body: Consumer(
         builder: (context, ref, _) {
@@ -203,11 +188,13 @@ class ProfileTab extends StatelessWidget {
               final colorScheme = Theme.of(context).colorScheme;
               // Use Google Auth's live profile when an old local cache
               // still contains the default display name ("Friend").
-              final googleEmail = googleAccount?.email?.trim() ?? '';
-              final savedEmail = user?.email.trim() ?? '';
-              final email = googleEmail.isNotEmpty ? googleEmail : savedEmail;
-              final displayName =
-                  _profileName(user, googleAccount?.displayName, email);
+              final identity = resolveCurrentUserIdentity(
+                cached: user,
+                googleName: googleAccount?.displayName,
+                googleEmail: googleAccount?.email,
+              );
+              final email = identity.email;
+              final displayName = identity.name;
               final photoUrl = googleAccount?.photoURL?.trim().isNotEmpty == true
                   ? googleAccount!.photoURL!.trim()
                   : (user?.photoUrl?.trim() ?? '');
