@@ -34,8 +34,10 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
     super.initState();
     if (widget.initialGroupId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) ref.read(createBillFormProvider.notifier)
-            .setGroup(widget.initialGroupId);
+        if (mounted) {
+          ref.read(createBillFormProvider.notifier)
+              .setGroup(widget.initialGroupId);
+        }
       });
     }
   }

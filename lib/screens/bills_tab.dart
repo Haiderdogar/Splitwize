@@ -7,6 +7,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../theme.dart';
 import '../utils/current_user_identity.dart';
+import '../utils/money.dart' show formatMoney;
 import '../widgets/ad_banner.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/money_text.dart';
