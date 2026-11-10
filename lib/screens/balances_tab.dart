@@ -320,19 +320,22 @@ class _BalanceTile extends StatelessWidget {
               ],
             )),
             const SizedBox(width: 7),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: MoneyText(balance.net.abs(),
-                  currencyCode: balance.currency,
-                  color: netZero ? scheme.onSurfaceVariant :
-                      (netOwe ? scheme.owe : scheme.owed),
-                  style: Theme.of(context).textTheme.titleMedium),
-              ),
-              Text('Net balance',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant)),
-            ]),
+            SizedBox(width: 94, child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: MoneyText(balance.net.abs(),
+                    currencyCode: balance.currency,
+                    color: netZero ? scheme.onSurfaceVariant :
+                        (netOwe ? scheme.owe : scheme.owed),
+                    style: Theme.of(context).textTheme.titleMedium),
+                ),
+                Text('Net balance',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant)),
+              ],
+            )),
             const SizedBox(width: 4),
             Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
           ]),

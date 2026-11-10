@@ -371,6 +371,36 @@ void main() {
       expect(bUsd.net, 100);
     });
 
+    test('net-zero mutual debts stay visible until actually settled',
+        () async {
+      await repo.applyRemoteBill(bill(
+        id: 'mutual-1',
+        createdBy: 'me',
+        createdByName: 'Me Myself',
+        total: 400,
+        splits: const [
+          BillSplit(uid: 'me', displayName: 'Me Myself', amount: 200),
+          BillSplit(uid: 'fa', displayName: 'Friend A', amount: 200),
+        ],
+      ));
+      await repo.applyRemoteBill(bill(
+        id: 'mutual-2',
+        createdBy: 'fa',
+        createdByName: 'Friend A',
+        total: 400,
+        splits: const [
+          BillSplit(uid: 'fa', displayName: 'Friend A', amount: 200),
+          BillSplit(uid: 'me', displayName: 'Me Myself', amount: 200),
+        ],
+      ));
+      final balances = repo.computeBalances(await repo.watchMyBills().first);
+      expect(balances, hasLength(1));
+      expect(balances.single.net, 0);
+      expect(balances.single.owesMe, 200);
+      expect(balances.single.iOweThem, 200);
+      expect(balances.single.openBills, 2);
+    });
+
     test('settleUpWithFriend pays only that friend, only that currency',
         () async {
       await seedBills();

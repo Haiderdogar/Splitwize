@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
-import '../theme.dart';
 import '../utils/current_user_identity.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/app_drawer.dart';

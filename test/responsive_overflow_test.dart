@@ -333,6 +333,17 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Group details opens a new expense with its group selected',
+      (tester) async {
+    addTearDown(() => tester.view.reset());
+    await pumpAt(tester, const GroupDetailScreen(groupId: 'g1'),
+        size: const Size(390, 844));
+    await tester.tap(find.text('Add expense'));
+    await tester.pumpAndSettle();
+    expect(find.text('New expense'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Balances hides the highlighted introduction', (tester) async {
     addTearDown(() => tester.view.reset());
     await pumpAt(tester, const BalancesTab(), size: const Size(390, 844));
@@ -373,7 +384,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Home keeps balances, expenses and FAB without redundant cards',
+  testWidgets('Home prioritizes expenses and visible filters without balance cards',
       (tester) async {
     addTearDown(() => tester.view.reset());
     await pumpAt(tester, const BillsTab(), size: const Size(390, 844));
@@ -384,8 +395,11 @@ void main() {
     expect(find.text('Quick actions'), findsNothing);
     expect(find.text('New group'), findsNothing);
     expect(find.text('AT A GLANCE'), findsNothing);
-    expect(find.text('Your balances'), findsOneWidget);
-    expect(find.text('Recent expenses'), findsOneWidget);
+    expect(find.text('Your balances'), findsNothing);
+    expect(find.text('Expenses'), findsOneWidget);
+    expect(find.text('All'), findsOneWidget);
+    expect(find.text('Unsettled'), findsOneWidget);
+    expect(find.text('Settled'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
