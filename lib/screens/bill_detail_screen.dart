@@ -9,7 +9,6 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../theme.dart';
 import '../widgets/money_text.dart';
-import '../widgets/studio_ui.dart';
 import '../widgets/split_bar.dart';
 import '../widgets/state_widgets.dart';
 import 'bills_tab.dart' show formatMoney;
