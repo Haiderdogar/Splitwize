@@ -6,6 +6,7 @@ import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../theme.dart';
+import '../utils/current_user_identity.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/money_text.dart';
@@ -272,17 +273,24 @@ class _CurrencySnapshot extends StatelessWidget {
   }
 }
 
-class _ExpenseRow extends StatelessWidget {
+class _ExpenseRow extends ConsumerWidget {
   const _ExpenseRow({required this.bill, required this.uid});
   final Bill bill;
   final String uid;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final isOwner = bill.createdBy == uid;
+    final google = ref.watch(authStateChangesProvider).value;
+    final identity = resolveCurrentUserIdentity(
+      cached: ref.watch(currentAppUserProvider).value,
+      googleName: google?.displayName,
+      googleEmail: google?.email,
+    );
     final amount = isOwner ? bill.total : bill.myShare(uid);
-    final detail = bill.groupName ?? bill.createdByName;
+    final detail = bill.groupName ??
+        (isOwner ? '${identity.name} (you)' : bill.createdByName);
     return Material(
       color: scheme.surfaceContainerLowest,
       shape: RoundedRectangleBorder(
@@ -307,6 +315,10 @@ class _ExpenseRow extends StatelessWidget {
                 Text(detail, maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant)),
+                if (isOwner && bill.groupName == null && identity.email.isNotEmpty)
+                  Text(identity.email, maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 6),
                 Text(bill.fullySettled ? 'Settled' :
                   '${bill.paidCount} of ${bill.splits.length} paid',
