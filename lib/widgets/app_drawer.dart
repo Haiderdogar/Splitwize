@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../screens/notifications_screen.dart';
+import '../screens/profile_tab.dart';
+import '../utils/current_user_identity.dart';
 import 'logout_button.dart';
 import 'studio_ui.dart';
 
@@ -29,13 +31,16 @@ class SplitwizeDrawer extends ConsumerWidget {
     (name: 'Balances', icon: Icons.account_balance_wallet_outlined),
     (name: 'Groups', icon: Icons.groups_outlined),
     (name: 'Friends', icon: Icons.people_outline_rounded),
-    (name: 'Profile & settings', icon: Icons.person_outline_rounded),
+    (name: 'Requests', icon: Icons.mark_email_unread_outlined),
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final user = ref.watch(currentAppUserProvider).value;
+    final google = ref.watch(authStateChangesProvider).value;
+    final identity = resolveCurrentUserIdentity(
+      cached: user, googleName: google?.displayName, googleEmail: google?.email);
     final selected = ref.watch(tabIndexProvider);
     return Drawer(
       width: MediaQuery.sizeOf(context).width < 370 ? 288 : 320,
@@ -54,28 +59,48 @@ class SplitwizeDrawer extends ConsumerWidget {
               ]),
             ),
             const SizedBox(height: 23),
-            Container(
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerLow,
+            Material(
+              color: scheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(18),
+              child: InkWell(
                 borderRadius: BorderRadius.circular(18),
+                onTap: () {
+                  final navigator = Navigator.of(context);
+                  navigator.pop();
+                  navigator.push(MaterialPageRoute(
+                    builder: (_) => const ProfileTab()));
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(children: [
+                    PersonMark(initials: identity.initials, size: 44),
+                    const SizedBox(width: 11),
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Expanded(child: Text(identity.name,
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall)),
+                          const SizedBox(width: 5),
+                          Text('YOU', style: Theme.of(context)
+                              .textTheme.labelSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: scheme.primary)),
+                        ]),
+                        if (identity.email.isNotEmpty)
+                          Text(identity.email,
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant)),
+                        Text('View profile & settings',
+                            style: Theme.of(context).textTheme.labelSmall),
+                      ],
+                    )),
+                    const Icon(Icons.chevron_right_rounded),
+                  ]),
+                ),
               ),
-              padding: const EdgeInsets.all(12),
-              child: Row(children: [
-                PersonMark(initials: user?.initials ?? '?', size: 44),
-                const SizedBox(width: 11),
-                Expanded(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(user?.displayName ?? 'Your account',
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall),
-                    Text(user?.email ?? 'Shared expenses made simple',
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant)),
-                  ],
-                )),
-              ]),
             ),
             const SizedBox(height: 25),
             Padding(
