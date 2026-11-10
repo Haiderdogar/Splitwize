@@ -311,6 +311,21 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Bill details starts with the summary, without intro banner',
+      (tester) async {
+    addTearDown(() => tester.view.reset());
+    await pumpAt(tester, const BillDetailScreen(billId: 'b1'),
+        size: const Size(390, 844));
+    expect(find.text('EXPENSE DETAILS'), findsNothing);
+    expect(find.text('Review each person’s share and payment progress.'),
+        findsNothing);
+    // Preserve the bill summary and payment breakdown.
+    expect(find.text('Subtotal'), findsOneWidget);
+    expect(find.text('Total'), findsOneWidget);
+    expect(find.text('Bill details'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Home keeps balances, expenses and FAB without redundant cards',
       (tester) async {
     addTearDown(() => tester.view.reset());

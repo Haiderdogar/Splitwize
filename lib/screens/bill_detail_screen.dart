@@ -99,16 +99,6 @@ class _BillBody extends StatelessWidget {
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
-          sliver: SliverToBoxAdapter(
-            child: PageIntroduction(
-              eyebrow: 'EXPENSE DETAILS',
-              title: bill.title,
-              description: 'Review each person’s share and payment progress.',
-            ),
-          ),
-        ),
-        SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
           sliver: SliverToBoxAdapter(
             child: Card(
