@@ -77,6 +77,7 @@ class GroupsTab extends StatelessWidget {
         const SliverToBoxAdapter(child: SizedBox(height: 26)),
       ]),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'groups-create-group',
         tooltip: 'Create group',
         onPressed: () => _create(context),
         child: const Icon(Icons.add_rounded),
