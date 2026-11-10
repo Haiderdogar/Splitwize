@@ -11,8 +11,15 @@ import '../widgets/studio_ui.dart';
 import 'create_group_screen.dart';
 import 'group_detail_screen.dart';
 
-class GroupsTab extends StatelessWidget {
+class GroupsTab extends StatefulWidget {
   const GroupsTab({super.key});
+
+  @override
+  State<GroupsTab> createState() => _GroupsTabState();
+}
+
+class _GroupsTabState extends State<GroupsTab> {
+  String _query = '';
 
   void _create(BuildContext context) => Navigator.of(context).push(
     MaterialPageRoute(builder: (_) => const CreateGroupScreen()));
@@ -32,6 +39,20 @@ class GroupsTab extends StatelessWidget {
             child: SectionHeading('My groups'),
           ),
         ),
+        SliverToBoxAdapter(child: Consumer(builder: (context, ref, _) {
+          final groups = ref.watch(myGroupsProvider).value ?? const <BillGroup>[];
+          if (groups.length < 8) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: 'Search groups',
+                prefixIcon: Icon(Icons.search_rounded),
+              ),
+              onChanged: (value) => setState(() => _query = value),
+            ),
+          );
+        })),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           sliver: Consumer(builder: (context, ref, _) {
@@ -67,7 +88,13 @@ class GroupsTab extends StatelessWidget {
                     activity[id] = date;
                   }
                 }
-                final sortedGroups = [...groups]..sort((a, b) {
+                final query = _query.trim().toLowerCase();
+                final sortedGroups = [
+                  for (final group in groups)
+                    if (query.isEmpty ||
+                        group.name.toLowerCase().contains(query))
+                      group,
+                ]..sort((a, b) {
                   final aDate = activity[a.id] ?? a.createdAt ??
                       DateTime.fromMillisecondsSinceEpoch(0);
                   final bDate = activity[b.id] ?? b.createdAt ??
@@ -77,12 +104,14 @@ class GroupsTab extends StatelessWidget {
                 if (sortedGroups.isEmpty) {
                   return SliverToBoxAdapter(child: InlineEmpty(
                     icon: Icons.groups_outlined,
-                    title: 'No groups yet',
-                    message: 'Make a group for a trip, flat or project.',
-                    action: FilledButton(
+                    title: query.isEmpty ? 'No groups yet' : 'No matches',
+                    message: query.isEmpty
+                        ? 'Make a group for a trip, flat or project.'
+                        : 'Try a different group name.',
+                    action: query.isEmpty ? FilledButton(
                       onPressed: () => _create(context),
                       child: const Text('Create your first group'),
-                    ),
+                    ) : null,
                   ));
                 }
                 return SliverList.builder(

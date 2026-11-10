@@ -11,6 +11,7 @@ import '../utils/current_user_identity.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
 import 'bill_detail_screen.dart';
+import 'create_bill_screen.dart';
 import 'bills_tab.dart' show currencyLabel, formatMoney;
 
 /// The group's currency row: shows the current currency and lets any
@@ -28,8 +29,8 @@ class _GroupCurrencyTile extends StatelessWidget {
       builder: (context, ref, _) => Card(
         child: ListTile(
           leading: const Icon(Icons.payments_outlined),
-          title: const Text('Group currency'),
-          subtitle: Text('${currencyLabel(group.currency)} — tap to change'),
+          title: const Text('Default currency'),
+          subtitle: Text('${currencyLabel(group.currency)} · for new expenses'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => showCurrencyPicker(
             context: context,
@@ -43,7 +44,7 @@ class _GroupCurrencyTile extends StatelessWidget {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                         content: Text(
-                            'Group currency changed to ${c.code}. New bills will use it.')),
+                            'Default currency changed to ${c.code}. Existing bills are unchanged.')),
                   );
                 }
               } catch (e) {
@@ -100,8 +101,6 @@ class _GroupBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Slivers + builder lists: member/invitee/bill rows are built
-    // lazily, only for what's on screen.
     return CustomScrollView(
       slivers: [
         SliverPadding(
@@ -113,64 +112,90 @@ class _GroupBody extends StatelessWidget {
                 PageIntroduction(
                   eyebrow: 'SHARED GROUP',
                   title: group.name,
-                  description: '${group.members.length} ${group.members.length == 1 ? 'member' : 'members'} · ${group.currency}',
+                  description: '${group.members.length} '
+                      '${group.members.length == 1 ? 'member' : 'members'}'
+                      ' · ${group.currency}',
                 ),
-                const SizedBox(height: 12),
-                _GroupCurrencyTile(group: group),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Members (${group.members.length})',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    // Invite button needs connection state.
-                    Consumer(
-                      builder: (context, ref, _) {
-                        final conns =
-                            ref.watch(connectionsProvider).value ?? [];
-                        final myUid = ref.watch(currentUidProvider) ?? '';
-                        final candidates = conns
-                            .where((c) =>
-                                !group.members.contains(c.uid) &&
-                                !group.invited.contains(c.uid))
-                            .toList();
-                        return TextButton.icon(
-                          onPressed: candidates.isEmpty
-                              ? () =>
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text(
-                                            'No more connected friends to invite.')),
-                                  )
-                              : () => showDialog(
-                                    context: context,
-                                    builder: (_) => _InviteDialog(
-                                      group: group,
-                                      candidates: candidates,
-                                      myUid: myUid,
-                                    ),
-                                  ),
-                          icon: const Icon(Icons.person_add),
-                          label: const Text('Invite'),
-                        );
-                      },
-                    ),
-                  ],
+                // A new group expense starts with this group preselected.
+                Consumer(
+                  builder: (context, ref, _) => FilledButton.icon(
+                    onPressed: () {
+                      ref.read(createBillFormProvider.notifier)
+                          .beginForGroup(group.id);
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const CreateBillScreen()));
+                    },
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add expense'),
+                  ),
                 ),
               ],
             ),
           ),
         ),
-        // Only the member list reacts to member state.
+        // Money and bills come before settings and membership management.
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          sliver: _SimplifyDebtsSection(groupId: group.id),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          sliver: SliverToBoxAdapter(
+            child: Text(
+              'Bills in this group',
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: _GroupBills(groupId: group.id),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+          sliver: SliverToBoxAdapter(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Members (${group.members.length})',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final conns = ref.watch(connectionsProvider).value ?? [];
+                    final myUid = ref.watch(currentUidProvider) ?? '';
+                    final candidates = conns.where((c) =>
+                        !group.members.contains(c.uid) &&
+                        !group.invited.contains(c.uid)).toList();
+                    return TextButton.icon(
+                      onPressed: candidates.isEmpty
+                          ? () => ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text(
+                                'No more connected friends to invite.')))
+                          : () => showDialog(
+                              context: context,
+                              builder: (_) => _InviteDialog(
+                                group: group,
+                                candidates: candidates,
+                                myUid: myUid,
+                              ),
+                            ),
+                      icon: const Icon(Icons.person_add),
+                      label: const Text('Invite'),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           sliver: Consumer(
@@ -203,8 +228,7 @@ class _GroupBody extends StatelessWidget {
                       leading: CircleAvatar(child: Text(m.uid == myUid
                           ? identity.initials : m.initials)),
                       title: Text(m.uid == myUid
-                          ? '${identity.name} (you)'
-                          : m.displayName),
+                          ? '${identity.name} (you)' : m.displayName),
                       subtitle: Text(m.uid == myUid
                           ? identity.email : m.email),
                     );
@@ -230,26 +254,18 @@ class _GroupBody extends StatelessWidget {
           ),
         ],
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          sliver: _SimplifyDebtsSection(groupId: group.id),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 5),
           sliver: SliverToBoxAdapter(
-            child: Text(
-              'Bills in this group',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
+            child: Text('Group settings',
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold)),
           ),
         ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: _GroupBills(groupId: group.id),
+          sliver: SliverToBoxAdapter(child: _GroupCurrencyTile(group: group)),
         ),
-        const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        const SliverToBoxAdapter(child: SizedBox(height: 22)),
       ],
     );
   }

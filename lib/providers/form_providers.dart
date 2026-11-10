@@ -148,6 +148,12 @@ class CreateBillForm extends _$CreateBillForm {
   @override
   CreateBillFormState build() => const CreateBillFormState();
 
+  /// Start a fresh expense in a specific group instead of carrying a
+  /// previous draft into the new flow.
+  void beginForGroup(String id) {
+    state = CreateBillFormState(groupId: id);
+  }
+
   void setTitle(String v) => state = state.copyWith(title: v);
 
   void setSubtotal(String v) => state = state.copyWith(subtotal: v);
