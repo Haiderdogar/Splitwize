@@ -6,6 +6,8 @@ import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../utils/current_user_identity.dart';
+import '../utils/money.dart' show formatMoney;
+import '../theme.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/money_text.dart';
@@ -245,7 +247,7 @@ class _ExpenseRow extends ConsumerWidget {
                   child: MoneyText(bill.total, currencyCode: bill.currency,
                     style: Theme.of(context).textTheme.titleMedium)),
                 const SizedBox(height: 4),
-                const Text('Total bill',
+                Text('Total bill',
                   textAlign: TextAlign.end,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: scheme.onSurfaceVariant)),

@@ -194,7 +194,7 @@ class _Connections extends StatelessWidget {
             ]..sort((a, b) => a.displayName.toLowerCase()
                 .compareTo(b.displayName.toLowerCase()));
             if (visible.isEmpty) {
-              return const SliverToBoxAdapter(
+              return SliverToBoxAdapter(
                 child: _EmptyRow(
                   icon: Icons.people_outline,
                   title: lower.isEmpty ? 'No friends yet' : 'No matches',
@@ -393,7 +393,7 @@ class _AddFriendDialogState extends State<_AddFriendDialog> {
                 final name = ref.read(addFriendProvider).found?.displayName ??
                     'your friend';
                 final err = await notifier.sendInvite();
-                if (!mounted) return;
+                if (!mounted || !context.mounted) return;
                 if (err != null) {
                   setState(() { _sending = false; _sendError = err; });
                   return; // Keep the dialog and the searched email for retry.

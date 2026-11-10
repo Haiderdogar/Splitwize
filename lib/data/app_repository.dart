@@ -559,7 +559,9 @@ class AppRepository {
       // Keep these visible until the underlying debts are actually settled.
       if (net.abs() < 0.005 &&
           (owesMe[key] ?? 0) < 0.005 &&
-          (iOwe[key] ?? 0) < 0.005) continue;
+          (iOwe[key] ?? 0) < 0.005) {
+        continue;
+      }
       out.add(FriendBalance(
         uid: key.split('|').first,
         displayName: names[key] ?? 'Friend',
