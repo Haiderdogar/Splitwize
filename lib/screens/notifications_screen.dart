@@ -78,11 +78,6 @@ class NotificationsScreen extends StatelessWidget {
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                   children: const [
-                    PageIntroduction(
-                      eyebrow: 'ACTIVITY',
-                      title: 'Notifications.',
-                      description: 'Bills, payments and invites in one place.',
-                    ),
                     _EmptyInbox(),
                   ],
                 );
@@ -93,17 +88,7 @@ class NotificationsScreen extends StatelessWidget {
                 separatorBuilder: (_, __) => const SizedBox(height: 6),
                 itemBuilder: (context, i) {
                   if (i == 0) {
-                    return const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        PageIntroduction(
-                          eyebrow: 'ACTIVITY',
-                          title: 'Notifications.',
-                          description: 'Bills, payments and invites in one place.',
-                        ),
-                        SectionHeading('Recent updates'),
-                      ],
-                    );
+                    return const SectionHeading('Recent updates');
                   }
                   final n = items[i - 1];
                   return Card(

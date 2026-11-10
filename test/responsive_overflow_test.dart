@@ -311,6 +311,20 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Notifications opens directly to recent updates',
+      (tester) async {
+    addTearDown(() => tester.view.reset());
+    await pumpAt(tester, const NotificationsScreen(),
+        size: const Size(390, 844));
+    expect(find.text('ACTIVITY'), findsNothing);
+    expect(find.text('Notifications.'), findsNothing);
+    expect(find.text('Bills, payments and invites in one place.'),
+        findsNothing);
+    expect(find.text('Recent updates'), findsOneWidget);
+    expect(find.text('Mark all read'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Bill details starts with the summary, without intro banner',
       (tester) async {
     addTearDown(() => tester.view.reset());
