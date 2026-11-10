@@ -19,7 +19,8 @@ class RequestsTab extends StatelessWidget {
     child: Scaffold(
       appBar: AppBar(
         leading: const SplitwizeMenuButton(),
-        title: const Text('Requests & Invitations'),
+        title: const Text('Requests & Invitations',
+            maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: const [AppNotificationButton(), SizedBox(width: 5)],
         bottom: const TabBar(
           isScrollable: true,
