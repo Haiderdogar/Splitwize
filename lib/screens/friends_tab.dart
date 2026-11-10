@@ -37,6 +37,7 @@ class FriendsTab extends StatelessWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'friends-add-friend',
         tooltip: 'Add friend',
         onPressed: () => showDialog<void>(
           context: context,
