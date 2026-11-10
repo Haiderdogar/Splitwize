@@ -106,6 +106,7 @@ class _BillsTabState extends ConsumerState<BillsTab> {
         const AdBannerSlot(),
       ]),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'home-add-expense',
         onPressed: _addExpense,
         tooltip: 'Add expense',
         child: const Icon(Icons.add_rounded, size: 28),
