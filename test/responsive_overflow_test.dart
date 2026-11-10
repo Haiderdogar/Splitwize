@@ -302,6 +302,37 @@ void main() {
     'HomeShell': const HomeShell(),
   };
 
+  testWidgets('Requests replaces Profile tab and drawer opens account settings',
+      (tester) async {
+    addTearDown(() => tester.view.reset());
+    await pumpAt(tester, const HomeShell(), size: const Size(390, 844));
+    final nav = find.byType(NavigationBar);
+    expect(nav, findsOneWidget);
+    expect(find.descendant(of: nav, matching: find.text('Requests')),
+        findsOneWidget);
+    expect(find.descendant(of: nav, matching: find.text('Profile')),
+        findsNothing);
+
+    await tester.tap(find.descendant(
+        of: nav, matching: find.text('Requests')));
+    await tester.pumpAndSettle();
+    expect(find.text('Requests & Invitations'), findsOneWidget);
+    expect(find.text('Group invites'), findsOneWidget);
+    await tester.tap(find.text('Incoming'));
+    await tester.pumpAndSettle();
+    expect(find.text('wants to connect with you'), findsOneWidget);
+
+    splitwizeScaffoldKey.currentState!.openDrawer();
+    await tester.pumpAndSettle();
+    expect(find.text('View profile & settings'), findsOneWidget);
+    expect(find.text('YOU'), findsOneWidget);
+    await tester.tap(find.text('View profile & settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Profile & settings'), findsOneWidget);
+    expect(find.byType(BackButton), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Balances hides the highlighted introduction', (tester) async {
     addTearDown(() => tester.view.reset());
     await pumpAt(tester, const BalancesTab(), size: const Size(390, 844));
