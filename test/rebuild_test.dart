@@ -492,7 +492,10 @@ void main() {
 
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pumpAndSettle();
-      expect(find.text('Add friend'), findsOneWidget);
+      expect(find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Add friend'),
+      ), findsOneWidget);
       expect(find.text('Email'), findsOneWidget);
       expect(find.text('Search'), findsOneWidget);
       expect(tester.takeException(), isNull);
