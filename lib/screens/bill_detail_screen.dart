@@ -8,6 +8,7 @@ import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../theme.dart';
+import '../utils/current_user_identity.dart';
 import '../widgets/money_text.dart';
 import '../widgets/split_bar.dart';
 import '../widgets/state_widgets.dart';
@@ -29,6 +30,12 @@ class BillDetailScreen extends StatelessWidget {
         builder: (context, ref, _) {
           final billAsync = ref.watch(billProvider(billId));
           final myUid = ref.watch(currentUidProvider) ?? '';
+          final google = ref.watch(authStateChangesProvider).value;
+          final identity = resolveCurrentUserIdentity(
+            cached: ref.watch(currentAppUserProvider).value,
+            googleName: google?.displayName,
+            googleEmail: google?.email,
+          );
           return billAsync.when(
             loading: () => const ShimmerDetail(),
             error: (e, _) => LoadError(
@@ -42,6 +49,7 @@ class BillDetailScreen extends StatelessWidget {
               return _BillBody(
                 bill: bill,
                 myUid: myUid,
+                myIdentity: identity,
                 onTogglePaid: (uid, paid) async {
                   final repo = await ref.read(appRepositoryProvider.future);
                   await repo.setSplitPaid(
@@ -72,6 +80,7 @@ class _BillBody extends StatelessWidget {
   const _BillBody({
     required this.bill,
     required this.myUid,
+    required this.myIdentity,
     required this.onTogglePaid,
     required this.onToggleDebt,
     required this.onRemoveReceipt,
@@ -79,6 +88,7 @@ class _BillBody extends StatelessWidget {
 
   final Bill bill;
   final String myUid;
+  final CurrentUserIdentity myIdentity;
   final Future<void> Function(String uid, bool paid) onTogglePaid;
   final Future<void> Function(BillDebt debt, bool settled) onToggleDebt;
   final Future<void> Function() onRemoveReceipt;
@@ -158,7 +168,7 @@ class _BillBody extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Created by ${bill.createdByName}'
+                      'Created by ${bill.createdBy == myUid ? '${myIdentity.name} (you)' : bill.createdByName}'
                       '${bill.createdAt != null ? ' • ${DateFormat.yMMMd().format(bill.createdAt!)}' : ''}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
@@ -188,7 +198,8 @@ class _BillBody extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 5),
                         child: Row(children: [
-                          Expanded(child: Text(split.displayName,
+                          Expanded(child: Text(split.uid == myUid
+                              ? '${myIdentity.name} (you)' : split.displayName,
                               maxLines: 2, overflow: TextOverflow.ellipsis)),
                           const SizedBox(width: 10),
                           MoneyText(bill.merchantPayments[split.uid]!,
@@ -278,6 +289,7 @@ class _BillBody extends StatelessWidget {
             itemBuilder: (itemContext, i) => _SplitTile(
               split: bill.splits[i],
               myUid: myUid,
+              myIdentity: myIdentity,
               isCreator: isCreator,
               currencyCode: bill.currency,
               usesPaymentLedger: bill.hasPaymentLedger,
@@ -389,6 +401,7 @@ class _SplitTile extends StatelessWidget {
   const _SplitTile({
     required this.split,
     required this.myUid,
+    required this.myIdentity,
     required this.isCreator,
     required this.currencyCode,
     required this.usesPaymentLedger,
@@ -397,6 +410,7 @@ class _SplitTile extends StatelessWidget {
 
   final BillSplit split;
   final String myUid;
+  final CurrentUserIdentity myIdentity;
   final bool isCreator;
   final String currencyCode;
   final bool usesPaymentLedger;
@@ -427,9 +441,13 @@ class _SplitTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _isMine ? '${split.displayName} (you)' : split.displayName,
+                    _isMine ? '${myIdentity.name} (you)' : split.displayName,
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
+                  if (_isMine && myIdentity.email.isNotEmpty)
+                    Text(myIdentity.email, maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall),
                   // Wrap (not Row): percent, chip and date flow to a
                   // second line on narrow screens instead of
                   // overflowing.
