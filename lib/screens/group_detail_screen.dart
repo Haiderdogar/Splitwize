@@ -7,6 +7,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
 import '../utils/debt_simplifier.dart';
+import '../utils/current_user_identity.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
 import 'bill_detail_screen.dart';
@@ -176,6 +177,12 @@ class _GroupBody extends StatelessWidget {
             builder: (context, ref, _) {
               final membersAsync = ref.watch(groupMembersProvider(group.id));
               final myUid = ref.watch(currentUidProvider) ?? '';
+              final google = ref.watch(authStateChangesProvider).value;
+              final identity = resolveCurrentUserIdentity(
+                cached: ref.watch(currentAppUserProvider).value,
+                googleName: google?.displayName,
+                googleEmail: google?.email,
+              );
               return membersAsync.when(
                 loading: () =>
                     const SliverToBoxAdapter(child: ShimmerRows(count: 3)),
@@ -193,11 +200,13 @@ class _GroupBody extends StatelessWidget {
                   itemBuilder: (itemContext, i) {
                     final m = members[i];
                     return ListTile(
-                      leading: CircleAvatar(child: Text(m.initials)),
+                      leading: CircleAvatar(child: Text(m.uid == myUid
+                          ? identity.initials : m.initials)),
                       title: Text(m.uid == myUid
-                          ? '${m.displayName} (you)'
+                          ? '${identity.name} (you)'
                           : m.displayName),
-                      subtitle: Text(m.email),
+                      subtitle: Text(m.uid == myUid
+                          ? identity.email : m.email),
                     );
                   },
                 ),
