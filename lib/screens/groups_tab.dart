@@ -74,68 +74,6 @@ class GroupsTab extends StatelessWidget {
             );
           }),
         ),
-        const SliverPadding(
-          padding: EdgeInsets.fromLTRB(16, 19, 16, 9),
-          sliver: SliverToBoxAdapter(
-            child: SectionHeading('Invitations',
-              subtitle: 'Groups waiting for your response.'),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: Consumer(builder: (context, ref, _) {
-            final asyncInvites = ref.watch(groupInvitesProvider);
-            return asyncInvites.when(
-              loading: () => const SliverToBoxAdapter(
-                child: ShimmerRows(count: 1)),
-              error: (e, _) => SliverToBoxAdapter(
-                child: LoadError.compact(
-                  message: 'Could not load invites',
-                  onRetry: () {
-                    ref.invalidate(appRepositoryProvider);
-                    ref.invalidate(groupInvitesProvider);
-                  },
-                ),
-              ),
-              data: (invites) {
-                if (invites.isEmpty) {
-                  return const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(2, 4, 2, 16),
-                      child: Text('No pending group invitations.'),
-                    ),
-                  );
-                }
-                return SliverList.builder(
-                  itemCount: invites.length,
-                  itemBuilder: (itemContext, i) {
-                    final group = invites[i];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 9),
-                      child: _GroupInvitation(
-                        group: group,
-                        onJoin: () => runGuarded(
-                          context,
-                          () async =>
-                            (await ref.read(appRepositoryProvider.future))
-                              .acceptGroupInvite(group.id),
-                          errorLabel: 'Could not join group',
-                        ),
-                        onDecline: () => runGuarded(
-                          context,
-                          () async =>
-                            (await ref.read(appRepositoryProvider.future))
-                              .declineGroupInvite(group.id),
-                          errorLabel: 'Could not decline invitation',
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            );
-          }),
-        ),
         const SliverToBoxAdapter(child: SizedBox(height: 26)),
       ]),
       floatingActionButton: FloatingActionButton(
@@ -189,42 +127,5 @@ class _GroupRow extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _GroupInvitation extends StatelessWidget {
-  const _GroupInvitation({
-    required this.group, required this.onJoin, required this.onDecline,
-  });
-  final BillGroup group;
-  final VoidCallback onJoin;
-  final VoidCallback onDecline;
-
-  @override
-  Widget build(BuildContext context) {
-    return SoftPanel(child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(children: [
-          const PersonMark(initials: '',
-            icon: Icons.mark_email_unread_outlined),
-          const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(group.name, maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium),
-              const Text('You are invited to join this group.'),
-            ],
-          )),
-        ]),
-        const SizedBox(height: 11),
-        Wrap(spacing: 9, runSpacing: 7, children: [
-          TextButton(onPressed: onDecline, child: const Text('Decline')),
-          FilledButton(onPressed: onJoin, child: const Text('Join group')),
-        ]),
-      ],
-    ));
   }
 }
