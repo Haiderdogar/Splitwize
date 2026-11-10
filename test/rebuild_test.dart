@@ -485,7 +485,7 @@ void main() {
       expect(find.text('Better with friends.'), findsNothing);
       expect(find.text('Invite someone you split with'), findsNothing);
       expect(find.text('Invite by email'), findsNothing);
-      expect(find.text('Requests'), findsOneWidget);
+      expect(find.text('Requests'), findsNothing);
       expect(find.text('Connected'), findsOneWidget);
       expect(find.byType(FloatingActionButton), findsOneWidget);
       expect(find.byTooltip('Add friend'), findsOneWidget);
