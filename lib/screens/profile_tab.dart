@@ -167,7 +167,9 @@ class ProfileTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-          leading: const BackButton(), title: const Text('Profile & settings')),
+          leading: const BackButton(),
+          title: const Text('Profile & settings',
+              maxLines: 1, overflow: TextOverflow.ellipsis)),
       // Only this subtree reacts to profile state.
       body: Consumer(
         builder: (context, ref, _) {
