@@ -555,7 +555,11 @@ class AppRepository {
     final out = <FriendBalance>[];
     for (final key in {...owesMe.keys, ...iOwe.keys}) {
       final net = (owesMe[key] ?? 0) - (iOwe[key] ?? 0);
-      if (net.abs() < 0.005) continue; // settled / dust
+      // Mutual debts can net to zero while both obligations remain open.
+      // Keep these visible until the underlying debts are actually settled.
+      if (net.abs() < 0.005 &&
+          (owesMe[key] ?? 0) < 0.005 &&
+          (iOwe[key] ?? 0) < 0.005) continue;
       out.add(FriendBalance(
         uid: key.split('|').first,
         displayName: names[key] ?? 'Friend',

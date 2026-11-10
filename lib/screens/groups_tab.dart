@@ -49,7 +49,32 @@ class GroupsTab extends StatelessWidget {
                 ),
               ),
               data: (groups) {
-                if (groups.isEmpty) {
+                final bills = ref.watch(myBillsProvider).value ??
+                    const <Bill>[];
+                final activity = <String, DateTime>{};
+                final billCounts = <String, int>{};
+                final unsettledCounts = <String, int>{};
+                for (final bill in bills) {
+                  final id = bill.groupId;
+                  if (id == null) continue;
+                  billCounts[id] = (billCounts[id] ?? 0) + 1;
+                  if (!bill.fullySettled) {
+                    unsettledCounts[id] = (unsettledCounts[id] ?? 0) + 1;
+                  }
+                  final date = bill.createdAt;
+                  if (date != null &&
+                      (activity[id] == null || date.isAfter(activity[id]!))) {
+                    activity[id] = date;
+                  }
+                }
+                final sortedGroups = [...groups]..sort((a, b) {
+                  final aDate = activity[a.id] ?? a.createdAt ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  final bDate = activity[b.id] ?? b.createdAt ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  return bDate.compareTo(aDate);
+                });
+                if (sortedGroups.isEmpty) {
                   return SliverToBoxAdapter(child: InlineEmpty(
                     icon: Icons.groups_outlined,
                     title: 'No groups yet',
@@ -61,12 +86,16 @@ class GroupsTab extends StatelessWidget {
                   ));
                 }
                 return SliverList.builder(
-                  itemCount: groups.length,
+                  itemCount: sortedGroups.length,
                   itemBuilder: (context, i) {
-                    final group = groups[i];
+                    final group = sortedGroups[i];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 9),
-                      child: _GroupRow(group: group),
+                      child: _GroupRow(
+                        group: group,
+                        billCount: billCounts[group.id] ?? 0,
+                        openCount: unsettledCounts[group.id] ?? 0,
+                      ),
                     );
                   },
                 );
@@ -87,8 +116,14 @@ class GroupsTab extends StatelessWidget {
 }
 
 class _GroupRow extends StatelessWidget {
-  const _GroupRow({required this.group});
+  const _GroupRow({
+    required this.group,
+    required this.billCount,
+    required this.openCount,
+  });
   final BillGroup group;
+  final int billCount;
+  final int openCount;
 
   @override
   Widget build(BuildContext context) {
@@ -105,8 +140,9 @@ class _GroupRow extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 15),
           child: Row(children: [
-            const PersonMark(initials: '',
-              icon: Icons.groups_rounded, size: 50),
+            PersonMark(
+              initials: group.name.trim().isEmpty
+                  ? '?' : group.name.trim()[0].toUpperCase(), size: 50),
             const SizedBox(width: 12),
             Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -120,6 +156,17 @@ class _GroupRow extends StatelessWidget {
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant)),
+                const SizedBox(height: 3),
+                Text(
+                  billCount == 0
+                      ? 'No expenses yet'
+                      : openCount == 0
+                          ? 'All expenses settled'
+                          : '$openCount unsettled expense${openCount == 1 ? '' : 's'}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: openCount > 0 ? scheme.owe :
+                        scheme.onSurfaceVariant),
+                ),
               ],
             )),
             const SizedBox(width: 6),

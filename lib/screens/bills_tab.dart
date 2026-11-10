@@ -63,16 +63,6 @@ class _BillsTabState extends ConsumerState<BillsTab> {
               },
             ),
             data: (bills) {
-              final balances = ref.watch(balancesProvider);
-              final byCurrency = <String, ({double owed, double owe})>{};
-              for (final balance in balances) {
-                final previous = byCurrency[balance.currency] ??
-                    (owed: 0.0, owe: 0.0);
-                byCurrency[balance.currency] = (
-                  owed: previous.owed + (balance.net > 0 ? balance.net : 0.0),
-                  owe: previous.owe + (balance.net < 0 ? -balance.net : 0.0),
-                );
-              }
               final visible = switch (_filter) {
                 _ExpenseFilter.all => bills,
                 _ExpenseFilter.open =>
@@ -88,7 +78,6 @@ class _BillsTabState extends ConsumerState<BillsTab> {
                     return _HomeOverview(
                       billCount: bills.length,
                       visibleCount: visible.length,
-                      balances: byCurrency,
                       filter: _filter,
                       onFilter: (v) => setState(() => _filter = v),
                       onAdd: _addExpense,
@@ -116,11 +105,11 @@ class _BillsTabState extends ConsumerState<BillsTab> {
   }
 }
 
+/// Expense-first home. Balances have their own dedicated tab.
 class _HomeOverview extends StatelessWidget {
   const _HomeOverview({
     required this.billCount,
     required this.visibleCount,
-    required this.balances,
     required this.filter,
     required this.onFilter,
     required this.onAdd,
@@ -128,81 +117,36 @@ class _HomeOverview extends StatelessWidget {
 
   final int billCount;
   final int visibleCount;
-  final Map<String, ({double owed, double owe})> balances;
   final _ExpenseFilter filter;
   final ValueChanged<_ExpenseFilter> onFilter;
   final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
-    final codes = balances.keys.toList()..sort();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const SectionHeading('Your balances',
-        subtitle: 'Amounts are kept separate by currency.'),
-      if (codes.isEmpty)
-        SoftPanel(child: Row(children: [
-          const PersonMark(initials: '', icon: Icons.check_rounded),
-          const SizedBox(width: 12),
-          Expanded(child: Text('No outstanding balances.',
-            style: Theme.of(context).textTheme.bodyMedium)),
-        ]))
-      else
-        for (final code in codes)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _CurrencySnapshot(
-              currency: code,
-              owed: balances[code]!.owed,
-              owe: balances[code]!.owe,
-            ),
-          ),
-      SectionHeading(
-        'Recent expenses',
+      SectionHeading('Expenses',
         subtitle: billCount == 0
-            ? 'Your expenses will show up here.'
-            : '$billCount recorded',
-        trailing: PopupMenuButton<_ExpenseFilter>(
-          tooltip: 'Filter expenses',
-          onSelected: onFilter,
-          itemBuilder: (context) => const [
-            PopupMenuItem(
-              value: _ExpenseFilter.all,
-              child: Text('All expenses'),
-            ),
-            PopupMenuItem(
-              value: _ExpenseFilter.open,
-              child: Text('Open expenses'),
-            ),
-            PopupMenuItem(
-              value: _ExpenseFilter.settled,
-              child: Text('Settled expenses'),
-            ),
-          ],
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  switch (filter) {
-                    _ExpenseFilter.all => 'See all',
-                    _ExpenseFilter.open => 'Open',
-                    _ExpenseFilter.settled => 'Settled',
-                  },
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const SizedBox(width: 4),
-                Icon(Icons.keyboard_arrow_down_rounded,
-                    size: 17, color: Theme.of(context).colorScheme.primary),
-              ],
-            ),
-          ),
+            ? 'Your shared expenses will appear here.'
+            : '$billCount recorded'),
+      // Keep all filters visible instead of hiding them in a menu.
+      Wrap(spacing: 8, runSpacing: 2, children: [
+        ChoiceChip(
+          label: const Text('All'),
+          selected: filter == _ExpenseFilter.all,
+          onSelected: (_) => onFilter(_ExpenseFilter.all),
         ),
-      ),
-      const SizedBox(height: 5),
+        ChoiceChip(
+          label: const Text('Unsettled'),
+          selected: filter == _ExpenseFilter.open,
+          onSelected: (_) => onFilter(_ExpenseFilter.open),
+        ),
+        ChoiceChip(
+          label: const Text('Settled'),
+          selected: filter == _ExpenseFilter.settled,
+          onSelected: (_) => onFilter(_ExpenseFilter.settled),
+        ),
+      ]),
+      const SizedBox(height: 12),
       if (billCount == 0)
         InlineEmpty(
           icon: Icons.receipt_long_outlined,
@@ -223,57 +167,6 @@ class _HomeOverview extends StatelessWidget {
   }
 }
 
-class _CurrencySnapshot extends StatelessWidget {
-  const _CurrencySnapshot({
-    required this.currency, required this.owed, required this.owe,
-  });
-  final String currency;
-  final double owed;
-  final double owe;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return SoftPanel(
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(currency, style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 11),
-        Row(children: [
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('You are owed', style: Theme.of(context).textTheme.bodySmall),
-              const SizedBox(height: 4),
-              FittedBox(
-                fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
-                child: MoneyText(owed, currencyCode: currency,
-                  color: scheme.owed,
-                  style: Theme.of(context).textTheme.titleLarge),
-              ),
-            ],
-          )),
-          const SizedBox(width: 12),
-          Container(width: 1, height: 40, color: scheme.outlineVariant),
-          const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('You owe', style: Theme.of(context).textTheme.bodySmall),
-              const SizedBox(height: 4),
-              FittedBox(
-                fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
-                child: MoneyText(owe, currencyCode: currency,
-                  color: scheme.owe,
-                  style: Theme.of(context).textTheme.titleLarge),
-              ),
-            ],
-          )),
-        ]),
-      ]),
-    );
-  }
-}
-
 class _ExpenseRow extends ConsumerWidget {
   const _ExpenseRow({required this.bill, required this.uid});
   final Bill bill;
@@ -282,16 +175,30 @@ class _ExpenseRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final isOwner = bill.createdBy == uid;
     final google = ref.watch(authStateChangesProvider).value;
     final identity = resolveCurrentUserIdentity(
       cached: ref.watch(currentAppUserProvider).value,
       googleName: google?.displayName,
       googleEmail: google?.email,
     );
-    final amount = isOwner ? bill.total : bill.myShare(uid);
-    final detail = bill.groupName ??
-        (isOwner ? '${identity.name} (you)' : bill.createdByName);
+    // Always show the same amounts for every expense, irrespective of
+    // who recorded it or who paid the merchant.
+    final myShare = bill.myShare(uid);
+    final payers = bill.merchantPayments.entries
+        .where((entry) => entry.value > 0).toList();
+    String participantName(String memberUid) {
+      if (memberUid == uid) return '${identity.name} (you)';
+      for (final member in bill.splits) {
+        if (member.uid == memberUid) return member.displayName;
+      }
+      return 'Member';
+    }
+    final payerLabel = bill.hasPaymentLedger
+        ? payers.length == 1
+            ? 'Paid by ${participantName(payers.single.key)}'
+            : 'Paid by ${payers.length} people'
+        : 'Paid by ${participantName(bill.createdBy)}';
+    final groupName = bill.groupName;
     return Material(
       color: scheme.surfaceContainerLowest,
       shape: RoundedRectangleBorder(
@@ -313,16 +220,19 @@ class _ExpenseRow extends ConsumerWidget {
                 Text(bill.title, maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 3),
-                Text(detail, maxLines: 1, overflow: TextOverflow.ellipsis,
+                if (groupName != null)
+                  Text(groupName, maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant)),
+                Text(payerLabel, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant)),
-                if (isOwner && bill.groupName == null && identity.email.isNotEmpty)
-                  Text(identity.email, maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 6),
-                Text(bill.fullySettled ? 'Settled' :
-                  '${bill.paidCount} of ${bill.splits.length} paid',
+                Text(
+                  bill.fullySettled ? 'Settled' :
+                      '${formatMoney(bill.outstanding, bill.currency)} remaining',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: bill.fullySettled ? scheme.owed :
                       scheme.onSurfaceVariant)),
@@ -333,10 +243,14 @@ class _ExpenseRow extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 FittedBox(fit: BoxFit.scaleDown,
-                  child: MoneyText(amount, currencyCode: bill.currency,
+                  child: MoneyText(bill.total, currencyCode: bill.currency,
                     style: Theme.of(context).textTheme.titleMedium)),
                 const SizedBox(height: 4),
-                Text(isOwner ? 'total bill' : 'your share',
+                const Text('Total bill',
+                  textAlign: TextAlign.end,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant)),
+                Text('Your share: ${formatMoney(myShare, bill.currency)}',
                   textAlign: TextAlign.end,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: scheme.onSurfaceVariant)),
