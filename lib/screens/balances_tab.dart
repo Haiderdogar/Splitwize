@@ -254,10 +254,10 @@ class _BalanceTile extends StatelessWidget {
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: scheme.onSurfaceVariant))),
           const SizedBox(width: 8),
-          FittedBox(fit: BoxFit.scaleDown, child:
+          Flexible(child: FittedBox(fit: BoxFit.scaleDown, child:
             MoneyText(balance.net.abs(), currencyCode: balance.currency,
               color: owe ? scheme.owe : owed ? scheme.owed : scheme.onSurface,
-              style: Theme.of(context).textTheme.titleMedium)),
+              style: Theme.of(context).textTheme.titleMedium))),
         ]),
         Text('You owe ${formatMoney(balance.iOweThem, balance.currency)} · '
           'Owes you ${formatMoney(balance.owesMe, balance.currency)}',

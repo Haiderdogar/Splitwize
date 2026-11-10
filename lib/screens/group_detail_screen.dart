@@ -152,17 +152,6 @@ class _GroupBody extends StatelessWidget {
         ),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          sliver: SliverToBoxAdapter(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Group settings', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              _GroupCurrencyTile(group: group),
-            ],
-          )),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
           sliver: SliverToBoxAdapter(
             child: Column(children: [
                 Row(
@@ -275,6 +264,17 @@ class _GroupBody extends StatelessWidget {
             sliver: _InvitedList(group: group),
           ),
         ],
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          sliver: SliverToBoxAdapter(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Group settings', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              _GroupCurrencyTile(group: group),
+            ],
+          )),
+        ),
         const SliverToBoxAdapter(child: SizedBox(height: 16)),
       ],
     );
