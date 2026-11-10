@@ -242,7 +242,7 @@ class _ExpenseRow extends ConsumerWidget {
                   child: MoneyText(bill.total, currencyCode: bill.currency,
                     style: Theme.of(context).textTheme.titleMedium)),
                 const SizedBox(height: 4),
-                const Text('Total bill',
+                Text('Total bill',
                   textAlign: TextAlign.end,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: scheme.onSurfaceVariant)),
