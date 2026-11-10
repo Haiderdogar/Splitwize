@@ -33,6 +33,7 @@ import 'package:splitwize/screens/home_shell.dart';
 import 'package:splitwize/screens/notifications_screen.dart';
 import 'package:splitwize/screens/onboarding_screen.dart';
 import 'package:splitwize/screens/profile_tab.dart';
+import 'package:splitwize/screens/requests_tab.dart';
 import 'package:splitwize/screens/sign_in_screen.dart';
 import 'package:splitwize/services/sync_service.dart';
 import 'package:splitwize/widgets/app_drawer.dart';
@@ -292,6 +293,7 @@ void main() {
     'GroupsTab': const GroupsTab(),
     'FriendsTab': const FriendsTab(),
     'ProfileTab': const ProfileTab(),
+    'RequestsTab': const RequestsTab(),
     'Notifications': const NotificationsScreen(),
     'BillDetail': const BillDetailScreen(billId: 'b1'),
     'GroupDetail': const GroupDetailScreen(groupId: 'g1'),
