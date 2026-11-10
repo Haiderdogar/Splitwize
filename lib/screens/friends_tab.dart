@@ -108,6 +108,33 @@ class _ConnectedHeader extends StatelessWidget {
   }
 }
 
+/// Empty-state row for a user's connections list.
+class _EmptyRow extends StatelessWidget {
+  const _EmptyRow({required this.icon, required this.title,
+    required this.subtitle});
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) => SoftPanel(
+    padding: const EdgeInsets.all(13),
+    child: Row(children: [
+      PersonMark(initials: '', icon: icon, size: 44),
+      const SizedBox(width: 12),
+      Expanded(child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 2),
+          Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      )),
+    ]),
+  );
+}
+
 class _Connections extends StatelessWidget {
   const _Connections();
 
