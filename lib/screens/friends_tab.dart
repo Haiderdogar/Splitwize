@@ -6,6 +6,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/app_notification_button.dart';
 import '../widgets/studio_ui.dart';
 import '../widgets/state_widgets.dart';
 
@@ -18,6 +19,7 @@ class FriendsTab extends StatelessWidget {
       appBar: AppBar(
         leading: const SplitwizeMenuButton(),
         title: const Text('Friends'),
+        actions: const [AppNotificationButton(), SizedBox(width: 5)],
       ),
       // Slivers + builder lists: request/friend cards are built
       // lazily, only for what's on screen.

@@ -13,7 +13,7 @@ import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
 import 'bill_detail_screen.dart';
 import 'create_bill_screen.dart';
-import 'notifications_screen.dart';
+import '../widgets/app_notification_button.dart';
 
 export '../utils/money.dart';
 
@@ -39,7 +39,6 @@ class _BillsTabState extends ConsumerState<BillsTab> {
     final uid = ref.watch(currentUidProvider) ?? '';
     final billsAsync = ref.watch(myBillsProvider);
     final scheme = Theme.of(context).colorScheme;
-    final unread = ref.watch(unreadCountProvider);
     return Scaffold(
       appBar: AppBar(
         leading: const SplitwizeMenuButton(),
@@ -50,21 +49,7 @@ class _BillsTabState extends ConsumerState<BillsTab> {
           Text('Splitwize', style: Theme.of(context).textTheme.titleLarge),
         ]),
         actions: [
-          Badge(
-            isLabelVisible: unread > 0,
-            label: Text('$unread'),
-            child: IconButton(
-              tooltip: 'Notifications',
-              icon: const Icon(Icons.notifications_none_rounded),
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const NotificationsScreen())),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Profile and settings',
-            icon: const Icon(Icons.account_circle_outlined),
-            onPressed: () => ref.read(tabIndexProvider.notifier).set(4),
-          ),
+          const AppNotificationButton(),
           const SizedBox(width: 5),
         ],
       ),

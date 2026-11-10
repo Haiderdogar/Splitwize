@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/app_notification_button.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
 import 'create_group_screen.dart';
@@ -22,6 +23,7 @@ class GroupsTab extends StatelessWidget {
       appBar: AppBar(
         leading: const SplitwizeMenuButton(),
         title: const Text('Groups'),
+        actions: const [AppNotificationButton(), SizedBox(width: 5)],
       ),
       body: CustomScrollView(slivers: [
         const SliverPadding(

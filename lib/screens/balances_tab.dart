@@ -6,6 +6,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../theme.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/app_notification_button.dart';
 import '../widgets/money_text.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
@@ -20,6 +21,7 @@ class BalancesTab extends StatelessWidget {
       appBar: AppBar(
         leading: const SplitwizeMenuButton(),
         title: const Text('Balances'),
+        actions: const [AppNotificationButton(), SizedBox(width: 5)],
       ),
       body: Consumer(builder: (context, ref, _) {
         final billsAsync = ref.watch(myBillsProvider);
