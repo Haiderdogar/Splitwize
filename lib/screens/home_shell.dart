@@ -7,7 +7,8 @@ import 'balances_tab.dart';
 import 'bills_tab.dart';
 import 'friends_tab.dart';
 import 'groups_tab.dart';
-import 'profile_tab.dart';
+import 'requests_tab.dart';
+import '../providers/data_providers.dart';
 
 /// Standard Material navigation: calm, predictable, and accessible.
 /// The IndexedStack preserves each tab's list scroll and provider state.
@@ -15,7 +16,7 @@ class HomeShell extends ConsumerWidget {
   const HomeShell({super.key});
 
   static const _tabs = [
-    BillsTab(), BalancesTab(), GroupsTab(), FriendsTab(), ProfileTab(),
+    BillsTab(), BalancesTab(), GroupsTab(), FriendsTab(), RequestsTab(),
   ];
 
   static const _items = <({IconData icon, IconData active, String label})>[
@@ -27,13 +28,15 @@ class HomeShell extends ConsumerWidget {
      active: Icons.groups_rounded, label: 'Groups'),
     (icon: Icons.people_outline_rounded,
      active: Icons.people_rounded, label: 'Friends'),
-    (icon: Icons.person_outline_rounded,
-     active: Icons.person_rounded, label: 'Profile'),
+    (icon: Icons.mark_email_unread_outlined,
+     active: Icons.mark_email_read_rounded, label: 'Requests'),
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(tabIndexProvider);
+    final pending = ref.watch(groupInvitesProvider.select((v) => v.value?.length ?? 0)) +
+        ref.watch(incomingRequestsProvider.select((v) => v.value?.length ?? 0));
     final scheme = Theme.of(context).colorScheme;
     final wide = MediaQuery.sizeOf(context).width >= 760;
 
@@ -54,11 +57,11 @@ class HomeShell extends ConsumerWidget {
                     color: scheme.primary, fontWeight: FontWeight.w800,
                   ),
                   destinations: [
-                    for (final item in _items)
+                    for (var i = 0; i < _items.length; i++)
                       NavigationRailDestination(
-                        icon: Icon(item.icon),
-                        selectedIcon: Icon(item.active),
-                        label: Text(item.label),
+                        icon: _navIcon(_items[i].icon, i == 4 ? pending : 0),
+                        selectedIcon: _navIcon(_items[i].active, i == 4 ? pending : 0),
+                        label: Text(_items[i].label),
                       ),
                   ],
                 ),
@@ -79,11 +82,11 @@ class HomeShell extends ConsumerWidget {
             onDestinationSelected: ref.read(tabIndexProvider.notifier).set,
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             destinations: [
-              for (final item in _items)
+              for (var i = 0; i < _items.length; i++)
                 NavigationDestination(
-                  icon: Icon(item.icon),
-                  selectedIcon: Icon(item.active),
-                  label: item.label,
+                  icon: _navIcon(_items[i].icon, i == 4 ? pending : 0),
+                  selectedIcon: _navIcon(_items[i].active, i == 4 ? pending : 0),
+                  label: _items[i].label,
                 ),
             ],
           ),
@@ -91,4 +94,9 @@ class HomeShell extends ConsumerWidget {
       ),
     );
   }
+  static Widget _navIcon(IconData icon, int pending) => Badge(
+        isLabelVisible: pending > 0,
+        label: Text('$pending'),
+        child: Icon(icon),
+      );
 }
