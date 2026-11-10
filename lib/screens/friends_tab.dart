@@ -21,22 +21,9 @@ class FriendsTab extends StatelessWidget {
         title: const Text('Friends'),
         actions: const [AppNotificationButton(), SizedBox(width: 5)],
       ),
-      // Slivers + builder lists: request/friend cards are built
-      // lazily, only for what's on screen.
+      // Connected friends only; requests have their own tab.
       body: const CustomScrollView(
         slivers: [
-          SliverPadding(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
-            sliver: SliverToBoxAdapter(child: _RequestsHeader()),
-          ),
-          SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            sliver: _IncomingRequests(),
-          ),
-          SliverPadding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
-            sliver: _OutgoingRequests(),
-          ),
           SliverPadding(
             padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
             sliver: SliverToBoxAdapter(child: _ConnectedHeader()),
@@ -106,23 +93,6 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _RequestsHeader extends StatelessWidget {
-  const _RequestsHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final incoming = ref.watch(
-            incomingRequestsProvider.select((v) => v.value?.length ?? 0));
-        final outgoing = ref.watch(
-            outgoingRequestsProvider.select((v) => v.value?.length ?? 0));
-        return _SectionHeader('Requests', count: incoming + outgoing);
-      },
-    );
-  }
-}
-
 class _ConnectedHeader extends StatelessWidget {
   const _ConnectedHeader();
 
@@ -133,170 +103,6 @@ class _ConnectedHeader extends StatelessWidget {
         final count =
             ref.watch(connectionsProvider.select((v) => v.value?.length ?? 0));
         return _SectionHeader('Connected', count: count);
-      },
-    );
-  }
-}
-
-/// Compact empty row used by every section: an icon in a tonal circle
-/// plus a title and a muted explanation, inside a standard card.
-class _EmptyRow extends StatelessWidget {
-  const _EmptyRow({required this.icon, required this.title,
-    required this.subtitle});
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return SoftPanel(
-      padding: const EdgeInsets.all(13),
-      child: Row(children: [
-        PersonMark(initials: '', icon: icon, size: 44),
-        const SizedBox(width: 12),
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 2),
-            Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-          ],
-        )),
-      ]),
-    );
-  }
-}
-
-class _IncomingRequests extends StatelessWidget {
-  const _IncomingRequests();
-
-  @override
-  Widget build(BuildContext context) {
-    // Only this section reacts to incoming-request state.
-    return Consumer(
-      builder: (context, ref, _) {
-        final reqsAsync = ref.watch(incomingRequestsProvider);
-        return reqsAsync.when(
-          loading: () => const SliverToBoxAdapter(child: ShimmerRows(count: 2)),
-          error: (e, _) => SliverToBoxAdapter(
-            child: LoadError.compact(
-              message: 'Could not load requests',
-              onRetry: () {
-                ref.invalidate(appRepositoryProvider);
-                ref.invalidate(incomingRequestsProvider);
-              },
-            ),
-          ),
-          data: (reqs) {
-            if (reqs.isEmpty) {
-              return const SliverToBoxAdapter(
-                child: _EmptyRow(
-                  icon: Icons.inbox_outlined,
-                  title: 'No incoming requests',
-                  subtitle: 'Invites from friends will appear here.',
-                ),
-              );
-            }
-            return SliverList.builder(
-              itemCount: reqs.length,
-              itemBuilder: (itemContext, i) {
-                final r = reqs[i];
-                return _IncomingCard(
-                  request: r,
-                  onAccept: () => runGuarded(
-                    context,
-                    () async => (await ref.read(appRepositoryProvider.future))
-                        .acceptConnectionRequest(r),
-                    errorLabel: 'Could not accept request',
-                  ),
-                  onDecline: () => runGuarded(
-                    context,
-                    () async => (await ref.read(appRepositoryProvider.future))
-                        .declineConnectionRequest(r.id),
-                    errorLabel: 'Could not decline request',
-                  ),
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class _OutgoingRequests extends StatelessWidget {
-  const _OutgoingRequests();
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final reqsAsync = ref.watch(outgoingRequestsProvider);
-        return reqsAsync.when(
-          loading: () => const SliverToBoxAdapter(child: ShimmerRows(count: 1)),
-          error: (e, _) => SliverToBoxAdapter(
-            child: LoadError.compact(
-              message: 'Could not load requests',
-              onRetry: () {
-                ref.invalidate(appRepositoryProvider);
-                ref.invalidate(outgoingRequestsProvider);
-              },
-            ),
-          ),
-          data: (reqs) {
-            if (reqs.isEmpty) {
-              return const SliverToBoxAdapter(
-                child: _EmptyRow(
-                  icon: Icons.send_outlined,
-                  title: 'No outgoing requests',
-                  subtitle: 'Invites you send will appear here.',
-                ),
-              );
-            }
-            return SliverList.builder(
-              itemCount: reqs.length,
-              itemBuilder: (itemContext, i) {
-                final r = reqs[i];
-                return Card(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    leading: CircleAvatar(
-                      radius: 24,
-                      backgroundColor:
-                          Theme.of(context).colorScheme.primaryContainer,
-                      foregroundColor: Theme.of(context).colorScheme.primary,
-                      child: Text(
-                        r.toName.isEmpty ? '?' : r.toName[0].toUpperCase(),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    title: Text(r.toName,
-                        style: Theme.of(context).textTheme.titleMedium),
-                    subtitle: Text(
-                      'Waiting for response',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    trailing: TextButton(
-                      onPressed: () => runGuarded(
-                        context,
-                        () async =>
-                            (await ref.read(appRepositoryProvider.future))
-                                .cancelConnectionRequest(r.id),
-                        errorLabel: 'Could not cancel request',
-                      ),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                );
-              },
-            );
-          },
-        );
       },
     );
   }
@@ -394,71 +200,6 @@ class _Connections extends StatelessWidget {
         errorLabel: 'Could not remove friend',
       );
     }
-  }
-}
-
-class _IncomingCard extends StatelessWidget {
-  const _IncomingCard({
-    required this.request,
-    required this.onAccept,
-    required this.onDecline,
-  });
-
-  final ConnectionRequest request;
-  final VoidCallback onAccept;
-  final VoidCallback onDecline;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      color: scheme.secondaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        // Name on top, actions on their own row: side-by-side
-        // buttons squeeze the name out at large text scales.
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                PersonMark(
-                  initials: request.fromName.isEmpty
-                    ? '?' : request.fromName[0].toUpperCase(),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(request.fromName,
-                          style: Theme.of(context).textTheme.titleMedium),
-                      Text(
-                        'wants to connect with you',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 5,
-              alignment: WrapAlignment.end,
-              children: [
-                TextButton(onPressed: onDecline,
-                  child: const Text('Decline')),
-                FilledButton(onPressed: onAccept,
-                  child: const Text('Accept')),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
