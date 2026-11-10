@@ -385,6 +385,12 @@ class _SimplifyDebtsSection extends StatelessWidget {
         // inside `build`, so e.g. a member-list change re-ran it).
         final plan = ref.watch(simplifiedDebtsProvider(groupId));
         final myUid = ref.watch(currentUidProvider) ?? '';
+        final google = ref.watch(authStateChangesProvider).value;
+        final identity = resolveCurrentUserIdentity(
+          cached: ref.watch(currentAppUserProvider).value,
+          googleName: google?.displayName,
+          googleEmail: google?.email,
+        );
         return billsAsync.when(
           loading: () => const SliverToBoxAdapter(child: ShimmerRows(count: 2)),
           error: (e, _) => SliverToBoxAdapter(
@@ -481,6 +487,7 @@ class _SimplifyDebtsSection extends StatelessWidget {
                         _PlanEntryKind.netting => _NettingTile(
                             netting: e.netting!,
                             myUid: myUid,
+                            myIdentity: identity,
                             canRecord: e.canRecord,
                             onRecord: () =>
                                 _recordNetting(itemContext, ref, e.netting!),
@@ -488,6 +495,7 @@ class _SimplifyDebtsSection extends StatelessWidget {
                         _PlanEntryKind.transfer => _TransferTile(
                             transfer: e.transfer!,
                             myUid: myUid,
+                            myIdentity: identity,
                             canRecord: e.canRecord,
                             onRecord: () =>
                                 _recordTransfer(itemContext, ref, e.transfer!),
@@ -619,8 +627,9 @@ String _initialsOf(String name) {
   return (parts.first[0] + parts.last[0]).toUpperCase();
 }
 
-String _named(String uid, String name, String myUid) =>
-    uid == myUid ? '$name (you)' : name;
+String _named(String uid, String name, String myUid,
+        CurrentUserIdentity identity) =>
+    uid == myUid ? '${identity.name} (you)' : name;
 
 /// "Settles 3 shares across 2 bills" for a plan entry.
 String _settlesLabel(List<SplitAllocation> allocations) {
@@ -634,12 +643,14 @@ class _TransferTile extends StatelessWidget {
   const _TransferTile({
     required this.transfer,
     required this.myUid,
+    required this.myIdentity,
     required this.canRecord,
     required this.onRecord,
   });
 
   final SimplifiedTransfer transfer;
   final String myUid;
+  final CurrentUserIdentity myIdentity;
   final bool canRecord;
   final VoidCallback onRecord;
 
@@ -654,24 +665,24 @@ class _TransferTile extends StatelessWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(child: Text(_initialsOf(t.fromName))),
+                CircleAvatar(child: Text(t.fromUid == myUid ? myIdentity.initials : _initialsOf(t.fromName))),
                 const SizedBox(width: 8),
                 const Icon(Icons.arrow_forward, size: 18),
                 const SizedBox(width: 8),
-                CircleAvatar(child: Text(_initialsOf(t.toName))),
+                CircleAvatar(child: Text(t.toUid == myUid ? myIdentity.initials : _initialsOf(t.toName))),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _named(t.fromUid, t.fromName, myUid),
+                        _named(t.fromUid, t.fromName, myUid, myIdentity),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       Text(
-                        'pays ${_named(t.toUid, t.toName, myUid)}',
+                        'pays ${_named(t.toUid, t.toName, myUid, myIdentity)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall,
@@ -730,12 +741,14 @@ class _NettingTile extends StatelessWidget {
   const _NettingTile({
     required this.netting,
     required this.myUid,
+    required this.myIdentity,
     required this.canRecord,
     required this.onRecord,
   });
 
   final NettedDebts netting;
   final String myUid;
+  final CurrentUserIdentity myIdentity;
   final bool canRecord;
   final VoidCallback onRecord;
 
@@ -750,24 +763,24 @@ class _NettingTile extends StatelessWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(child: Text(_initialsOf(n.aName))),
+                CircleAvatar(child: Text(n.aUid == myUid ? myIdentity.initials : _initialsOf(n.aName))),
                 const SizedBox(width: 8),
                 const Icon(Icons.swap_horiz, size: 18),
                 const SizedBox(width: 8),
-                CircleAvatar(child: Text(_initialsOf(n.bName))),
+                CircleAvatar(child: Text(n.bUid == myUid ? myIdentity.initials : _initialsOf(n.bName))),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _named(n.aUid, n.aName, myUid),
+                        _named(n.aUid, n.aName, myUid, myIdentity),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       Text(
-                        'and ${_named(n.bUid, n.bName, myUid)} owe each other',
+                        'and ${_named(n.bUid, n.bName, myUid, myIdentity)} owe each other',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall,
