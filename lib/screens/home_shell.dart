@@ -35,8 +35,10 @@ class HomeShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(tabIndexProvider);
-    final pending = ref.watch(groupInvitesProvider.select((v) => v.value?.length ?? 0)) +
-        ref.watch(incomingRequestsProvider.select((v) => v.value?.length ?? 0));
+    final int pending = (ref.watch(groupInvitesProvider.select(
+          (v) => v.value?.length ?? 0)) +
+        ref.watch(incomingRequestsProvider.select(
+          (v) => v.value?.length ?? 0))).toInt();
     final scheme = Theme.of(context).colorScheme;
     final wide = MediaQuery.sizeOf(context).width >= 760;
 
