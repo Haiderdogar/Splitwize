@@ -27,6 +27,11 @@ tiny.
   "Get started" marks it seen (flag in secure storage, survives
   sign-out), then the normal sign-in flow takes over
 - **Google Sign-In** — account created automatically on first sign-in
+- **Profile and Settings** — separate drawer destinations. Profile shows your
+  account details and lets you edit your name; your sign-in email is read-only.
+  Name changes are saved offline and synced, and survive Google sign-in.
+  Settings contains notification status, sync, default currency, appearance,
+  Ad-Free subscription, and sign-out.
 - **Friends** — find people by email, send an invite, they accept → connected
 - **Groups** — create a group, invite from your connected friends, they accept to join
 - **Split bills** — pick a group (or just friends), choose all or some members,
@@ -34,14 +39,14 @@ tiny.
 - **Settlement tracking** — each person's share shows Paid/Unpaid; the debtor
   taps "Mark paid" (or the creator taps "Mark received"); progress bars show
   e.g. 3/5 paid with the outstanding total
-- **Currencies** — pick a default currency in Profile → settings (searchable
+- **Currencies** — pick a default currency in Settings (searchable
   picker with flags, via `currency_picker`). Every group has its own
   currency — set when the group is created, changeable anytime from the
   group screen — and each bill is stamped with it, so amounts always show
   the right symbol (Rs, €, $, …). Balances are tracked per currency and
   never mixed.
 - **Dark theme** — full Material 3 dark theme across every screen;
-  Profile → **Appearance** lets you choose **System default / Light /
+  Settings → **Appearance** lets you choose **System default / Light /
   Dark** (per-device preference, applies instantly)
 - **Polished async states** — shimmer skeleton placeholders while data
   loads (no spinner walls, no empty-state flashes on cold start),
@@ -96,7 +101,7 @@ lib/
     bills_tab.dart  bill_detail_screen.dart  create_bill_screen.dart
     balances_tab.dart
     groups_tab.dart  create_group_screen.dart  group_detail_screen.dart
-    friends_tab.dart  profile_tab.dart  notifications_screen.dart
+    friends_tab.dart  profile_tab.dart  settings_screen.dart  notifications_screen.dart
 functions/
   index.js                    # onCreate(bills) → FCM to all participants
                               # (fires when an offline-created bill syncs, too)
@@ -133,7 +138,7 @@ instant, free, and works fully offline.
   SQLite is the single cache, so nothing is fetched or stored twice.
 - `AppRepository` (`lib/data/app_repository.dart`) is the only thing the UI
   and forms talk to; `FirestoreService` is now just the remote transport.
-- The profile tab has a small **Sync** tile showing online/offline state,
+- Settings has a small **Sync** tile showing online/offline state,
   pending changes, and a manual "Sync now" button.
 - **Secure storage** (`flutter_secure_storage`) holds the sensitive bits that
   must survive restarts without living in the plain database: the signed-in
@@ -350,8 +355,44 @@ The Balances tab nets out **unpaid** shares across every bill you're in:
 in bills you created, friends' unpaid shares count as them owing you; in
 bills others created, your unpaid share counts as you owing the creator.
 "Settle up" marks all your outstanding shares with one friend as paid (each
-bill still fires its paid-notification to the creator); "Remind" drops an
-inbox nudge on the friend who owes you.
+bill still fires its paid-notification to the creator). Open a person from
+Balances to see shared bills. The bill-details app bar has a "Remind" action
+that notifies unpaid people on that bill, skipping paid people. The recorder
+can remind all unpaid people; other payers can remind people who owe them.
+The person's Unsettled view has "Remind all", which queues one inbox
+notification with every outstanding amount that person owes you, bill details,
+and separate totals per currency. Individual bill reminders recheck payment
+status before inbox creation and push delivery, including payments recorded
+by another user while the reminder was queued offline.
+Reminders work offline and send after sync. Device pushes show a preview;
+the complete breakdown remains in the inbox. Individual reminder pushes open
+bill details; combined reminder pushes open Notifications.
+
+Deploy the reminder push trigger after updating this feature:
+`firebase deploy --only functions:notifyPaymentReminder`.
+
+## Requests and group invitations
+
+Requests has separate Group incoming, Group outgoing, Incoming friend, and
+Outgoing friend lists, each with a count. The navigation badge totals all
+four lists. Friend request cards show the person's name, email, profile picture
+when available, request date, and status. Friends refreshes missing profile
+information so names and email addresses remain visible after connection sync.
+
+New group invitations retain snapshots of the actual inviter and recipient,
+including names, emails, and the invitation date. Incoming invitations show
+only the group name and invitation information with an Accept action.
+Accepting requires a connection and server-confirmed membership before group
+details, bills, member lists, and group settings are shown. The group-details
+screen applies the same membership check even when opened directly.
+Outgoing invitations show the recipient and allow the sender to cancel.
+Older invitations without sender metadata identify the group owner instead
+of guessing which member sent them.
+
+Both device notification taps and inbox taps open the incoming invitation
+preview. Expired or withdrawn invitations do not unlock group details.
+Deploy the group-invitation push trigger with:
+`firebase deploy --only functions:notifyGroupInvitation`.
 
 ## Monetization — ads + an Ad-Free subscription
 
@@ -372,7 +413,7 @@ ads, in two plans (`lib/utils/monetization.dart`):
   cached in secure storage so the tier is right offline. If the
   subscription lapses, the ads simply come back — nothing else
   changes; all bills and photos stay untouched.
-- **Profile tab** has the Ad-Free tile that opens the paywall sheet
+- **Settings** has the Ad-Free tile that opens the paywall sheet
   (`lib/widgets/paywall_sheet.dart`) with both plans, Subscribe and
   Restore.
 

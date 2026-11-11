@@ -39,6 +39,9 @@ class AppUser {
   final String email;
   final String? photoUrl;
 
+  /// A name deliberately saved in the app takes precedence over Google.
+  final bool nameIsCustom;
+
   /// Default currency (ISO 4217 code, e.g. 'PKR') used for new groups
   /// and friend bills. Null when never chosen — [currencyCode] then
   /// falls back to USD. Only written when set, so a sign-in upsert from
@@ -51,6 +54,7 @@ class AppUser {
     required this.email,
     this.photoUrl,
     this.currency,
+    this.nameIsCustom = false,
   });
 
   factory AppUser.fromDoc(DocumentSnapshot doc) =>
@@ -62,6 +66,7 @@ class AppUser {
         email: (map['email'] as String?) ?? '',
         photoUrl: map['photoUrl'] as String?,
         currency: map['currency'] as String?,
+        nameIsCustom: map['nameIsCustom'] == true,
       );
 
   /// The effective default currency code (never null).
@@ -72,6 +77,7 @@ class AppUser {
         'email': email.toLowerCase(),
         'photoUrl': photoUrl,
         if (currency != null) 'currency': currency,
+        if (nameIsCustom) 'nameIsCustom': true,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -81,6 +87,7 @@ class AppUser {
         'email': email.toLowerCase(),
         'photoUrl': photoUrl,
         if (currency != null) 'currency': currency,
+        if (nameIsCustom) 'nameIsCustom': true,
       };
 
   AppUser copyWith({
@@ -88,6 +95,7 @@ class AppUser {
     String? email,
     String? photoUrl,
     String? currency,
+    bool? nameIsCustom,
   }) {
     return AppUser(
       uid: uid,
@@ -95,6 +103,7 @@ class AppUser {
       email: email ?? this.email,
       photoUrl: photoUrl ?? this.photoUrl,
       currency: currency ?? this.currency,
+      nameIsCustom: nameIsCustom ?? this.nameIsCustom,
     );
   }
 
@@ -117,10 +126,12 @@ class AppUser {
           displayName == other.displayName &&
           email == other.email &&
           photoUrl == other.photoUrl &&
-          currency == other.currency;
+          currency == other.currency &&
+          nameIsCustom == other.nameIsCustom;
 
   @override
-  int get hashCode => Object.hash(uid, displayName, email, photoUrl, currency);
+  int get hashCode =>
+      Object.hash(uid, displayName, email, photoUrl, currency, nameIsCustom);
 }
 
 /// A friend/connection request stored in `connectionRequests/{id}`.
@@ -130,6 +141,8 @@ class ConnectionRequest {
   final String fromName;
   final String toUid;
   final String toName;
+  final String fromEmail;
+  final String toEmail;
   final String status; // pending | accepted | declined | cancelled
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -141,6 +154,8 @@ class ConnectionRequest {
     required this.toUid,
     required this.toName,
     required this.status,
+    this.fromEmail = '',
+    this.toEmail = '',
     this.createdAt,
     this.updatedAt,
   });
@@ -156,6 +171,8 @@ class ConnectionRequest {
         fromName: (map['fromName'] as String?) ?? '',
         toUid: (map['toUid'] as String?) ?? '',
         toName: (map['toName'] as String?) ?? '',
+        fromEmail: map['fromEmail'] as String? ?? '',
+        toEmail: map['toEmail'] as String? ?? '',
         status: (map['status'] as String?) ?? 'pending',
         createdAt: dateFrom(map['createdAt']),
         updatedAt: dateFrom(map['updatedAt']),
@@ -166,6 +183,8 @@ class ConnectionRequest {
         'fromName': fromName,
         'toUid': toUid,
         'toName': toName,
+        'fromEmail': fromEmail,
+        'toEmail': toEmail,
         'status': status,
         'createdAt': createdAt,
         'updatedAt': updatedAt,
@@ -186,6 +205,8 @@ class ConnectionRequest {
           fromName == other.fromName &&
           toUid == other.toUid &&
           toName == other.toName &&
+          fromEmail == other.fromEmail &&
+          toEmail == other.toEmail &&
           status == other.status &&
           createdAt == other.createdAt;
 
@@ -196,9 +217,41 @@ class ConnectionRequest {
         fromName,
         toUid,
         toName,
+        fromEmail,
+        toEmail,
         status,
         createdAt,
       );
+}
+
+class GroupInvitation {
+  const GroupInvitation({required this.from, required this.to, this.sentAt});
+  final AppUser from;
+  final AppUser to;
+  final DateTime? sentAt;
+
+  factory GroupInvitation.fromMap(Map<String, dynamic> map) {
+    final from = Map<String, dynamic>.from(map['from'] as Map? ?? {});
+    final to = Map<String, dynamic>.from(map['to'] as Map? ?? {});
+    return GroupInvitation(
+      from: AppUser.fromMap(from['uid'] as String? ?? '', from),
+      to: AppUser.fromMap(to['uid'] as String? ?? '', to),
+      sentAt: dateFrom(map['sentAt']),
+    );
+  }
+  Map<String, dynamic> toMap() => {
+        'from': {'uid': from.uid, ...from.toProfileMap()},
+        'to': {'uid': to.uid, ...to.toProfileMap()},
+        'sentAt': sentAt,
+      };
+  @override
+  bool operator ==(Object other) =>
+      other is GroupInvitation &&
+      from == other.from &&
+      to == other.to &&
+      sentAt == other.sentAt;
+  @override
+  int get hashCode => Object.hash(from, to, sentAt);
 }
 
 /// A group stored in `groups/{groupId}`.
@@ -209,6 +262,7 @@ class BillGroup {
   final String createdBy;
   final List<String> members;
   final List<String> invited;
+  final Map<String, GroupInvitation> invitations;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -227,6 +281,7 @@ class BillGroup {
     required this.createdBy,
     required this.members,
     required this.invited,
+    this.invitations = const {},
     this.createdAt,
     this.updatedAt,
     this.deleted = false,
@@ -242,6 +297,11 @@ class BillGroup {
         createdBy: (map['createdBy'] as String?) ?? '',
         members: List<String>.from((map['members'] as List?) ?? const []),
         invited: List<String>.from((map['invited'] as List?) ?? const []),
+        invitations: {
+          for (final entry in (map['invitations'] as Map? ?? {}).entries)
+            entry.key.toString(): GroupInvitation.fromMap(
+                Map<String, dynamic>.from(entry.value as Map)),
+        },
         createdAt: dateFrom(map['createdAt']),
         updatedAt: dateFrom(map['updatedAt']),
         deleted: (map['deleted'] as bool?) ?? false,
@@ -253,6 +313,8 @@ class BillGroup {
         'createdBy': createdBy,
         'members': members,
         'invited': invited,
+        'invitations':
+            invitations.map((uid, invite) => MapEntry(uid, invite.toMap())),
         'createdAt': createdAt,
         'updatedAt': updatedAt,
         'deleted': deleted,
@@ -262,6 +324,7 @@ class BillGroup {
   BillGroup copyWith({
     List<String>? members,
     List<String>? invited,
+    Map<String, GroupInvitation>? invitations,
     String? currency,
   }) {
     return BillGroup(
@@ -270,6 +333,7 @@ class BillGroup {
       createdBy: createdBy,
       members: members ?? this.members,
       invited: invited ?? this.invited,
+      invitations: invitations ?? this.invitations,
       createdAt: createdAt,
       updatedAt: updatedAt,
       deleted: deleted,
@@ -288,6 +352,9 @@ class BillGroup {
           createdBy == other.createdBy &&
           _listEquals(members, other.members) &&
           _listEquals(invited, other.invited) &&
+          invitations.length == other.invitations.length &&
+          invitations.entries
+              .every((entry) => other.invitations[entry.key] == entry.value) &&
           createdAt == other.createdAt &&
           deleted == other.deleted &&
           currency == other.currency;
@@ -299,6 +366,8 @@ class BillGroup {
         createdBy,
         Object.hashAll(members),
         Object.hashAll(invited),
+        Object.hashAll((invitations.keys.toList()..sort())
+            .map((uid) => Object.hash(uid, invitations[uid]))),
         createdAt,
         deleted,
         currency,
@@ -586,7 +655,8 @@ class Bill {
       merchantPayments: Map<String, double>.from(
         (map['merchantPayments'] as Map?)?.map(
               (key, value) => MapEntry(
-                key.toString(), (value as num).toDouble(),
+                key.toString(),
+                (value as num).toDouble(),
               ),
             ) ??
             const <String, double>{},
@@ -738,8 +808,10 @@ class Bill {
   /// Settlement helpers. A partially settled share (see
   /// [BillSplit.paidAmount]) counts as paid only once nothing remains.
   int get paidCount => hasPaymentLedger
-      ? splits.where((share) => !paymentDebts.any(
-          (debt) => debt.debtorUid == share.uid && !debt.isSettled)).length
+      ? splits
+          .where((share) => !paymentDebts
+              .any((debt) => debt.debtorUid == share.uid && !debt.isSettled))
+          .length
       : splits.where((s) => s.isFullyPaid).length;
 
   double get outstanding => hasPaymentLedger

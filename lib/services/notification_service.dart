@@ -1,5 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import '../utils/notification_destination.dart';
 import 'firestore_service.dart';
 import 'secure_storage_service.dart';
 
@@ -64,6 +65,11 @@ class NotificationService {
       });
       FirebaseMessaging.onMessage.listen(_onForegroundMessage);
       FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpened);
+      final initial = await messaging.getInitialMessage();
+      if (initial != null && _uid == uid) {
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _onMessageOpened(initial));
+      }
     }
   }
 
@@ -74,15 +80,33 @@ class NotificationService {
     final body = message.notification?.body ?? 'You have a new update.';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$title\n$body'),
+        content:
+            Text('$title\n$body', maxLines: 4, overflow: TextOverflow.ellipsis),
+        action: notificationDestination(
+                    type: message.data['type'] as String? ?? '',
+                    groupId: message.data['groupId'] as String?,
+                    billId: message.data['billId'] as String?) !=
+                null
+            ? SnackBarAction(
+                label: 'View', onPressed: () => _onMessageOpened(message))
+            : null,
         duration: const Duration(seconds: 6),
       ),
     );
   }
 
   void _onMessageOpened(RemoteMessage message) {
-    // Tapping a bill notification could deep-link to the bill.
-    // For now the Bills tab shows the latest bills at the top.
+    if (_uid == null) return;
+    final targetUid = message.data['toUid'] as String?;
+    if (targetUid != null && targetUid != _uid) return;
+    final destination = notificationDestination(
+        type: message.data['type'] as String? ?? '',
+        groupId: message.data['groupId'] as String?,
+        billId: message.data['billId'] as String?);
+    if (destination != null) {
+      navigatorKey.currentState
+          ?.push(MaterialPageRoute(builder: (_) => destination));
+    }
   }
 
   /// Call on sign-out so this device stops receiving the old user's pushes.

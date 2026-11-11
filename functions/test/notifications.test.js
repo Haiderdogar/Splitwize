@@ -6,14 +6,19 @@ const { runInNewContext } = require('node:vm');
 
 // Run the real trigger handlers with in-memory Firebase transports. These
 // tests require no credentials and never send a notification to a device.
-function harness(responses) {
+function harness(responses, bill = {
+  createdBy: 'me', splits: [{ uid: 'friend', amount: 15, paid: false }],
+}, group = { invited: ['friend'], members: ['me'] }) {
   const updates = [];
   const inbox = [];
   const pushes = [];
   const db = {
     collection: (collection) => ({
       doc: (uid) => ({
-        get: async () => ({ exists: true, get: () => ['dead-a', 'dead-b', 'valid'] }),
+        get: async () => collection === 'bills'
+          ? { exists: bill !== null, data: () => bill }
+          : collection === 'groups' ? { exists: group !== null, data: () => group }
+          : { exists: true, get: () => ['dead-a', 'dead-b', 'valid'] },
         update: async (data) => updates.push({ uid, data }),
         collection,
         uid,
@@ -42,6 +47,7 @@ function harness(responses) {
   const exports = {};
   runInNewContext(readFileSync(join(__dirname, '..', 'index.js'), 'utf8'), {
     exports,
+    Buffer,
     console: { log() {}, error() {} },
     require: (name) => {
       if (name === 'firebase-admin') return admin;
@@ -61,6 +67,28 @@ const deadResponses = [
   { success: true },
 ];
 
+test('group invitation push includes the route to the pending incoming invitation', async () => {
+  const h = harness(deadResponses);
+  await h.notifyGroupInvitation({ data: { data: () => ({ type: 'group_invite',
+    groupId: 'g1', toUid: 'friend', title: 'Group invitation', body: 'Me invited you to Weekend',
+  }) } });
+  assert.equal(h.pushes.length, 1);
+  assert.equal(h.pushes[0].data.type, 'group_invite');
+  assert.equal(h.pushes[0].data.groupId, 'g1');
+  assert.equal(h.pushes[0].data.toUid, 'friend');
+  assert.equal(h.inbox.length, 0);
+});
+
+test('accepted, cancelled, deleted and missing group invitations do not push', async () => {
+  for (const group of [null, { deleted: true }, { invited: [], members: ['me'] },
+      { invited: ['friend'], members: ['me', 'friend'] }]) {
+    const h = harness(deadResponses, null, group);
+    await h.notifyGroupInvitation({ data: { data: () => ({ type: 'group_invite',
+      groupId: 'g1', toUid: 'friend' }) } });
+    assert.equal(h.pushes.length, 0);
+  }
+});
+
 test('bill created notifies each other participant once and removes individual dead tokens', async () => {
   const h = harness(deadResponses);
   await h.notifyBillCreated({ params: { billId: 'b1' }, data: { data: () => ({
@@ -73,6 +101,69 @@ test('bill created notifies each other participant once and removes individual d
   assert.match(h.pushes[0].notification.body, /USD 15\.00/);
   assert.equal(h.updates[0].uid, 'friend');
   assert.deepEqual(Array.from(h.updates[0].data.fcmTokens.remove), ['dead-a', 'dead-b']);
+});
+
+test('reminder inbox entry pushes to its recipient without creating a second entry', async () => {
+  const h = harness(deadResponses);
+  await h.notifyPaymentReminder({ data: { data: () => ({
+    toUid: 'friend', type: 'reminder', billId: 'b1',
+    title: 'Payment reminder', body: 'Lunch: USD 15.00 still owed.',
+  }) } });
+  assert.equal(h.inbox.length, 0);
+  assert.equal(h.pushes.length, 1);
+  assert.equal(h.pushes[0].notification.body, 'Lunch: USD 15.00 still owed.');
+  assert.equal(h.pushes[0].data.type, 'reminder');
+  assert.equal(h.pushes[0].data.billId, 'b1');
+  assert.equal(h.updates[0].uid, 'friend');
+});
+
+test('combined reminder push is bounded without changing the full inbox body', async () => {
+  const h = harness(deadResponses);
+  const body = 'Dinner \u{1F35C} PKR 100.00\n'.repeat(1000);
+  const reminder = { toUid: 'friend', type: 'reminder',
+    title: 'Reminder '.repeat(100), body };
+  await h.notifyPaymentReminder({ data: { data: () => reminder } });
+  assert.equal(h.pushes.length, 1);
+  assert.ok(Buffer.byteLength(h.pushes[0].notification.body, 'utf8') <= 1024);
+  assert.ok(Buffer.byteLength(h.pushes[0].notification.title, 'utf8') <= 160);
+  assert.ok(!h.pushes[0].notification.body.includes('\uFFFD'));
+  assert.equal(reminder.body, body);
+  assert.equal(h.pushes[0].data.billId, undefined);
+});
+
+test('other inbox notification types do not send duplicate pushes', async () => {
+  const h = harness(deadResponses);
+  for (const type of ['bill_created', 'bill_paid', 'friend_request', 'group_invite']) {
+    await h.notifyPaymentReminder({ data: { data: () => ({ toUid: 'friend', type }) } });
+  }
+  assert.equal(h.pushes.length, 0);
+});
+
+test('bill reminder push skips people paid by another user before delivery', async () => {
+  const bills = [
+    null,
+    { deleted: true },
+    { createdBy: 'me', splits: [{ uid: 'friend', amount: 15, paid: true }] },
+    { createdBy: 'me', splits: [{ uid: 'friend', amount: 15, paidAmount: 15 }] },
+    { merchantPayments: { me: 30 }, paymentDebts: [{ debtorUid: 'friend',
+      creditorUid: 'me', amount: 15, settledAmount: 15 }] },
+  ];
+  for (const bill of bills) {
+    const h = harness(deadResponses, bill);
+    await h.notifyPaymentReminder({ data: { data: () => ({
+      toUid: 'friend', type: 'reminder', billId: 'b1', title: 'Reminder', body: 'Pay',
+    }) } });
+    assert.equal(h.pushes.length, 0);
+  }
+});
+
+test('bill reminder push still reaches partially paid people', async () => {
+  const h = harness(deadResponses, { merchantPayments: { me: 30 },
+    paymentDebts: [{ debtorUid: 'friend', creditorUid: 'me', amount: 15, settledAmount: 5 }] });
+  await h.notifyPaymentReminder({ data: { data: () => ({
+    toUid: 'friend', type: 'reminder', billId: 'b1', body: 'USD 10.00 remaining',
+  }) } });
+  assert.equal(h.pushes.length, 1);
 });
 
 test('transient push failures do not remove registered tokens', async () => {

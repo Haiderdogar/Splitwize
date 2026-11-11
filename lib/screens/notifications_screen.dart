@@ -9,8 +9,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/studio_ui.dart';
 import '../theme.dart';
 import '../widgets/state_widgets.dart';
-import 'bill_detail_screen.dart';
-import 'group_detail_screen.dart';
+import '../utils/notification_destination.dart';
 
 /// In-app notification inbox: bill events, payments, invites, reminders.
 /// Tapping a notification marks it read and deep-links where relevant.
@@ -99,8 +98,8 @@ class NotificationsScreen extends StatelessWidget {
                             .secondaryContainer
                             .withValues(alpha: 0.5),
                     child: ListTile(
-                      leading: PersonMark(initials: '',
-                        icon: _iconFor(n.type), size: 48),
+                      leading: PersonMark(
+                          initials: '', icon: _iconFor(n.type), size: 48),
                       title: Text(
                         n.title,
                         style: TextStyle(
@@ -121,7 +120,8 @@ class NotificationsScreen extends StatelessWidget {
                       ),
                       trailing: n.read
                           ? null
-                          : const Icon(Icons.circle, color: SplitwizePalette.positive, size: 13),
+                          : const Icon(Icons.circle,
+                              color: SplitwizePalette.positive, size: 13),
                       onTap: () => _open(context, ref, n),
                     ),
                   );
@@ -143,19 +143,11 @@ class NotificationsScreen extends StatelessWidget {
       await repo.markNotificationRead(n.id);
     } catch (_) {}
     if (!context.mounted) return;
-    if ((n.type == 'bill_created' || n.type == 'bill_paid') &&
-        n.billId != null) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => BillDetailScreen(billId: n.billId!),
-        ),
-      );
-    } else if (n.type == 'group_invite' && n.groupId != null) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => GroupDetailScreen(groupId: n.groupId!),
-        ),
-      );
+    final destination = notificationDestination(
+        type: n.type, groupId: n.groupId, billId: n.billId, fromInbox: true);
+    if (destination != null) {
+      Navigator.of(context)
+          .pushReplacement(MaterialPageRoute(builder: (_) => destination));
     }
   }
 }

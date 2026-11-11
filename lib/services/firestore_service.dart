@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/models.dart';
+import '../utils/payment_reminder.dart';
 
 /// Remote data source for the app — used ONLY by [SyncService] (and
 /// [AuthService] for the initial profile upsert).
@@ -97,8 +98,10 @@ class FirestoreService {
     await _db.collection('connectionRequests').add({
       'fromUid': from.uid,
       'fromName': from.displayName,
+      'fromEmail': from.email,
       'toUid': to.uid,
       'toName': to.displayName,
+      'toEmail': to.email,
       'status': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -139,6 +142,7 @@ class FirestoreService {
       {
         'uid': req.toUid,
         'displayName': req.toName,
+        'email': req.toEmail,
         'connectedAt': FieldValue.serverTimestamp(),
       },
     );
@@ -151,6 +155,7 @@ class FirestoreService {
       {
         'uid': req.fromUid,
         'displayName': req.fromName,
+        'email': req.fromEmail,
         'connectedAt': FieldValue.serverTimestamp(),
       },
     );
@@ -203,7 +208,7 @@ class FirestoreService {
         .map((d) => AppUser(
               uid: d.id,
               displayName: (d.data()['displayName'] as String?) ?? 'Friend',
-              email: '',
+              email: d.data()['email'] as String? ?? '',
             ))
         .toList();
   }
@@ -248,26 +253,33 @@ class FirestoreService {
     await _db.collection('groups').doc(id).set(data, SetOptions(merge: true));
   }
 
-  Future<void> inviteToGroup(String groupId, List<String> uids) async {
-    final group = (await _db.collection('groups').doc(groupId).get());
-    if (!group.exists) return;
-    final data = BillGroup.fromDoc(group);
-    final fresh = uids
-        .where((id) => !data.members.contains(id) && !data.invited.contains(id))
-        .toList();
-    if (fresh.isEmpty) return;
-    await _db.collection('groups').doc(groupId).update({
-      'invited': FieldValue.arrayUnion(fresh),
-      'updatedAt': FieldValue.serverTimestamp(),
+  Future<void> inviteToGroup(String groupId, List<String> uids,
+      {Map<String, GroupInvitation> invitations = const {}}) async {
+    final groupRef = _db.collection('groups').doc(groupId);
+    await _db.runTransaction<void>((transaction) async {
+      final snapshot = await transaction.get(groupRef);
+      if (!snapshot.exists) return;
+      final group = BillGroup.fromDoc(snapshot);
+      final fresh = uids
+          .where((uid) =>
+              !group.members.contains(uid) && !group.invited.contains(uid))
+          .toList();
+      if (fresh.isEmpty) return;
+      transaction.update(groupRef, {
+        'invited': FieldValue.arrayUnion(fresh),
+        'invitations': {
+          for (final entry in group.invitations.entries)
+            entry.key: entry.value.toMap(),
+          for (final uid in fresh)
+            if (invitations[uid] != null) uid: invitations[uid]!.toMap(),
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     });
   }
 
   Future<void> acceptGroupInvite(String groupId, String uid) async {
-    await _db.collection('groups').doc(groupId).update({
-      'invited': FieldValue.arrayRemove([uid]),
-      'members': FieldValue.arrayUnion([uid]),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await _respondToGroupInvite(groupId, uid, accept: true);
   }
 
   /// Sets a group's currency (ISO code). Stamps `updatedAt` so the
@@ -280,10 +292,38 @@ class FirestoreService {
   }
 
   Future<void> declineGroupInvite(String groupId, String uid) async {
-    await _db.collection('groups').doc(groupId).update({
-      'invited': FieldValue.arrayRemove([uid]),
-      'updatedAt': FieldValue.serverTimestamp(),
+    await _respondToGroupInvite(groupId, uid, accept: false);
+  }
+
+  Future<void> cancelGroupInvite(String groupId, String uid) =>
+      _respondToGroupInvite(groupId, uid, accept: false);
+
+  Future<void> _respondToGroupInvite(String groupId, String uid,
+      {required bool accept}) async {
+    final groupRef = _db.collection('groups').doc(groupId);
+    await _db.runTransaction<void>((transaction) async {
+      final snapshot = await transaction.get(groupRef);
+      if (!snapshot.exists) return;
+      final group = BillGroup.fromDoc(snapshot);
+      if (accept && group.members.contains(uid)) return;
+      if (!group.invited.contains(uid)) {
+        if (accept) throw StateError('Invitation no longer available.');
+        return;
+      }
+      final invitations = {...group.invitations}..remove(uid);
+      transaction.update(groupRef, {
+        'invited': FieldValue.arrayRemove([uid]),
+        if (accept) 'members': FieldValue.arrayUnion([uid]),
+        'invitations':
+            invitations.map((key, invite) => MapEntry(key, invite.toMap())),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     });
+  }
+
+  Future<BillGroup?> getGroup(String groupId) async {
+    final snapshot = await _db.collection('groups').doc(groupId).get();
+    return snapshot.exists ? BillGroup.fromDoc(snapshot) : null;
   }
 
   /// Groups I belong to or am invited to, changed since [since].
@@ -445,8 +485,7 @@ class FirestoreService {
         if (!settledAmount.isFinite) {
           throw ArgumentError('Invalid settlement amount.');
         }
-        final target =
-            (settledAmount.clamp(0, amount) * 100).round() / 100;
+        final target = (settledAmount.clamp(0, amount) * 100).round() / 100;
         final previous = (debt['settledAmount'] as num?)?.toDouble() ?? 0;
         if ((target - previous).abs() < 0.005) break;
         debt['settledAmount'] = target;
@@ -474,7 +513,8 @@ class FirestoreService {
     String? billId,
     String? groupId,
   }) async {
-    await _db.collection('notifications').add({
+    final notification = _db.collection('notifications').doc();
+    final payload = {
       'toUid': toUid,
       'title': title,
       'body': body,
@@ -484,7 +524,20 @@ class FirestoreService {
       'read': false,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
-    });
+    };
+    if (type == 'reminder' && billId != null) {
+      await _db.runTransaction<void>((transaction) async {
+        final snapshot =
+            await transaction.get(_db.collection('bills').doc(billId));
+        if (!snapshot.exists ||
+            !hasUnpaidBillDebt(Bill.fromDoc(snapshot), toUid)) {
+          return;
+        }
+        transaction.set(notification, payload);
+      });
+    } else {
+      await notification.set(payload);
+    }
   }
 
   /// My inbox notifications, changed since [since].

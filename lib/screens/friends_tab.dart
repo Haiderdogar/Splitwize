@@ -10,55 +10,122 @@ import '../widgets/app_notification_button.dart';
 import '../widgets/studio_ui.dart';
 import '../widgets/state_widgets.dart';
 
-class FriendsTab extends StatefulWidget {
+class FriendsTab extends ConsumerStatefulWidget {
   const FriendsTab({super.key});
 
   @override
-  State<FriendsTab> createState() => _FriendsTabState();
+  ConsumerState<FriendsTab> createState() => _FriendsTabState();
 }
 
-class _FriendsTabState extends State<FriendsTab> {
+class _FriendsTabState extends ConsumerState<FriendsTab>
+    with WidgetsBindingObserver {
   String _query = '';
+  bool _refreshing = false;
+  String? _refreshError;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refresh();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && ref.read(tabIndexProvider) == 3) {
+      _refresh();
+    }
+  }
+
+  Future<void> _refresh() async {
+    if (_refreshing || !mounted) return;
+    setState(() {
+      _refreshing = true;
+      _refreshError = null;
+    });
+    try {
+      final sync = await ref.read(syncServiceProvider.future);
+      await sync.refreshConnections();
+    } catch (_) {
+      if (mounted) {
+        setState(() => _refreshError =
+            'Could not refresh friends. Check your connection and try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(tabIndexProvider, (previous, next) {
+      if (next == 3 && previous != 3) _refresh();
+    });
     return Scaffold(
       appBar: AppBar(
         leading: const SplitwizeMenuButton(),
         title: const Text('Friends'),
-        actions: const [AppNotificationButton(), SizedBox(width: 5)],
-      ),
-      // Connected friends only; requests have their own tab.
-      body: CustomScrollView(
-        slivers: [
-          const SliverPadding(
-            padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
-            sliver: SliverToBoxAdapter(child: _ConnectedHeader()),
-          ),
-          SliverToBoxAdapter(
-            child: Consumer(builder: (context, ref, _) {
-              final count = ref.watch(connectionsProvider).value?.length ?? 0;
-              if (count <= 8) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: TextField(
-                  decoration: const InputDecoration(
-                    hintText: 'Search friends by name or email',
-                    prefixIcon: Icon(Icons.search_rounded),
-                  ),
-                  onChanged: (value) => setState(() => _query = value),
-                ),
-              );
-            }),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            sliver: _Connections(query: _query),
-          ),
-          // Leave enough scroll space for the add-friend button.
-          const SliverToBoxAdapter(child: SizedBox(height: 96)),
+        actions: [
+          IconButton(
+              tooltip: 'Refresh friends',
+              onPressed: _refreshing ? null : _refresh,
+              icon: const Icon(Icons.refresh_rounded)),
+          const AppNotificationButton(),
+          const SizedBox(width: 5),
         ],
       ),
+      // Connected friends only; requests have their own tab.
+      body: RefreshIndicator(
+          onRefresh: _refresh,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              const SliverPadding(
+                padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
+                sliver: SliverToBoxAdapter(child: _ConnectedHeader()),
+              ),
+              SliverToBoxAdapter(
+                child: Consumer(builder: (context, ref, _) {
+                  final count =
+                      ref.watch(connectionsProvider).value?.length ?? 0;
+                  if (count <= 8 && _query.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search friends by name or email',
+                        prefixIcon: Icon(Icons.search_rounded),
+                      ),
+                      onChanged: (value) => setState(() => _query = value),
+                    ),
+                  );
+                }),
+              ),
+              if (_refreshError != null)
+                SliverToBoxAdapter(
+                    child: LoadError.compact(
+                        message: _refreshError!, onRetry: _refresh)),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                sliver: _Connections(
+                    query: _query,
+                    refreshing: _refreshing,
+                    refreshFailed: _refreshError != null),
+              ),
+              // Leave enough scroll space for the add-friend button.
+              const SliverToBoxAdapter(child: SizedBox(height: 96)),
+            ],
+          )),
       floatingActionButton: FloatingActionButton(
         heroTag: 'friends-add-friend',
         tooltip: 'Add friend',
@@ -134,8 +201,8 @@ class _ConnectedHeader extends StatelessWidget {
 
 /// Empty-state row for a user's connections list.
 class _EmptyRow extends StatelessWidget {
-  const _EmptyRow({required this.icon, required this.title,
-    required this.subtitle});
+  const _EmptyRow(
+      {required this.icon, required this.title, required this.subtitle});
 
   final IconData icon;
   final String title;
@@ -143,25 +210,31 @@ class _EmptyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SoftPanel(
-    padding: const EdgeInsets.all(13),
-    child: Row(children: [
-      PersonMark(initials: '', icon: icon, size: 44),
-      const SizedBox(width: 12),
-      Expanded(child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 2),
-          Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-        ],
-      )),
-    ]),
-  );
+        padding: const EdgeInsets.all(13),
+        child: Row(children: [
+          PersonMark(initials: '', icon: icon, size: 44),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 2),
+              Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+            ],
+          )),
+        ]),
+      );
 }
 
 class _Connections extends StatelessWidget {
-  const _Connections({required this.query});
+  const _Connections(
+      {required this.query,
+      required this.refreshing,
+      required this.refreshFailed});
   final String query;
+  final bool refreshing;
+  final bool refreshFailed;
 
   @override
   Widget build(BuildContext context) {
@@ -182,10 +255,20 @@ class _Connections extends StatelessWidget {
           ),
           data: (friends) {
             final keyword = query.trim().toLowerCase();
-            final visible = keyword.isEmpty ? friends : friends.where((friend) =>
-              friend.displayName.toLowerCase().contains(keyword) ||
-              friend.email.toLowerCase().contains(keyword)).toList();
+            final visible = keyword.isEmpty
+                ? friends
+                : friends
+                    .where((friend) =>
+                        friend.displayName.toLowerCase().contains(keyword) ||
+                        friend.email.toLowerCase().contains(keyword))
+                    .toList();
             if (friends.isEmpty) {
+              if (refreshing) {
+                return const SliverToBoxAdapter(child: ShimmerRows(count: 3));
+              }
+              if (refreshFailed) {
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
+              }
               return const SliverToBoxAdapter(
                 child: _EmptyRow(
                   icon: Icons.people_outline,
@@ -195,7 +278,8 @@ class _Connections extends StatelessWidget {
               );
             }
             if (visible.isEmpty) {
-              return const SliverToBoxAdapter(child: Padding(
+              return const SliverToBoxAdapter(
+                  child: Padding(
                 padding: EdgeInsets.all(16),
                 child: Text('No friends match your search.'),
               ));
@@ -210,11 +294,11 @@ class _Connections extends StatelessWidget {
                         horizontal: 16, vertical: 12),
                     leading: PersonMark(initials: f.initials),
                     title: Text(f.displayName,
-                        maxLines: 2, overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleMedium),
                     subtitle: Text(
-                      f.email,
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      f.email.isEmpty ? 'Email unavailable' : f.email,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color:
                                 Theme.of(context).colorScheme.onSurfaceVariant,
@@ -229,8 +313,8 @@ class _Connections extends StatelessWidget {
                         }
                       },
                       itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'remove',
-                          child: Text('Remove friend')),
+                        PopupMenuItem(
+                            value: 'remove', child: Text('Remove friend')),
                       ],
                     ),
                   ),

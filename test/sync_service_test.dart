@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:splitwize/data/app_repository.dart';
 import 'package:splitwize/data/local_database.dart';
@@ -21,6 +22,25 @@ class RecordingRemote extends FirestoreService {
   bool failWrites = false;
   int pulls = 0;
   Future<void> Function()? beforePull;
+  List<AppUser> connections = [];
+  int connectionPulls = 0;
+  bool failConnections = false;
+  Completer<void>? connectionGate;
+  List<AppUser> profiles = [];
+  BillGroup? invitationGroup;
+  bool invitationForbidden = false;
+  @override
+  Future<BillGroup?> getGroup(String groupId) async {
+    if (invitationForbidden) {
+      throw FirebaseException(
+          plugin: 'cloud_firestore', code: 'permission-denied');
+    }
+    return invitationGroup;
+  }
+
+  @override
+  Future<List<AppUser>> fetchUsers(List<String> uids) async =>
+      profiles.where((user) => uids.contains(user.uid)).toList();
 
   @override
   Future<void> setGroupCurrency(String groupId, String code) async {
@@ -65,7 +85,12 @@ class RecordingRemote extends FirestoreService {
       [];
 
   @override
-  Future<List<AppUser>> fetchConnectionMirrors(String uid) async => [];
+  Future<List<AppUser>> fetchConnectionMirrors(String uid) async {
+    connectionPulls++;
+    await connectionGate?.future;
+    if (failConnections) throw StateError('Could not load friends');
+    return connections;
+  }
 }
 
 void main() {
@@ -114,6 +139,82 @@ void main() {
     expect(sync.current.error, isNull);
   });
 
+  test('friends refresh bypasses a failed outbox and updates live connections',
+      () async {
+    await enqueueCurrency('blocked');
+    remote.failWrites = true;
+    await sync.syncNow();
+    expect(remote.connectionPulls, 0);
+    remote.connections = [friendA, friendB];
+    final next =
+        repo.watchConnections().firstWhere((users) => users.length == 2);
+    await sync.refreshConnections();
+    expect((await next).map((user) => user.uid).toSet(), {'fa', 'fb'});
+    expect(await db.outboxCount(), 1);
+    expect(remote.pulls, 0);
+  });
+
+  test('failed friends refresh preserves cached connections and can retry',
+      () async {
+    await repo.applyRemoteConnections([friendA]);
+    remote.failConnections = true;
+    await expectLater(sync.refreshConnections(), throwsStateError);
+    expect((await repo.watchConnections().first).single.uid, 'fa');
+    remote.failConnections = false;
+    remote.connections = [friendA, friendB];
+    await sync.refreshConnections();
+    expect((await repo.watchConnections().first).length, 2);
+  });
+
+  test('overlapping friends refreshes share one remote read', () async {
+    remote.connectionGate = Completer<void>();
+    final first = sync.refreshConnections();
+    final second = sync.refreshConnections();
+    expect(remote.connectionPulls, 1);
+    remote.connectionGate!.complete();
+    await Future.wait([first, second]);
+    expect(remote.connectionPulls, 1);
+  });
+
+  test('friends refresh retains rich profiles from sparse mirrors', () async {
+    await db.upsertUser(friendA.uid, friendA.toProfileMap());
+    remote.connections = [
+      const AppUser(uid: 'fa', displayName: 'Friend A', email: '')
+    ];
+    await sync.refreshConnections();
+    expect((await repo.watchConnections().first).single.email, friendA.email);
+    expect((await repo.getCachedUser('fa'))!.email, friendA.email);
+  });
+
+  test('friends refresh fetches missing emails for existing connections',
+      () async {
+    remote.connections = [
+      const AppUser(uid: 'fa', displayName: 'Friend A', email: '')
+    ];
+    remote.profiles = [friendA];
+    await sync.refreshConnections();
+    expect((await repo.watchConnections().first).single.email, friendA.email);
+  });
+
+  test('friends refresh preserves pending accepts and pending removals',
+      () async {
+    const request = ConnectionRequest(
+        id: 'accept-me',
+        fromUid: 'fa',
+        fromName: 'Friend A',
+        toUid: 'sync-test',
+        toName: 'Me',
+        status: 'pending');
+    await repo.acceptConnectionRequest(request);
+    remote.connections = [];
+    await sync.refreshConnections();
+    expect((await repo.watchConnections().first).single.uid, 'fa');
+    await repo.removeConnection('fa');
+    remote.connections = [friendA];
+    await sync.refreshConnections();
+    expect(await repo.watchConnections().first, isEmpty);
+  });
+
   test('failed writes preserve FIFO order and retry on the next sync',
       () async {
     await enqueueCurrency('first');
@@ -139,6 +240,35 @@ void main() {
     expect(sync.current.pending, 1);
     expect(remote.writes, isEmpty);
     expect(remote.pulls, 0);
+  });
+
+  test('a cancelled group invitation is removed when access is withdrawn',
+      () async {
+    const invitation = BillGroup(
+        id: 'cancelled',
+        name: 'Trip',
+        createdBy: 'owner',
+        members: ['owner'],
+        invited: ['sync-test']);
+    await repo.applyRemoteGroup(invitation);
+    remote.invitationForbidden = true;
+    await sync.refreshGroupInvitation(invitation.id);
+    expect(await repo.groupById(invitation.id), isNull);
+    expect(await repo.watchGroupInvites().first, isEmpty);
+  });
+
+  test(
+      'an invitation refresh fetches the inviter profile for older invitations',
+      () async {
+    remote.invitationGroup = const BillGroup(
+        id: 'legacy-invite',
+        name: 'Trip',
+        createdBy: 'fa',
+        members: ['fa'],
+        invited: ['sync-test']);
+    remote.profiles = [friendA];
+    await sync.refreshGroupInvitation('legacy-invite');
+    expect((await repo.getCachedUser('fa'))!.email, friendA.email);
   });
 
   test('concurrent callers wait for the active sync to complete', () async {

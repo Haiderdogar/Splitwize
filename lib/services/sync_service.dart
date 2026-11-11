@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../data/app_repository.dart';
 import '../models/models.dart';
@@ -70,6 +71,7 @@ class SyncService {
   final _state = StreamController<SyncState>.broadcast();
   SyncState _current = const SyncState();
   Future<void>? _activeSync;
+  Future<void>? _connectionRefresh;
   bool _queued = false;
   bool _disposed = false;
   StreamSubscription? _connectivitySub;
@@ -79,6 +81,92 @@ class SyncService {
   SyncState get current => _current;
 
   String get myUid => repository.myUid;
+
+  /// Friends can refresh even when another collection or outbox write fails.
+  Future<void> refreshConnections() {
+    if (_disposed) return Future.value();
+    return _connectionRefresh ??= _refreshConnections().whenComplete(() {
+      _connectionRefresh = null;
+    });
+  }
+
+  Future<void> _refreshConnections() async {
+    final mirrors = await remote.fetchConnectionMirrors(myUid);
+    if (_disposed) return;
+    final profiles = <String, AppUser>{};
+    final missing = <String>[];
+    for (final mirror in mirrors) {
+      final cached = await repository.getCachedUser(mirror.uid);
+      if (cached != null) profiles[mirror.uid] = cached;
+      if (mirror.email.isEmpty && (cached?.email.isEmpty ?? true)) {
+        missing.add(mirror.uid);
+      }
+    }
+    for (var offset = 0; offset < missing.length; offset += 50) {
+      try {
+        final users =
+            await remote.fetchUsers(missing.skip(offset).take(50).toList());
+        if (_disposed) return;
+        for (final user in users) {
+          profiles[user.uid] = user;
+        }
+      } catch (_) {/* Keep cached names available when profile lookup fails. */}
+    }
+    await repository.applyRemoteConnections([
+      for (final mirror in mirrors)
+        mirror.copyWith(
+          displayName: profiles[mirror.uid]?.displayName ?? mirror.displayName,
+          email: mirror.email.isNotEmpty
+              ? mirror.email
+              : profiles[mirror.uid]?.email,
+          photoUrl: profiles[mirror.uid]?.photoUrl,
+        ),
+    ]);
+    if (!_disposed) repository.notifyChanged();
+  }
+
+  Future<void> refreshGroupInvitation(String groupId) async {
+    if (_disposed) return;
+    BillGroup? group;
+    try {
+      group = await remote.getGroup(groupId);
+    } on FirebaseException catch (error) {
+      if (_disposed) return;
+      final cached = await repository.groupById(groupId);
+      if (error.code != 'permission-denied' ||
+          cached?.members.contains(myUid) == true) {
+        rethrow;
+      }
+      await repository.db.deleteGroup(groupId);
+      repository.notifyChanged();
+      return;
+    }
+    if (_disposed) return;
+    if (group == null) {
+      await repository.db.deleteGroup(groupId);
+    } else {
+      await repository.applyRemoteGroup(group);
+      final profileUids = {
+        group.createdBy,
+        ...group.invitations.values.map((invitation) => invitation.from.uid)
+      };
+      final missing = <String>[];
+      for (final uid in profileUids.where((uid) => uid.isNotEmpty)) {
+        final cached = await repository.getCachedUser(uid);
+        if (cached == null || cached.email.isEmpty) missing.add(uid);
+      }
+      if (missing.isNotEmpty) {
+        try {
+          final profiles = await remote.fetchUsers(missing);
+          if (_disposed) return;
+          for (final user in profiles) {
+            await repository.db.upsertUser(user.uid, user.toProfileMap());
+          }
+        } catch (_) {/* The invitation snapshot remains available offline. */}
+      }
+    }
+    if (!_disposed) repository.notifyChanged();
+  }
 
   void _emit(SyncState s) {
     if (_disposed) return;
@@ -228,9 +316,17 @@ class SyncService {
         await remote.inviteToGroup(
           p['groupId'] as String,
           List<String>.from(p['uids'] as List),
+          invitations: {
+            for (final entry in (p['invitations'] as Map? ?? {}).entries)
+              entry.key.toString(): GroupInvitation.fromMap(
+                  Map<String, dynamic>.from(entry.value as Map)),
+          },
         );
       case 'group.accept':
         await remote.acceptGroupInvite(
+            p['groupId'] as String, p['uid'] as String);
+      case 'group.cancelInvite':
+        await remote.cancelGroupInvite(
             p['groupId'] as String, p['uid'] as String);
       case 'group.currency':
         await remote.setGroupCurrency(
@@ -245,8 +341,10 @@ class SyncService {
           id: p['requestId'] as String,
           fromUid: p['fromUid'] as String,
           fromName: p['fromName'] as String,
+          fromEmail: p['fromEmail'] as String? ?? '',
           toUid: p['toUid'] as String,
           toName: p['toName'] as String,
+          toEmail: p['toEmail'] as String? ?? '',
           status: 'pending',
         ));
       case 'conn.decline':
@@ -335,12 +433,12 @@ class SyncService {
       from: AppUser(
         uid: p['fromUid'] as String,
         displayName: p['fromName'] as String,
-        email: '',
+        email: p['fromEmail'] as String? ?? '',
       ),
       to: AppUser(
         uid: p['toUid'] as String,
         displayName: p['toName'] as String,
-        email: '',
+        email: p['toEmail'] as String? ?? '',
       ),
     );
     // Remember which remote request backs this local one, so a later
@@ -429,6 +527,10 @@ class SyncService {
         await repository.applyRemoteGroup(g);
       }
       await advanceCursor('cursor_groups', cur, groups.map((g) => g.updatedAt));
+      final seen = groups.map((group) => group.id).toSet();
+      for (final cached in await repository.watchGroupInvites().first) {
+        if (!seen.contains(cached.id)) await refreshGroupInvitation(cached.id);
+      }
     }
 
     // Notifications ----------------------------------------------------
@@ -459,9 +561,8 @@ class SyncService {
 
     // Connections (full refresh — mirror docs are tiny) ---------------
     {
-      final mirrors = await remote.fetchConnectionMirrors(myUid);
+      await refreshConnections();
       if (_disposed) return;
-      await repository.applyRemoteConnections(mirrors);
       // Resolve display names for anyone referenced by bills/groups who
       // we haven't cached a real profile for — best effort.
     }
@@ -476,8 +577,23 @@ class SyncService {
         uids.addAll(ids.cast<String>());
       }
       final missing = <String>[];
+      for (final direction in ['in', 'out']) {
+        for (final request in await repository.db.requestRows(direction)) {
+          uids.addAll(
+              [request['fromUid'] as String, request['toUid'] as String]);
+        }
+      }
+      for (final row in await repository.db.groupsFor(myUid)) {
+        final group = BillGroup.fromMap(row['__id'] as String, row);
+        uids.add(group.createdBy);
+        uids.addAll(group.members);
+        uids.addAll(group.invited);
+        uids.addAll(group.invitations.values.map((invite) => invite.from.uid));
+      }
       for (final uid in uids) {
-        if (await repository.db.userRow(uid) == null) missing.add(uid);
+        if (uid.isEmpty) continue;
+        final cached = await repository.getCachedUser(uid);
+        if (cached == null || cached.email.isEmpty) missing.add(uid);
       }
       if (missing.isNotEmpty) {
         try {

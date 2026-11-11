@@ -10,6 +10,7 @@ import '../utils/debt_simplifier.dart';
 import '../utils/current_user_identity.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
+import '../widgets/group_invitation_card.dart';
 import 'bill_detail_screen.dart';
 import 'create_bill_screen.dart';
 import 'bills_tab.dart' show currencyLabel, formatMoney;
@@ -84,9 +85,24 @@ class GroupDetailScreen extends StatelessWidget {
                 ref.invalidate(groupProvider(groupId));
               },
             ),
-            data: (group) => group == null
-                ? const Center(child: Text('Group not found.'))
-                : _GroupBody(group: group),
+            data: (group) {
+              if (group == null || group.deleted) {
+                return const Center(child: Text('Group not found.'));
+              }
+              final uid = ref.watch(currentUidProvider) ?? '';
+              if (!group.members.contains(uid)) {
+                if (!group.invited.contains(uid)) {
+                  return const Center(
+                      child: Text('Join this group to view its details.'));
+                }
+                return ListView(padding: const EdgeInsets.all(16), children: [
+                  const Text('Incoming group invitation'),
+                  const SizedBox(height: 12),
+                  GroupInvitationCard(group: group, recipientUid: uid),
+                ]);
+              }
+              return _GroupBody(group: group);
+            },
           );
         },
       ),
@@ -114,14 +130,16 @@ class _GroupBody extends StatelessWidget {
                 PageIntroduction(
                   eyebrow: 'SHARED GROUP',
                   title: group.name,
-                  description: '${group.members.length} ${group.members.length == 1 ? 'member' : 'members'} · ${group.currency}',
+                  description:
+                      '${group.members.length} ${group.members.length == 1 ? 'member' : 'members'} · ${group.currency}',
                 ),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: FilledButton.icon(
                     onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) =>
-                        CreateBillScreen(initialGroupId: group.id))),
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                CreateBillScreen(initialGroupId: group.id))),
                     icon: const Icon(Icons.add_rounded),
                     label: const Text('Add expense to group'),
                   ),
@@ -154,54 +172,52 @@ class _GroupBody extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
           sliver: SliverToBoxAdapter(
             child: Column(children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Members (${group.members.length})',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Members (${group.members.length})',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
-                    // Invite button needs connection state.
-                    Consumer(
-                      builder: (context, ref, _) {
-                        final conns =
-                            ref.watch(connectionsProvider).value ?? [];
-                        final myUid = ref.watch(currentUidProvider) ?? '';
-                        final candidates = conns
-                            .where((c) =>
-                                !group.members.contains(c.uid) &&
-                                !group.invited.contains(c.uid))
-                            .toList();
-                        return TextButton.icon(
-                          onPressed: candidates.isEmpty
-                              ? () =>
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text(
-                                            'No more connected friends to invite.')),
-                                  )
-                              : () => showDialog(
-                                    context: context,
-                                    builder: (_) => _InviteDialog(
-                                      group: group,
-                                      candidates: candidates,
-                                      myUid: myUid,
-                                    ),
+                  ),
+                  // Invite button needs connection state.
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final conns = ref.watch(connectionsProvider).value ?? [];
+                      final myUid = ref.watch(currentUidProvider) ?? '';
+                      final candidates = conns
+                          .where((c) =>
+                              !group.members.contains(c.uid) &&
+                              !group.invited.contains(c.uid))
+                          .toList();
+                      return TextButton.icon(
+                        onPressed: candidates.isEmpty
+                            ? () => ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text(
+                                          'No more connected friends to invite.')),
+                                )
+                            : () => showDialog(
+                                  context: context,
+                                  builder: (_) => _InviteDialog(
+                                    group: group,
+                                    candidates: candidates,
+                                    myUid: myUid,
                                   ),
-                          icon: const Icon(Icons.person_add),
-                          label: const Text('Invite'),
-                        );
-                      },
-                    ),
-                  ],
-                ),
+                                ),
+                        icon: const Icon(Icons.person_add),
+                        label: const Text('Invite'),
+                      );
+                    },
+                  ),
+                ],
+              ),
             ]),
           ),
         ),
@@ -235,13 +251,13 @@ class _GroupBody extends StatelessWidget {
                   itemBuilder: (itemContext, i) {
                     final m = members[i];
                     return ListTile(
-                      leading: CircleAvatar(child: Text(m.uid == myUid
-                          ? identity.initials : m.initials)),
+                      leading: CircleAvatar(
+                          child: Text(
+                              m.uid == myUid ? identity.initials : m.initials)),
                       title: Text(m.uid == myUid
                           ? '${identity.name} (you)'
                           : m.displayName),
-                      subtitle: Text(m.uid == myUid
-                          ? identity.email : m.email),
+                      subtitle: Text(m.uid == myUid ? identity.email : m.email),
                     );
                   },
                 ),
@@ -266,10 +282,12 @@ class _GroupBody extends StatelessWidget {
         ],
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          sliver: SliverToBoxAdapter(child: Column(
+          sliver: SliverToBoxAdapter(
+              child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Group settings', style: Theme.of(context).textTheme.titleMedium),
+              Text('Group settings',
+                  style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
               _GroupCurrencyTile(group: group),
             ],
@@ -653,8 +671,8 @@ String _initialsOf(String name) {
   return (parts.first[0] + parts.last[0]).toUpperCase();
 }
 
-String _named(String uid, String name, String myUid,
-        CurrentUserIdentity identity) =>
+String _named(
+        String uid, String name, String myUid, CurrentUserIdentity identity) =>
     uid == myUid ? '${identity.name} (you)' : name;
 
 /// "Settles 3 shares across 2 bills" for a plan entry.
@@ -691,11 +709,17 @@ class _TransferTile extends StatelessWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(child: Text(t.fromUid == myUid ? myIdentity.initials : _initialsOf(t.fromName))),
+                CircleAvatar(
+                    child: Text(t.fromUid == myUid
+                        ? myIdentity.initials
+                        : _initialsOf(t.fromName))),
                 const SizedBox(width: 8),
                 const Icon(Icons.arrow_forward, size: 18),
                 const SizedBox(width: 8),
-                CircleAvatar(child: Text(t.toUid == myUid ? myIdentity.initials : _initialsOf(t.toName))),
+                CircleAvatar(
+                    child: Text(t.toUid == myUid
+                        ? myIdentity.initials
+                        : _initialsOf(t.toName))),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -789,11 +813,17 @@ class _NettingTile extends StatelessWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(child: Text(n.aUid == myUid ? myIdentity.initials : _initialsOf(n.aName))),
+                CircleAvatar(
+                    child: Text(n.aUid == myUid
+                        ? myIdentity.initials
+                        : _initialsOf(n.aName))),
                 const SizedBox(width: 8),
                 const Icon(Icons.swap_horiz, size: 18),
                 const SizedBox(width: 8),
-                CircleAvatar(child: Text(n.bUid == myUid ? myIdentity.initials : _initialsOf(n.bName))),
+                CircleAvatar(
+                    child: Text(n.bUid == myUid
+                        ? myIdentity.initials
+                        : _initialsOf(n.bName))),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -933,11 +963,14 @@ class _InviteDialog extends StatelessWidget {
                         final repo =
                             await ref.read(appRepositoryProvider.future);
                         await repo.inviteToGroup(group.id, selected.toList());
+                        final inviter = await repo.getUser(repo.myUid);
                         for (final uid in selected) {
                           await repo.sendNotification(
                             toUid: uid,
                             title: 'Group invite',
-                            body: 'You were invited to join "${group.name}".',
+                            body: '${inviter?.displayName ?? 'A group member'} '
+                                '${inviter?.email.isNotEmpty == true ? '(${inviter!.email}) ' : ''}'
+                                'invited you to join "${group.name}".',
                             type: 'group_invite',
                             groupId: group.id,
                           );

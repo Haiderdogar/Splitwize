@@ -1,253 +1,154 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
+import '../providers/invitation_providers.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_notification_button.dart';
+import '../widgets/friend_request_card.dart';
+import '../widgets/group_invitation_card.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
+import 'group_detail_screen.dart';
 
-/// Dedicated action center for group invites and friend requests.
-/// Outgoing requests do not count as pending actions.
-class RequestsTab extends StatelessWidget {
-  const RequestsTab({super.key});
-
+class RequestsTab extends ConsumerWidget {
+  const RequestsTab({super.key, this.initialIndex = 0});
+  final int initialIndex;
   @override
-  Widget build(BuildContext context) => DefaultTabController(
-    length: 3,
-    child: Scaffold(
-      appBar: AppBar(
-        leading: const SplitwizeMenuButton(),
-        title: const Text('Requests & Invitations',
-            maxLines: 1, overflow: TextOverflow.ellipsis),
-        actions: const [AppNotificationButton(), SizedBox(width: 5)],
-        bottom: const TabBar(
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          tabs: [
-            Tab(text: 'Group invites'),
-            Tab(text: 'Incoming'),
-            Tab(text: 'Outgoing'),
-          ],
-        ),
-      ),
-      body: const TabBarView(children: [
-        _GroupInvitesList(),
-        _IncomingList(),
-        _OutgoingList(),
-      ]),
-    ),
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groupIncoming = ref.watch(groupInvitesProvider).value?.length ?? 0;
+    final groupOutgoing =
+        ref.watch(outgoingGroupInvitesProvider).value?.length ?? 0;
+    final incoming = ref.watch(incomingRequestsProvider).value?.length ?? 0;
+    final outgoing = ref.watch(outgoingRequestsProvider).value?.length ?? 0;
+    return DefaultTabController(
+        length: 4,
+        initialIndex: initialIndex,
+        child: Scaffold(
+          appBar: AppBar(
+            leading: const SplitwizeMenuButton(),
+            title: const Text('Requests & Invitations',
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+            actions: const [AppNotificationButton(), SizedBox(width: 5)],
+            bottom: TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                tabs: [
+                  Tab(text: 'Group incoming ($groupIncoming)'),
+                  Tab(text: 'Group outgoing ($groupOutgoing)'),
+                  Tab(text: 'Incoming ($incoming)'),
+                  Tab(text: 'Outgoing ($outgoing)'),
+                ]),
+          ),
+          body: const TabBarView(children: [
+            _GroupRequests(incoming: true),
+            _GroupRequests(incoming: false),
+            _FriendRequests(incoming: true),
+            _FriendRequests(incoming: false),
+          ]),
+        ));
+  }
 }
 
 class _EmptyRequests extends StatelessWidget {
-  const _EmptyRequests(this.icon, this.title, this.message);
-  final IconData icon;
+  const _EmptyRequests(this.title, this.message);
   final String title;
   final String message;
-
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.all(16),
-    children: [InlineEmpty(icon: icon, title: title, message: message)],
-  );
+  Widget build(BuildContext context) =>
+      ListView(padding: const EdgeInsets.all(16), children: [
+        InlineEmpty(icon: Icons.inbox_outlined, title: title, message: message)
+      ]);
 }
 
-class _GroupInvitesList extends ConsumerWidget {
-  const _GroupInvitesList();
-
+class _GroupRequests extends ConsumerWidget {
+  const _GroupRequests({required this.incoming});
+  final bool incoming;
   @override
-  Widget build(BuildContext context, WidgetRef ref) =>
-      ref.watch(groupInvitesProvider).when(
-        loading: () => const ShimmerList(count: 2),
-        error: (e, _) => LoadError(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final uid = ref.watch(currentUidProvider) ?? '';
+    final AsyncValue<List<OutgoingGroupInvitation>> invitations = incoming
+        ? ref.watch(groupInvitesProvider).whenData((groups) => [
+              for (final group in groups) (group: group, recipientUid: uid),
+            ])
+        : ref.watch(outgoingGroupInvitesProvider);
+    return invitations.when(
+      loading: () => const ShimmerList(count: 2),
+      error: (error, stack) => LoadError(
           message: 'Could not load group invitations.',
           onRetry: () {
             ref.invalidate(appRepositoryProvider);
             ref.invalidate(groupInvitesProvider);
-          },
-        ),
-        data: (invites) => invites.isEmpty
-            ? const _EmptyRequests(Icons.group_add_outlined,
-                'No group invitations', 'New group invitations will appear here.')
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-                itemCount: invites.length,
-                itemBuilder: (context, i) {
-                  final group = invites[i];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 9),
-                    child: SoftPanel(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          const PersonMark(initials: '',
-                              icon: Icons.mark_email_unread_outlined),
-                          const SizedBox(width: 12),
-                          Expanded(child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(group.name, maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.titleMedium),
-                              const Text('You are invited to join this group.'),
-                            ],
-                          )),
-                        ]),
-                        const SizedBox(height: 11),
-                        Wrap(spacing: 9, runSpacing: 7, children: [
-                          TextButton(
-                            onPressed: () => runGuarded(
-                              context,
-                              () async => (await ref.read(appRepositoryProvider.future))
-                                  .declineGroupInvite(group.id),
-                              errorLabel: 'Could not decline invitation',
-                            ),
-                            child: const Text('Decline'),
-                          ),
-                          FilledButton(
-                            onPressed: () => runGuarded(
-                              context,
-                              () async => (await ref.read(appRepositoryProvider.future))
-                                  .acceptGroupInvite(group.id),
-                              errorLabel: 'Could not join group',
-                            ),
-                            child: const Text('Join group'),
-                          ),
-                        ]),
-                      ],
-                    )),
-                  );
-                },
-              ),
-      );
+            ref.invalidate(myGroupsProvider);
+          }),
+      data: (items) => items.isEmpty
+          ? _EmptyRequests(
+              incoming
+                  ? 'No incoming group invitations'
+                  : 'No outgoing group invitations',
+              incoming
+                  ? 'New group invitations will appear here.'
+                  : 'Invitations you send will appear here.')
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: items.length,
+              itemBuilder: (itemContext, index) {
+                final item = items[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: GroupInvitationCard(
+                      group: item.group,
+                      recipientUid: item.recipientUid,
+                      incoming: incoming,
+                      onAccepted: incoming
+                          ? () async {
+                              final repo =
+                                  await ref.read(appRepositoryProvider.future);
+                              await repo
+                                  .acceptGroupInviteConfirmed(item.group.id);
+                              if (context.mounted) {
+                                Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => GroupDetailScreen(
+                                        groupId: item.group.id)));
+                              }
+                            }
+                          : null),
+                );
+              }),
+    );
+  }
 }
 
-class _IncomingList extends ConsumerWidget {
-  const _IncomingList();
-
+class _FriendRequests extends ConsumerWidget {
+  const _FriendRequests({required this.incoming});
+  final bool incoming;
   @override
-  Widget build(BuildContext context, WidgetRef ref) =>
-      ref.watch(incomingRequestsProvider).when(
-        loading: () => const ShimmerList(count: 2),
-        error: (e, _) => LoadError(
-          message: 'Could not load incoming requests.',
+  Widget build(BuildContext context, WidgetRef ref) {
+    final requests = incoming
+        ? ref.watch(incomingRequestsProvider)
+        : ref.watch(outgoingRequestsProvider);
+    return requests.when(
+      loading: () => const ShimmerList(count: 2),
+      error: (error, stack) => LoadError(
+          message: 'Could not load friend requests.',
           onRetry: () {
             ref.invalidate(appRepositoryProvider);
             ref.invalidate(incomingRequestsProvider);
-          },
-        ),
-        data: (requests) => requests.isEmpty
-            ? const _EmptyRequests(Icons.inbox_outlined,
-                'No incoming requests', 'New friend requests will appear here.')
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-                itemCount: requests.length,
-                itemBuilder: (context, i) {
-                  final request = requests[i];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 9),
-                    child: Card(
-                      color: Theme.of(context).colorScheme.secondaryContainer,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(children: [
-                              PersonMark(initials: request.fromName.isEmpty
-                                  ? '?' : request.fromName[0].toUpperCase()),
-                              const SizedBox(width: 12),
-                              Expanded(child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(request.fromName,
-                                      style: Theme.of(context).textTheme.titleMedium),
-                                  const Text('wants to connect with you'),
-                                ],
-                              )),
-                            ]),
-                            const SizedBox(height: 6),
-                            Wrap(spacing: 8, runSpacing: 5, children: [
-                              TextButton(
-                                onPressed: () => runGuarded(
-                                  context,
-                                  () async => (await ref.read(appRepositoryProvider.future))
-                                      .declineConnectionRequest(request.id),
-                                  errorLabel: 'Could not decline request',
-                                ),
-                                child: const Text('Decline'),
-                              ),
-                              FilledButton(
-                                onPressed: () => runGuarded(
-                                  context,
-                                  () async => (await ref.read(appRepositoryProvider.future))
-                                      .acceptConnectionRequest(request),
-                                  errorLabel: 'Could not accept request',
-                                ),
-                                child: const Text('Accept'),
-                              ),
-                            ]),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-      );
-}
-
-class _OutgoingList extends ConsumerWidget {
-  const _OutgoingList();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) =>
-      ref.watch(outgoingRequestsProvider).when(
-        loading: () => const ShimmerList(count: 2),
-        error: (e, _) => LoadError(
-          message: 'Could not load outgoing requests.',
-          onRetry: () {
-            ref.invalidate(appRepositoryProvider);
             ref.invalidate(outgoingRequestsProvider);
-          },
-        ),
-        data: (requests) => requests.isEmpty
-            ? const _EmptyRequests(Icons.send_outlined,
-                'No outgoing requests', 'Sent friend requests will appear here.')
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-                itemCount: requests.length,
-                itemBuilder: (context, i) {
-                  final request = requests[i];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 9),
-                    child: Card(child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      leading: CircleAvatar(
-                        radius: 24,
-                        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                        foregroundColor: Theme.of(context).colorScheme.primary,
-                        child: Text(request.toName.isEmpty
-                            ? '?' : request.toName[0].toUpperCase()),
-                      ),
-                      title: Text(request.toName,
-                          style: Theme.of(context).textTheme.titleMedium),
-                      subtitle: const Text('Waiting for response'),
-                      trailing: TextButton(
-                        onPressed: () => runGuarded(
-                          context,
-                          () async => (await ref.read(appRepositoryProvider.future))
-                              .cancelConnectionRequest(request.id),
-                          errorLabel: 'Could not cancel request',
-                        ),
-                        child: const Text('Cancel'),
-                      ),
-                    )),
-                  );
-                },
-              ),
-      );
+          }),
+      data: (items) => items.isEmpty
+          ? _EmptyRequests(
+              incoming ? 'No incoming requests' : 'No outgoing requests',
+              incoming
+                  ? 'New friend requests will appear here.'
+                  : 'Sent friend requests will appear here.')
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: items.length,
+              itemBuilder: (_, index) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: FriendRequestCard(
+                      request: items[index], incoming: incoming))),
+    );
+  }
 }

@@ -224,12 +224,16 @@ Future<void> initSync(Ref ref) async {
     final session = await ref.read(secureStorageServiceProvider).loadSession();
     if (session != null &&
         session.uid == uid &&
-        (me.displayName.trim().isEmpty ||
+        !me.nameIsCustom &&
+        (session.nameIsCustom ||
+            me.displayName.trim().isEmpty ||
             me.displayName.trim().toLowerCase() == 'friend') &&
         session.displayName.trim().isNotEmpty &&
-        session.displayName.trim().toLowerCase() != 'friend') {
+        (session.nameIsCustom ||
+            session.displayName.trim().toLowerCase() != 'friend')) {
       me = me.copyWith(
         displayName: session.displayName.trim(),
+        nameIsCustom: session.nameIsCustom,
         email: session.email.isNotEmpty ? session.email : me.email,
         photoUrl: session.photoUrl,
       );

@@ -6,16 +6,44 @@ import 'firestore_service.dart';
 import 'notification_service.dart';
 import 'secure_storage_service.dart';
 
+/// Combines the verified Google identity with the same account's preferences.
+/// A secure snapshot can contain a name still waiting in the local outbox, so
+/// its custom name takes priority during reauthentication on this device.
+AppUser mergeGoogleSignInProfile({
+  required AppUser authenticated,
+  AppUser? stored,
+  AppUser? session,
+}) {
+  if (stored?.uid != authenticated.uid) stored = null;
+  if (session?.uid != authenticated.uid) session = null;
+  AppUser? customName;
+  for (final candidate in [session, stored]) {
+    if (candidate != null &&
+        candidate.nameIsCustom &&
+        candidate.displayName.trim().isNotEmpty) {
+      customName = candidate;
+      break;
+    }
+  }
+  return authenticated.copyWith(
+    displayName: customName?.displayName.trim(),
+    nameIsCustom: customName != null,
+    photoUrl: authenticated.photoUrl ?? stored?.photoUrl ?? session?.photoUrl,
+    currency: stored?.currency ?? session?.currency,
+  );
+}
+
 /// Google Sign-In backed authentication.
 /// On every sign-in the user's Firestore profile is created/updated,
 /// and a snapshot is kept in secure storage so the app can open
 /// offline straight into the home screen.
 class AuthService {
-  AuthService({SecureStorageService? secure})
-      : _secure = secure ?? SecureStorageService();
+  AuthService({SecureStorageService? secure, FirestoreService? remote})
+      : _secure = secure ?? SecureStorageService(),
+        _db = remote ?? FirestoreService();
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirestoreService _db = FirestoreService();
+  final FirestoreService _db;
   final SecureStorageService _secure;
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
@@ -50,16 +78,31 @@ class AuthService {
               : email.contains('@')
                   ? email.split('@').first
                   : 'Splitwize member';
-      final profile = AppUser(
+      final authenticated = AppUser(
         uid: user.uid,
         displayName: displayName,
         email: email,
         photoUrl: googleUser.photoUrl ?? user.photoURL,
       );
-      await _db.upsertUser(profile);
-      await _secure.saveSession(profile);
+      await saveGoogleSignInProfile(authenticated);
     }
     return user;
+  }
+
+  /// Saves the authenticated identity only after reading existing preferences.
+  /// A failed lookup must stop the write: falling back to Google at that point
+  /// could replace a custom name that exists only in the remote profile.
+  Future<AppUser> saveGoogleSignInProfile(AppUser authenticated) async {
+    final session = await _secure.loadSession();
+    final stored = await _db.getUser(authenticated.uid);
+    final profile = mergeGoogleSignInProfile(
+      authenticated: authenticated,
+      stored: stored,
+      session: session,
+    );
+    await _db.upsertUser(profile);
+    await _secure.saveSession(profile);
+    return profile;
   }
 
   Future<void> signOut() async {

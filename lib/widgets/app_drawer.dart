@@ -5,6 +5,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/profile_tab.dart';
+import '../screens/settings_screen.dart';
 import '../utils/current_user_identity.dart';
 import 'logout_button.dart';
 import 'studio_ui.dart';
@@ -17,10 +18,10 @@ class SplitwizeMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => IconButton(
-    tooltip: 'Open menu',
-    onPressed: () => splitwizeScaffoldKey.currentState?.openDrawer(),
-    icon: const Icon(Icons.menu_rounded),
-  );
+        tooltip: 'Open menu',
+        onPressed: () => splitwizeScaffoldKey.currentState?.openDrawer(),
+        icon: const Icon(Icons.menu_rounded),
+      );
 }
 
 class SplitwizeDrawer extends ConsumerWidget {
@@ -40,7 +41,9 @@ class SplitwizeDrawer extends ConsumerWidget {
     final user = ref.watch(currentAppUserProvider).value;
     final google = ref.watch(authStateChangesProvider).value;
     final identity = resolveCurrentUserIdentity(
-      cached: user, googleName: google?.displayName, googleEmail: google?.email);
+        cached: user,
+        googleName: google?.displayName,
+        googleEmail: google?.email);
     final selected = ref.watch(tabIndexProvider);
     return Drawer(
       width: MediaQuery.sizeOf(context).width < 370 ? 288 : 320,
@@ -54,8 +57,9 @@ class SplitwizeDrawer extends ConsumerWidget {
               child: Row(children: [
                 const SplitwizeMark(size: 42),
                 const SizedBox(width: 12),
-                Expanded(child: Text('Splitwize',
-                  style: Theme.of(context).textTheme.titleLarge)),
+                Expanded(
+                    child: Text('Splitwize',
+                        style: Theme.of(context).textTheme.titleLarge)),
               ]),
             ),
             const SizedBox(height: 23),
@@ -67,33 +71,43 @@ class SplitwizeDrawer extends ConsumerWidget {
                 onTap: () {
                   final navigator = Navigator.of(context);
                   navigator.pop();
-                  navigator.push(MaterialPageRoute(
-                    builder: (_) => const ProfileTab()));
+                  navigator.push(
+                      MaterialPageRoute(builder: (_) => const ProfileTab()));
                 },
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Row(children: [
                     PersonMark(initials: identity.initials, size: 44),
                     const SizedBox(width: 11),
-                    Expanded(child: Column(
+                    Expanded(
+                        child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(children: [
-                          Expanded(child: Text(identity.name,
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleSmall)),
+                          Expanded(
+                              child: Text(identity.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style:
+                                      Theme.of(context).textTheme.titleSmall)),
                           const SizedBox(width: 5),
-                          Text('YOU', style: Theme.of(context)
-                              .textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: scheme.primary)),
+                          Text('YOU',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: scheme.primary)),
                         ]),
                         if (identity.email.isNotEmpty)
                           Text(identity.email,
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant)),
-                        Text('View profile & settings',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant)),
+                        Text('View profile',
                             style: Theme.of(context).textTheme.labelSmall),
                       ],
                     )),
@@ -105,10 +119,11 @@ class SplitwizeDrawer extends ConsumerWidget {
             const SizedBox(height: 25),
             Padding(
               padding: const EdgeInsets.only(left: 12, bottom: 7),
-              child: Text('WORKSPACE', style:
-                Theme.of(context).textTheme.labelSmall?.copyWith(
-                  letterSpacing: 1.1, fontWeight: FontWeight.w800,
-                  color: scheme.onSurfaceVariant)),
+              child: Text('WORKSPACE',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      letterSpacing: 1.1,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurfaceVariant)),
             ),
             for (var i = 0; i < _items.length; i++)
               Padding(
@@ -118,10 +133,10 @@ class SplitwizeDrawer extends ConsumerWidget {
                   selectedTileColor: scheme.primaryContainer,
                   selectedColor: scheme.onPrimaryContainer,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                      borderRadius: BorderRadius.circular(14)),
                   leading: Icon(_items[i].icon),
                   title: Text(_items[i].name,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
                   onTap: () {
                     ref.read(tabIndexProvider.notifier).set(i);
                     Navigator.of(context).pop();
@@ -136,11 +151,23 @@ class SplitwizeDrawer extends ConsumerWidget {
               leading: const Icon(Icons.notifications_none_rounded),
               title: const Text('Notifications'),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(14)),
               onTap: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const NotificationsScreen()));
+                    builder: (_) => const NotificationsScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: const Text('Settings'),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+              onTap: () {
+                final navigator = Navigator.of(context);
+                navigator.pop();
+                navigator.push(
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()));
               },
             ),
             const LogoutButton(),
@@ -148,8 +175,10 @@ class SplitwizeDrawer extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text('Simple splits. Clear balances.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant)),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant)),
             ),
           ],
         ),

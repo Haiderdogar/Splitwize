@@ -1,19 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
-import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
-import '../theme.dart';
-import '../utils/current_user_identity.dart';
-import '../utils/money.dart' show formatMoney;
 import '../widgets/ad_banner.dart';
+import '../widgets/bill_list_tile.dart';
 import '../widgets/app_drawer.dart';
-import '../widgets/money_text.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
-import 'bill_detail_screen.dart';
 import 'create_bill_screen.dart';
 import '../widgets/app_notification_button.dart';
 
@@ -33,8 +27,8 @@ class BillsTab extends ConsumerStatefulWidget {
 class _BillsTabState extends ConsumerState<BillsTab> {
   _ExpenseFilter _filter = _ExpenseFilter.all;
 
-  void _addExpense() => Navigator.of(context).push(
-    MaterialPageRoute(builder: (_) => const CreateBillScreen()));
+  void _addExpense() => Navigator.of(context)
+      .push(MaterialPageRoute(builder: (_) => const CreateBillScreen()));
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +58,8 @@ class _BillsTabState extends ConsumerState<BillsTab> {
               },
             ),
             data: (bills) {
+              final settledCount =
+                  bills.where((bill) => bill.fullySettled).length;
               final visible = switch (_filter) {
                 _ExpenseFilter.all => bills,
                 _ExpenseFilter.open =>
@@ -78,6 +74,7 @@ class _BillsTabState extends ConsumerState<BillsTab> {
                   if (i == 0) {
                     return _HomeOverview(
                       billCount: bills.length,
+                      settledCount: settledCount,
                       visibleCount: visible.length,
                       filter: _filter,
                       onFilter: (v) => setState(() => _filter = v),
@@ -86,7 +83,7 @@ class _BillsTabState extends ConsumerState<BillsTab> {
                   }
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: _ExpenseRow(bill: visible[i - 1], uid: uid),
+                    child: BillListTile(bill: visible[i - 1], uid: uid),
                   );
                 },
               );
@@ -109,6 +106,7 @@ class _BillsTabState extends ConsumerState<BillsTab> {
 class _HomeOverview extends StatelessWidget {
   const _HomeOverview({
     required this.billCount,
+    required this.settledCount,
     required this.visibleCount,
     required this.filter,
     required this.onFilter,
@@ -116,6 +114,7 @@ class _HomeOverview extends StatelessWidget {
   });
 
   final int billCount;
+  final int settledCount;
   final int visibleCount;
   final _ExpenseFilter filter;
   final ValueChanged<_ExpenseFilter> onFilter;
@@ -125,7 +124,9 @@ class _HomeOverview extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       SectionHeading('Expenses',
-        subtitle: billCount == 0 ? 'Your bills will appear here.' : '$billCount recorded'),
+          subtitle: billCount == 0
+              ? 'Your bills will appear here.'
+              : '$billCount recorded'),
       Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: SingleChildScrollView(
@@ -136,9 +137,10 @@ class _HomeOverview extends StatelessWidget {
                 padding: const EdgeInsets.only(right: 7),
                 child: ChoiceChip(
                   label: Text(switch (option) {
-                    _ExpenseFilter.all => 'All',
-                    _ExpenseFilter.open => 'Unsettled',
-                    _ExpenseFilter.settled => 'Settled',
+                    _ExpenseFilter.all => 'All ($billCount)',
+                    _ExpenseFilter.open =>
+                      'Unsettled (${billCount - settledCount})',
+                    _ExpenseFilter.settled => 'Settled ($settledCount)',
                   }),
                   selected: filter == option,
                   onSelected: (_) => onFilter(option),
@@ -165,101 +167,5 @@ class _HomeOverview extends StatelessWidget {
           message: 'Try another expense filter to see your bills.',
         ),
     ]);
-  }
-}
-
-class _ExpenseRow extends ConsumerWidget {
-  const _ExpenseRow({required this.bill, required this.uid});
-  final Bill bill;
-  final String uid;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
-    final isOwner = bill.createdBy == uid;
-    final google = ref.watch(authStateChangesProvider).value;
-    final identity = resolveCurrentUserIdentity(
-      cached: ref.watch(currentAppUserProvider).value,
-      googleName: google?.displayName,
-      googleEmail: google?.email,
-    );
-    final payerIds = bill.merchantPayments.entries
-        .where((payment) => payment.value > 0.005)
-        .map((payment) => payment.key).toList();
-    String personName(String payerUid) {
-      if (payerUid == uid) return '${identity.name} (you)';
-      for (final split in bill.splits) {
-        if (split.uid == payerUid) return split.displayName;
-      }
-      return 'A participant';
-    }
-    final paidBy = !bill.hasPaymentLedger
-        ? 'Recorded by ${isOwner ? "${identity.name} (you)" : bill.createdByName}'
-        : payerIds.length == 1
-            ? 'Paid by ${personName(payerIds.single)}'
-            : 'Paid by ${payerIds.length} people';
-    final detail = bill.groupName ?? 'Personal expense';
-    return Material(
-      color: scheme.surfaceContainerLowest,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: scheme.outlineVariant)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => BillDetailScreen(billId: bill.id))),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
-          child: Row(children: [
-            const PersonMark(initials: '',
-              icon: Icons.receipt_long_outlined, size: 46),
-            const SizedBox(width: 11),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(bill.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 3),
-                Text('$detail · $paidBy', maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant)),
-                if (isOwner && bill.groupName == null && identity.email.isNotEmpty)
-                  Text(identity.email, maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(height: 6),
-                Text(bill.fullySettled ? 'Settled' :
-                  '${formatMoney(bill.outstanding, bill.currency)} remaining to settle',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: bill.fullySettled ? scheme.owed :
-                      scheme.onSurfaceVariant)),
-              ],
-            )),
-            const SizedBox(width: 8),
-            SizedBox(width: 94, child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                FittedBox(fit: BoxFit.scaleDown,
-                  child: MoneyText(bill.total, currencyCode: bill.currency,
-                    style: Theme.of(context).textTheme.titleMedium)),
-                const SizedBox(height: 4),
-                Text('Total bill',
-                  textAlign: TextAlign.end,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant)),
-                if (bill.participantIds.contains(uid))
-                  Text('Your share: ${formatMoney(bill.myShare(uid), bill.currency)}',
-                    textAlign: TextAlign.end, maxLines: 2,
-                    style: Theme.of(context).textTheme.labelSmall),
-                if (bill.createdAt != null)
-                  Text(DateFormat.MMMd().format(bill.createdAt!),
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant)),
-              ],
-            )),
-          ]),
-        ),
-      ),
-    );
   }
 }

@@ -1,7 +1,7 @@
 import '../models/models.dart';
 
-/// Resolves the signed-in user's display identity, ignoring the old
-/// placeholder "Friend" when a real Google name or email is available.
+/// Resolves the signed-in user's display identity. Deliberately edited names
+/// win; legacy placeholders fall back to the Google profile or email.
 class CurrentUserIdentity {
   const CurrentUserIdentity({required this.name, required this.email});
 
@@ -33,12 +33,14 @@ CurrentUserIdentity resolveCurrentUserIdentity({
 
   final authenticated = googleName?.trim() ?? '';
   final saved = cached?.displayName.trim() ?? '';
-  final name = usable(authenticated)
-      ? authenticated
-      : usable(saved)
-          ? saved
-          : email.contains('@')
-              ? email.split('@').first
-              : 'Your account';
+  final name = cached?.nameIsCustom == true && saved.isNotEmpty
+      ? saved
+      : usable(authenticated)
+          ? authenticated
+          : usable(saved)
+              ? saved
+              : email.contains('@')
+                  ? email.split('@').first
+                  : 'Your account';
   return CurrentUserIdentity(name: name, email: email);
 }

@@ -30,11 +30,13 @@ import 'package:splitwize/screens/create_group_screen.dart';
 import 'package:splitwize/screens/friends_tab.dart';
 import 'package:splitwize/screens/groups_tab.dart';
 import 'package:splitwize/screens/profile_tab.dart';
+import 'package:splitwize/screens/settings_screen.dart';
 import 'package:splitwize/services/firestore_service.dart';
 import 'package:splitwize/services/secure_storage_service.dart';
 import 'package:splitwize/services/sync_service.dart';
 
 import 'test_harness.dart';
+import 'fake_sync_service.dart';
 
 /// Polls until [condition] holds (or times out and fails).
 Future<void> waitFor(bool Function() condition) async {
@@ -334,14 +336,14 @@ void main() {
           overrides: [
             currentUidProvider.overrideWith((ref) => 'me'),
             myGroupsProvider.overrideWith((ref) => Stream.value([
-              const BillGroup(
-                id: 'g1',
-                name: 'Team trip',
-                createdBy: 'me',
-                members: ['me', 'fa', 'fb'],
-                invited: [],
-              ),
-            ])),
+                  const BillGroup(
+                    id: 'g1',
+                    name: 'Team trip',
+                    createdBy: 'me',
+                    members: ['me', 'fa', 'fb'],
+                    invited: [],
+                  ),
+                ])),
             currentAppUserProvider.overrideWith((ref) => Stream.value(meUser)),
             createBillMembersProvider
                 .overrideWith((ref) async => [meUser, friendA, friendB]),
@@ -412,8 +414,8 @@ void main() {
         overrides: [
           currentUidProvider.overrideWith((ref) => 'me'),
           currentAppUserProvider.overrideWith((ref) => Stream.value(meUser)),
-          connectionsProvider.overrideWith(
-              (ref) => Stream.value([friendA, friendB])),
+          connectionsProvider
+              .overrideWith((ref) => Stream.value([friendA, friendB])),
         ],
         child: const MaterialApp(home: CreateGroupScreen()),
       ));
@@ -454,8 +456,7 @@ void main() {
       expect(container.read(createGroupFormProvider).selected, {'fa'});
 
       // The footer stays visible after the list scrolls.
-      await tester.drag(find.byType(CustomScrollView),
-          const Offset(0, -350));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -350));
       await tester.pump();
       expect(find.text('Create group & send invites').hitTestable(),
           findsOneWidget);
@@ -467,13 +468,14 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            syncServiceProvider.overrideWith((ref) async => FakeSyncService()),
             currentUidProvider.overrideWith((ref) => 'me'),
             incomingRequestsProvider.overrideWith(
                 (ref) => Stream.value(const <ConnectionRequest>[])),
             outgoingRequestsProvider.overrideWith(
                 (ref) => Stream.value(const <ConnectionRequest>[])),
-            connectionsProvider.overrideWith(
-                (ref) => Stream.value([friendA, friendB])),
+            connectionsProvider
+                .overrideWith((ref) => Stream.value([friendA, friendB])),
           ],
           child: const MaterialApp(home: FriendsTab()),
         ),
@@ -502,9 +504,10 @@ void main() {
         (tester) async {
       await tester.pumpWidget(ProviderScope(
         overrides: [
-          myGroupsProvider.overrideWith((ref) => Stream.value(const <BillGroup>[])),
-          groupInvitesProvider.overrideWith(
-              (ref) => Stream.value(const <BillGroup>[])),
+          myGroupsProvider
+              .overrideWith((ref) => Stream.value(const <BillGroup>[])),
+          groupInvitesProvider
+              .overrideWith((ref) => Stream.value(const <BillGroup>[])),
         ],
         child: const MaterialApp(home: GroupsTab()),
       ));
@@ -551,7 +554,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('profile: push tile reads the cached provider status',
+    testWidgets('settings: push tile reads the cached provider status',
         (tester) async {
       await tester.pumpWidget(
         ProviderScope(
@@ -566,13 +569,12 @@ void main() {
             adFreeStatusProvider.overrideWith(() => _FakeAdFreeStatus(false)),
             themeModeSettingProvider.overrideWith(() => _FakeThemeMode()),
           ],
-          child: const MaterialApp(home: Scaffold(body: ProfileTab())),
+          child: const MaterialApp(home: SettingsScreen()),
         ),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      expect(find.text('Me Myself'), findsOneWidget);
-      expect(find.text('me@example.com'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
       expect(find.text('Your profile.'), findsNothing);
       expect(find.text('Manage your preferences and notifications.'),
           findsNothing);

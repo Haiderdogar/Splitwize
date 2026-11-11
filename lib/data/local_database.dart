@@ -314,17 +314,79 @@ class LocalDatabase {
     await _db.delete('connections', where: 'uid = ?', whereArgs: [uid]);
   }
 
-  Future<void> replaceConnections(List<Map<String, dynamic>> users) async {
+  Future<void> replaceConnections(List<Map<String, dynamic>> users,
+      {String? ownerUid}) async {
     await _db.transaction((tx) async {
+      final cached = {
+        for (final row in await tx.query('users'))
+          row['uid'] as String: decode(row['payload'] as String),
+      };
+      final current = {
+        for (final row in await tx.query('connections'))
+          row['uid'] as String: decode(row['payload'] as String),
+      };
+      Map<String, dynamic> mergeProfile(
+          String uid, Map<String, dynamic> incoming) {
+        final previous = {...?current[uid], ...?cached[uid]};
+        final result = <String, dynamic>{...previous, ...incoming, 'uid': uid};
+        for (final field in ['email', 'photoUrl']) {
+          if ((incoming[field] as String?)?.trim().isNotEmpty != true) {
+            result[field] = previous[field];
+          }
+        }
+        final name = (incoming['displayName'] as String?)?.trim() ?? '';
+        if (name.isEmpty || name.toLowerCase() == 'friend') {
+          result['displayName'] = previous['displayName'] ?? 'Friend';
+        }
+        return result;
+      }
+
+      final next = <String, Map<String, dynamic>>{};
+      for (final user in users) {
+        final uid = user['uid'] as String? ?? '';
+        if (uid.isNotEmpty) next[uid] = mergeProfile(uid, user);
+      }
+      // A fetch may finish while the user accepts or removes a friend locally.
+      // Keep those queued actions visible until they have synced.
+      final pending = await tx.query('outbox',
+          where: 'type IN (?, ?)',
+          whereArgs: ['conn.accept', 'conn.remove'],
+          orderBy: 'id ASC');
+      for (final operation in pending) {
+        final payload = decode(operation['payload'] as String);
+        if (operation['type'] == 'conn.remove') {
+          next.remove(payload['otherUid']);
+        } else if (ownerUid != null) {
+          final fromMe = payload['fromUid'] == ownerUid;
+          final uid =
+              (fromMe ? payload['toUid'] : payload['fromUid']) as String?;
+          if (uid == null || uid.isEmpty) continue;
+          next[uid] = mergeProfile(
+              uid,
+              current[uid] ??
+                  {
+                    'displayName':
+                        fromMe ? payload['toName'] : payload['fromName'],
+                  });
+        }
+      }
       await tx.delete('connections');
-      for (final u in users) {
-        final uid = (u['uid'] as String?) ?? '';
-        if (uid.isEmpty) continue;
+      for (final entry in next.entries) {
+        final uid = entry.key;
+        final u = entry.value;
         await tx.insert('connections', {
           'uid': uid,
           'payload': encode(u),
           'updated_at': DateTime.now().millisecondsSinceEpoch,
         });
+        await tx.insert(
+            'users',
+            {
+              'uid': uid,
+              'payload': encode(u),
+              'updated_at': DateTime.now().millisecondsSinceEpoch,
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace);
       }
     });
   }
@@ -480,6 +542,22 @@ class LocalDatabase {
       'created_at': DateTime.now().millisecondsSinceEpoch,
       'retries': 0,
     });
+  }
+
+  /// Commit a set of notifications together so a failed write queues none.
+  Future<void> enqueueAll(
+      String type, List<Map<String, dynamic>> payloads) async {
+    final batch = _db.batch();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    for (final payload in payloads) {
+      batch.insert('outbox', {
+        'type': type,
+        'payload': jsonEncode(jsonify(Map<String, dynamic>.from(payload))),
+        'created_at': now,
+        'retries': 0,
+      });
+    }
+    await batch.commit(noResult: true);
   }
 
   Future<List<Map<String, dynamic>>> peekOutbox() async {

@@ -33,10 +33,12 @@ import 'package:splitwize/screens/home_shell.dart';
 import 'package:splitwize/screens/notifications_screen.dart';
 import 'package:splitwize/screens/onboarding_screen.dart';
 import 'package:splitwize/screens/profile_tab.dart';
+import 'package:splitwize/screens/settings_screen.dart';
 import 'package:splitwize/screens/requests_tab.dart';
 import 'package:splitwize/screens/sign_in_screen.dart';
 import 'package:splitwize/services/sync_service.dart';
 import 'package:splitwize/widgets/app_drawer.dart';
+import 'fake_sync_service.dart';
 
 // ---------------------------------------------------------------------------
 // Stress data: long strings + big amounts on purpose.
@@ -114,6 +116,14 @@ const testGroup = BillGroup(
   currency: 'PKR',
 );
 
+const incomingGroup = BillGroup(
+    id: 'incoming-group',
+    name: 'Weekend invitation',
+    createdBy: 'f1',
+    members: ['f1'],
+    invited: ['me'],
+    invitations: {'me': GroupInvitation(from: longNameFriend, to: me)});
+
 const testBalances = [
   FriendBalance(
     uid: 'f1',
@@ -186,11 +196,18 @@ const testOutgoing = [
 // ---------------------------------------------------------------------------
 
 List<Override> testOverrides() => [
+      syncServiceProvider.overrideWith((ref) async => FakeSyncService()),
       currentUidProvider.overrideWith((ref) => 'me'),
       myBillsProvider.overrideWith((ref) => Stream.value([testBill])),
       balancesProvider.overrideWith((ref) => testBalances),
       myGroupsProvider.overrideWith((ref) => Stream.value([testGroup])),
-      groupInvitesProvider.overrideWith((ref) => Stream.value([testGroup])),
+      groupInvitesProvider.overrideWith((ref) => Stream.value([incomingGroup])),
+      appUserProvider.overrideWith((ref, uid) => Stream.value({
+            me.uid: me,
+            longNameFriend.uid: longNameFriend,
+            friend2.uid: friend2,
+            invitedUser.uid: invitedUser,
+          }[uid])),
       connectionsProvider
           .overrideWith((ref) => Stream.value([longNameFriend, friend2])),
       incomingRequestsProvider
@@ -293,6 +310,7 @@ void main() {
     'GroupsTab': const GroupsTab(),
     'FriendsTab': const FriendsTab(),
     'ProfileTab': const ProfileTab(),
+    'SettingsScreen': const SettingsScreen(),
     'RequestsTab': const RequestsTab(),
     'Notifications': const NotificationsScreen(),
     'BillDetail': const BillDetailScreen(billId: 'b1'),
@@ -302,7 +320,7 @@ void main() {
     'HomeShell': const HomeShell(),
   };
 
-  testWidgets('Requests replaces Profile tab and drawer opens account settings',
+  testWidgets('Requests tab and drawer keep Profile and Settings separate',
       (tester) async {
     addTearDown(() => tester.view.reset());
     await pumpAt(tester, const HomeShell(), size: const Size(390, 844));
@@ -310,26 +328,43 @@ void main() {
     expect(nav, findsOneWidget);
     expect(find.descendant(of: nav, matching: find.text('Requests')),
         findsOneWidget);
-    expect(find.descendant(of: nav, matching: find.text('Profile')),
-        findsNothing);
+    expect(
+        find.descendant(of: nav, matching: find.text('Profile')), findsNothing);
+    expect(find.descendant(of: nav, matching: find.text('4')), findsWidgets);
 
-    await tester.tap(find.descendant(
-        of: nav, matching: find.text('Requests')));
+    await tester.tap(find.descendant(of: nav, matching: find.text('Requests')));
     await tester.pumpAndSettle();
     expect(find.text('Requests & Invitations'), findsOneWidget);
-    expect(find.text('Group invites'), findsOneWidget);
-    await tester.tap(find.text('Incoming'));
+    expect(find.text('Group incoming (1)'), findsOneWidget);
+    expect(find.text('Group outgoing (1)'), findsOneWidget);
+    expect(find.text('Incoming (1)'), findsOneWidget);
+    expect(find.text('Outgoing (1)'), findsOneWidget);
+    await tester.ensureVisible(find.text('Incoming (1)'));
+    await tester.tap(find.text('Incoming (1)'));
     await tester.pumpAndSettle();
     expect(find.text('wants to connect with you'), findsOneWidget);
 
     splitwizeScaffoldKey.currentState!.openDrawer();
     await tester.pumpAndSettle();
-    expect(find.text('View profile & settings'), findsOneWidget);
+    expect(find.text('View profile'), findsOneWidget);
     expect(find.text('YOU'), findsOneWidget);
-    await tester.tap(find.text('View profile & settings'));
+    await tester.tap(find.text('View profile'));
     await tester.pumpAndSettle();
-    expect(find.text('Profile & settings'), findsOneWidget);
+    expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('Personal details'), findsOneWidget);
+    expect(find.text('Appearance'), findsNothing);
     expect(find.byType(BackButton), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    splitwizeScaffoldKey.currentState!.openDrawer();
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(
+        of: find.byType(Drawer), matching: find.text('Settings')));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.text('Appearance'), findsOneWidget);
+    expect(find.text('Default currency'), findsOneWidget);
+    expect(find.text('Personal details'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -344,15 +379,14 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Notifications opens directly to recent updates',
-      (tester) async {
+  testWidgets('Notifications opens directly to recent updates', (tester) async {
     addTearDown(() => tester.view.reset());
     await pumpAt(tester, const NotificationsScreen(),
         size: const Size(390, 844));
     expect(find.text('ACTIVITY'), findsNothing);
     expect(find.text('Notifications.'), findsNothing);
-    expect(find.text('Bills, payments and invites in one place.'),
-        findsNothing);
+    expect(
+        find.text('Bills, payments and invites in one place.'), findsNothing);
     expect(find.text('Recent updates'), findsOneWidget);
     expect(find.text('Mark all read'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -386,7 +420,9 @@ void main() {
     expect(find.text('AT A GLANCE'), findsNothing);
     expect(find.text('Your balances'), findsNothing);
     expect(find.text('Expenses'), findsOneWidget);
-    expect(find.text('Unsettled'), findsOneWidget);
+    expect(find.text('All (1)'), findsOneWidget);
+    expect(find.text('Unsettled (1)'), findsOneWidget);
+    expect(find.text('Settled (0)'), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -401,7 +437,7 @@ void main() {
       expect(tester.takeException(), isNull);
       final drawerScroll = find.descendant(
           of: find.byType(Drawer), matching: find.byType(Scrollable));
-      for (final label in ['Notifications', 'Log out']) {
+      for (final label in ['Settings', 'Notifications', 'Log out']) {
         final item = find.descendant(
             of: find.byType(Drawer), matching: find.text(label));
         await tester.scrollUntilVisible(item, 100, scrollable: drawerScroll);

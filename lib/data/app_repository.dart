@@ -8,6 +8,7 @@ import '../services/firestore_service.dart';
 import '../services/secure_storage_service.dart';
 import '../utils/debt_simplifier.dart';
 import '../utils/payment_ledger.dart';
+import '../utils/payment_reminder.dart';
 import 'local_database.dart';
 
 /// Local-first data access for the whole app.
@@ -109,7 +110,7 @@ class AppRepository {
     if (cached != null) return cached;
     if (uid == myUid) {
       final session = await secure.loadSession();
-      if (session != null) {
+      if (session != null && session.uid == uid) {
         await db.upsertUser(uid, session.toProfileMap());
         return session;
       }
@@ -170,6 +171,24 @@ class AppRepository {
     notifyChanged();
   }
 
+  static const maxDisplayNameLength = 100;
+
+  /// Updates only the current account's name, retaining its verified email
+  /// and other profile fields. The existing outbox keeps this usable offline.
+  Future<void> setMyDisplayName(String value) async {
+    final name = value.trim();
+    if (name.isEmpty || name.length > maxDisplayNameLength) {
+      throw ArgumentError.value(value, 'name',
+          'Enter a name between 1 and $maxDisplayNameLength characters.');
+    }
+    final me = await getUser(myUid);
+    if (me == null || me.uid != myUid) {
+      throw StateError('Your profile is not available. Please sign in again.');
+    }
+    if (me.displayName == name && me.nameIsCustom) return;
+    await saveMyProfile(me.copyWith(displayName: name, nameIsCustom: true));
+  }
+
   // ------------------------------------------------------------------ bills
 
   Future<List<Bill>> _myBills() async {
@@ -224,7 +243,7 @@ class AppRepository {
     final paidAtMerchant = merchantPayments ?? const <String, double>{};
     if (paidAtMerchant.isNotEmpty) {
       final shareCents = splits.fold<int>(
-        0, (sum, split) => sum + (split.amount * 100).round());
+          0, (sum, split) => sum + (split.amount * 100).round());
       if (shareCents != (total * 100).round()) {
         throw ArgumentError('Split shares must equal the bill total.');
       }
@@ -303,7 +322,7 @@ class AppRepository {
     _mutated();
   }
 
-  /// Sets my default currency (Profile → settings). Stored on my user
+  /// Sets my default currency (Settings). Stored on my user
   /// profile, so it syncs across devices and applies to new groups and
   /// friend bills. Works offline (queued as a profile upsert).
   Future<void> setMyCurrency(String code) async {
@@ -352,8 +371,7 @@ class AppRepository {
     final debt = bill.paymentDebts.where((d) => d.id == debtId).firstOrNull;
     if (debt == null) return false;
     if (!settledAmount.isFinite) throw ArgumentError('Invalid settlement.');
-    final target =
-        (settledAmount.clamp(0, debt.amount) * 100).round() / 100;
+    final target = (settledAmount.clamp(0, debt.amount) * 100).round() / 100;
     if ((target - debt.settledAmount).abs() < 0.005) return false;
     final changed = [
       for (final d in bill.paymentDebts)
@@ -471,7 +489,9 @@ class AppRepository {
       if (bill.hasPaymentLedger) {
         // Only debts from me to the chosen friend, not debts to others.
         for (final debt in bill.paymentDebts.where(
-          (d) => d.debtorUid == myUid && d.creditorUid == friendUid &&
+          (d) =>
+              d.debtorUid == myUid &&
+              d.creditorUid == friendUid &&
               !d.isSettled,
         )) {
           if (await setPaymentDebtSettled(
@@ -629,6 +649,11 @@ class AppRepository {
       createdBy: creator.uid,
       members: [creator.uid],
       invited: inviteUids,
+      invitations: {
+        for (final user
+            in invitees.where((user) => inviteUids.contains(user.uid)))
+          user.uid: GroupInvitation(from: creator, to: user, sentAt: now),
+      },
       createdAt: now,
       updatedAt: now,
       currency: currency,
@@ -658,22 +683,69 @@ class AppRepository {
   }
 
   Future<void> inviteToGroup(String groupId, List<String> uids) async {
+    final group = await groupById(groupId);
+    if (group == null || !group.members.contains(myUid)) {
+      throw StateError('Only group members can invite people.');
+    }
+    final fresh = uids
+        .toSet()
+        .where((uid) =>
+            !group.members.contains(uid) && !group.invited.contains(uid))
+        .toList();
+    if (fresh.isEmpty) return;
+    final me = await getUser(myUid);
+    if (me == null) throw StateError('Could not load your profile.');
+    final users = await fetchUsers(fresh);
+    final invitations = {
+      for (final uid in fresh)
+        uid: GroupInvitation(
+            from: me,
+            to: users.where((user) => user.uid == uid).firstOrNull ??
+                AppUser(uid: uid, displayName: 'Invited person', email: ''),
+            sentAt: DateTime.now()),
+    };
     await _updateGroup(groupId, (g) {
-      final invited = {...g.invited, ...uids}.toList();
-      return g.copyWith(invited: invited);
+      final invited = {...g.invited, ...fresh}.toList();
+      return g.copyWith(
+          invited: invited, invitations: {...g.invitations, ...invitations});
     });
-    await db.enqueue('group.invite', {'groupId': groupId, 'uids': uids});
+    await db.enqueue('group.invite', {
+      'groupId': groupId,
+      'uids': fresh,
+      'invitations':
+          invitations.map((uid, invite) => MapEntry(uid, invite.toMap()))
+    });
     _mutated();
   }
 
   Future<void> acceptGroupInvite(String groupId) async {
+    final group = await groupById(groupId);
+    if (group == null || group.deleted) {
+      throw StateError('Invitation no longer available.');
+    }
+    if (group.members.contains(myUid)) return;
+    if (!group.invited.contains(myUid)) {
+      throw StateError('You are not invited to this group.');
+    }
     await _updateGroup(
         groupId,
         (g) => g.copyWith(
               members: {...g.members, myUid}.toList(),
               invited: g.invited.where((u) => u != myUid).toList(),
+              invitations: {...g.invitations}..remove(myUid),
             ));
     await db.enqueue('group.accept', {'groupId': groupId, 'uid': myUid});
+    _mutated();
+  }
+
+  /// Invitation previews unlock details only after the server confirms joining.
+  Future<void> acceptGroupInviteConfirmed(String groupId) async {
+    await remote.acceptGroupInvite(groupId, myUid);
+    final group = await remote.getGroup(groupId);
+    if (group == null || group.deleted || !group.members.contains(myUid)) {
+      throw StateError('Could not confirm group membership. Please try again.');
+    }
+    await db.upsertGroup(groupId, group.toMap(), syncState: 'synced');
     _mutated();
   }
 
@@ -682,8 +754,30 @@ class AppRepository {
         groupId,
         (g) => g.copyWith(
               invited: g.invited.where((u) => u != myUid).toList(),
+              invitations: {...g.invitations}..remove(myUid),
             ));
     await db.enqueue('group.decline', {'groupId': groupId, 'uid': myUid});
+    _mutated();
+  }
+
+  Future<void> cancelGroupInvite(String groupId, String recipientUid) async {
+    final group = await groupById(groupId);
+    if (group == null || !group.members.contains(myUid)) {
+      throw StateError('Only group members can cancel invitations.');
+    }
+    final inviter =
+        group.invitations[recipientUid]?.from.uid ?? group.createdBy;
+    if (inviter != myUid) {
+      throw StateError('You can only cancel invitations you sent.');
+    }
+    await _updateGroup(
+        groupId,
+        (g) => g.copyWith(
+              invited: g.invited.where((uid) => uid != recipientUid).toList(),
+              invitations: {...g.invitations}..remove(recipientUid),
+            ));
+    await db.enqueue(
+        'group.cancelInvite', {'groupId': groupId, 'uid': recipientUid});
     _mutated();
   }
 
@@ -742,8 +836,10 @@ class AppRepository {
       id: localId,
       fromUid: from.uid,
       fromName: from.displayName,
+      fromEmail: from.email,
       toUid: to.uid,
       toName: to.displayName,
+      toEmail: to.email,
       status: 'pending',
       createdAt: now,
       updatedAt: now,
@@ -754,8 +850,10 @@ class AppRepository {
       'localId': localId,
       'fromUid': from.uid,
       'fromName': from.displayName,
+      'fromEmail': from.email,
       'toUid': to.uid,
       'toName': to.displayName,
+      'toEmail': to.email,
     });
     _mutated();
   }
@@ -773,15 +871,17 @@ class AppRepository {
     final other = AppUser(
       uid: req.otherUid(myUid),
       displayName: req.otherName(myUid),
-      email: '',
+      email: req.fromUid == myUid ? req.toEmail : req.fromEmail,
     );
     await db.upsertConnection(other.uid, other.toProfileMap());
     await db.enqueue('conn.accept', {
       'requestId': req.id,
       'fromUid': req.fromUid,
       'fromName': req.fromName,
+      'fromEmail': req.fromEmail,
       'toUid': req.toUid,
       'toName': req.toName,
+      'toEmail': req.toEmail,
     });
     _mutated();
   }
@@ -805,6 +905,56 @@ class AppRepository {
   }
 
   // ---------------------------------------------------------- notifications
+
+  /// Resolve recipients from the latest cached bill, not the displayed snapshot.
+  /// Queue one notification per unpaid person in one atomic local write.
+  Future<int> sendBillReminders(String billId) async {
+    final me = await getUser(myUid);
+    final bill = await billById(billId);
+    if (bill == null) return 0;
+    final targets = billReminderDebts(bill, myUid);
+    if (targets.isEmpty) return 0;
+    final name = me?.displayName.trim();
+    await db.enqueueAll('notify', [
+      for (final target in targets.entries)
+        {
+          'toUid': target.key,
+          'title': 'Payment reminder: ${bill.title}',
+          'body': billReminderBody(bill, target.value,
+              name == null || name.isEmpty ? 'A Splitwize member' : name),
+          'type': 'reminder',
+          'billId': bill.id,
+          'groupId': bill.groupId,
+        },
+    ]);
+    requestSync?.call();
+    return targets.length;
+  }
+
+  /// Re-read the local bills when pressed so a newly settled debt is excluded.
+  /// One queued notification contains all eligible bills, or a single bill.
+  Future<int> sendPaymentReminder({
+    required String personUid,
+    String? billId,
+  }) async {
+    final entries = paymentReminders(await _myBills(), myUid, personUid)
+        .where((entry) => billId == null || entry.bill.id == billId)
+        .toList();
+    if (entries.isEmpty) return 0;
+    final me = await getUser(myUid);
+    final name = me?.displayName.trim();
+    await sendNotification(
+      toUid: personUid,
+      title: billId == null
+          ? 'Payment reminder: ${entries.length} bills'
+          : 'Payment reminder: ${entries.single.bill.title}',
+      body: paymentReminderBody(
+          entries, name == null || name.isEmpty ? 'A Splitwize member' : name),
+      type: 'reminder',
+      billId: billId,
+    );
+    return entries.length;
+  }
 
   Stream<List<AppNotification>> watchNotifications() => _watch(() async {
         final rows = await db.notificationRows();
@@ -922,10 +1072,8 @@ class AppRepository {
 
   Future<void> applyRemoteConnections(List<AppUser> users) async {
     await db.replaceConnections(
-        [for (final u in users) u.toProfileMap()..['uid'] = u.uid]);
-    for (final u in users) {
-      await db.upsertUser(u.uid, u.toProfileMap());
-    }
+        [for (final u in users) u.toProfileMap()..['uid'] = u.uid],
+        ownerUid: myUid);
   }
 
   void dispose() => _changes.close();

@@ -9,6 +9,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../theme.dart';
 import '../utils/current_user_identity.dart';
+import '../widgets/bill_reminder_action.dart';
 import '../widgets/money_text.dart';
 import '../widgets/split_bar.dart';
 import '../widgets/state_widgets.dart';
@@ -24,7 +25,11 @@ class BillDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Bill details')),
+      appBar: AppBar(
+        title: const Text('Bill details',
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [BillReminderAction(billId: billId)],
+      ),
       // Only this subtree reacts to the bill stream.
       body: Consumer(
         builder: (context, ref, _) {
@@ -99,7 +104,8 @@ class _BillBody extends StatelessWidget {
     final debtsTotal =
         bill.paymentDebts.fold<double>(0, (sum, d) => sum + d.amount);
     final progress = bill.hasPaymentLedger
-        ? (debtsTotal == 0 ? 1.0
+        ? (debtsTotal == 0
+            ? 1.0
             : (1 - bill.outstanding / debtsTotal).clamp(0.0, 1.0))
         : (bill.splits.isEmpty ? 0.0 : bill.paidCount / bill.splits.length);
 
@@ -183,14 +189,17 @@ class _BillBody extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
             sliver: SliverToBoxAdapter(
               child: Text('Paid at the restaurant',
-                style: Theme.of(context).textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold)),
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold)),
             ),
           ),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverToBoxAdapter(
-              child: Card(child: Padding(
+              child: Card(
+                  child: Padding(
                 padding: const EdgeInsets.all(15),
                 child: Column(children: [
                   for (final split in bill.splits)
@@ -198,9 +207,13 @@ class _BillBody extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 5),
                         child: Row(children: [
-                          Expanded(child: Text(split.uid == myUid
-                              ? '${myIdentity.name} (you)' : split.displayName,
-                              maxLines: 2, overflow: TextOverflow.ellipsis)),
+                          Expanded(
+                              child: Text(
+                                  split.uid == myUid
+                                      ? '${myIdentity.name} (you)'
+                                      : split.displayName,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis)),
                           const SizedBox(width: 10),
                           MoneyText(bill.merchantPayments[split.uid]!,
                               currencyCode: bill.currency),
@@ -214,8 +227,10 @@ class _BillBody extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             sliver: SliverToBoxAdapter(
               child: Text('Who owes whom',
-                style: Theme.of(context).textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold)),
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold)),
             ),
           ),
           if (bill.paymentDebts.isEmpty)
@@ -277,7 +292,8 @@ class _BillBody extends StatelessWidget {
                 for (var i = 0; i < bill.splits.length; i++)
                   SplitSegment(
                     label: bill.splits[i].uid == myUid
-                        ? myIdentity.name : bill.splits[i].displayName,
+                        ? myIdentity.name
+                        : bill.splits[i].displayName,
                     value: bill.splits[i].amount,
                     color: splitHues[i % splitHues.length],
                   ),
@@ -326,10 +342,11 @@ class _PaymentDebtTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final debtorName = debt.debtorUid == myUid
-        ? '${myIdentity.name} (you)' : debt.debtorName;
+    final debtorName =
+        debt.debtorUid == myUid ? '${myIdentity.name} (you)' : debt.debtorName;
     final creditorName = debt.creditorUid == myUid
-        ? '${myIdentity.name} (you)' : debt.creditorName;
+        ? '${myIdentity.name} (you)'
+        : debt.creditorName;
     return Card(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
@@ -340,18 +357,19 @@ class _PaymentDebtTile extends StatelessWidget {
               style: Theme.of(context).textTheme.titleSmall),
           if (myIdentity.email.isNotEmpty &&
               (debt.debtorUid == myUid || debt.creditorUid == myUid))
-            Text(myIdentity.email, maxLines: 1,
+            Text(myIdentity.email,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 5),
-          Text(debt.isSettled
-              ? 'Settled'
-              : '${formatMoney(debt.remainingAmount, currency)} remaining',
+          Text(
+              debt.isSettled
+                  ? 'Settled'
+                  : '${formatMoney(debt.remainingAmount, currency)} remaining',
               style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 7),
           Row(children: [
-            Expanded(child: MoneyText(debt.amount,
-                currencyCode: currency)),
+            Expanded(child: MoneyText(debt.amount, currencyCode: currency)),
             if (canUpdate)
               TextButton(
                 onPressed: () async {
@@ -447,9 +465,11 @@ class _SplitTile extends StatelessWidget {
         child: Row(
           children: [
             CircleAvatar(
-              child: Text(_isMine ? myIdentity.initials[0]
-                  : split.displayName.isEmpty ? '?'
-                  : split.displayName[0].toUpperCase()),
+              child: Text(_isMine
+                  ? myIdentity.initials[0]
+                  : split.displayName.isEmpty
+                      ? '?'
+                      : split.displayName[0].toUpperCase()),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -461,7 +481,8 @@ class _SplitTile extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   if (_isMine && myIdentity.email.isNotEmpty)
-                    Text(myIdentity.email, maxLines: 1,
+                    Text(myIdentity.email,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall),
                   // Wrap (not Row): percent, chip and date flow to a
@@ -476,17 +497,18 @@ class _SplitTile extends StatelessWidget {
                         Text('${split.percent!.toStringAsFixed(1)}%  •  '),
                       if (usesPaymentLedger)
                         const Text('Share of expense')
-                      else Chip(
-                        label: Text(split.paid
-                            ? 'Paid'
-                            : split.isPartiallyPaid
-                                ? 'Partly paid'
-                                : 'Unpaid'),
-                        visualDensity: VisualDensity.compact,
-                        backgroundColor: split.paid
-                            ? colorScheme.owed.withValues(alpha: 0.2)
-                            : colorScheme.owe.withValues(alpha: 0.2),
-                      ),
+                      else
+                        Chip(
+                          label: Text(split.paid
+                              ? 'Paid'
+                              : split.isPartiallyPaid
+                                  ? 'Partly paid'
+                                  : 'Unpaid'),
+                          visualDensity: VisualDensity.compact,
+                          backgroundColor: split.paid
+                              ? colorScheme.owed.withValues(alpha: 0.2)
+                              : colorScheme.owe.withValues(alpha: 0.2),
+                        ),
                       if (split.isPartiallyPaid)
                         Text(
                           '${formatMoney(split.settledAmount, currencyCode)} settled • '

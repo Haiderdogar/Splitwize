@@ -170,7 +170,8 @@ class CreateBillForm extends _$CreateBillForm {
 
   void toggleMember(String uid, bool selected) {
     // The creator must always be included in a shared expense.
-    if (!selected && state.groupId != null &&
+    if (!selected &&
+        state.groupId != null &&
         uid == ref.read(currentUidProvider)) {
       return;
     }
@@ -297,7 +298,8 @@ class CreateBillForm extends _$CreateBillForm {
   /// Never overwrite subsequent manual selections.
   void autoSelect(List<AppUser> members) {
     final key = state.groupId;
-    if (key == null || state.selectionInitializedFor == key ||
+    if (key == null ||
+        state.selectionInitializedFor == key ||
         members.isEmpty) {
       return;
     }
@@ -460,8 +462,10 @@ class CreateBillForm extends _$CreateBillForm {
       for (final member in selectedMembers) {
         final text = (draft.payments[member.uid] ?? '0').trim();
         final amount = double.tryParse(text.replaceAll(',', '.'));
-        if (amount == null || !amount.isFinite ||
-            amount < 0 || amount > 90071992547409) {
+        if (amount == null ||
+            !amount.isFinite ||
+            amount < 0 ||
+            amount > 90071992547409) {
           return 'Enter a valid payment for ${member.displayName}.';
         }
         final cents = (amount * 100).round();
@@ -587,8 +591,10 @@ class CreateGroupForm extends _$CreateGroupForm {
   /// The creator is never included in the invitee selection.
   void selectAllFriends(List<AppUser> friends, bool selected) {
     final me = ref.read(currentUidProvider);
-    final uids = friends.where((friend) => friend.uid != me)
-        .map((friend) => friend.uid).toSet();
+    final uids = friends
+        .where((friend) => friend.uid != me)
+        .map((friend) => friend.uid)
+        .toSet();
     final next = Set<String>.of(state.selected);
     if (selected) {
       next.addAll(uids);
@@ -623,7 +629,7 @@ class CreateGroupForm extends _$CreateGroupForm {
         await repo.sendNotification(
           toUid: u.uid,
           title: 'Group invite',
-          body: '${me.displayName} invited you to join "$name".',
+          body: '${me.displayName} (${me.email}) invited you to join "$name".',
           type: 'group_invite',
           groupId: groupId,
         );

@@ -21,6 +21,92 @@ admin.initializeApp();
 
 const money = (n, code) => (code ? code + ' ' : '') + Number(n || 0).toFixed(2);
 
+// Keep the full breakdown in the inbox; FCM has a 4096-byte payload limit.
+// https://firebase.google.com/docs/cloud-messaging
+// Count UTF-8 bytes, including for names and bill titles in other languages.
+function pushPreview(value, maxBytes) {
+  const text = String(value || '');
+  let preview = '';
+  let bytes = 0;
+  for (const char of text) {
+    const size = Buffer.byteLength(char, 'utf8');
+    if (bytes + size > maxBytes - 3) return preview + '...';
+    preview += char;
+    bytes += size;
+  }
+  return preview;
+}
+
+exports.notifyGroupInvitation = onDocumentCreated(
+  'notifications/{notificationId}',
+  async (event) => {
+    const invite = event.data && event.data.data();
+    if (!invite || invite.type !== 'group_invite' || !invite.groupId || !invite.toUid) return;
+    const db = admin.firestore();
+    const groupSnap = await db.collection('groups').doc(invite.groupId).get();
+    if (!groupSnap.exists) return;
+    const group = groupSnap.data();
+    if (group.deleted || !(group.invited || []).includes(invite.toUid) ||
+        (group.members || []).includes(invite.toUid)) return;
+    const user = await db.collection('users').doc(invite.toUid).get();
+    if (!user.exists) return;
+    const tokens = [...new Set(user.get('fcmTokens') || [])];
+    for (let index = 0; index < tokens.length; index += 500) {
+      const chunk = tokens.slice(index, index + 500);
+      const result = await admin.messaging().sendEachForMulticast({
+        tokens: chunk,
+        notification: { title: pushPreview(invite.title || 'Group invitation', 160),
+          body: pushPreview(invite.body, 1024) },
+        data: { type: 'group_invite', groupId: String(invite.groupId), toUid: String(invite.toUid) },
+      });
+      await pruneBadTokens(db, invite.toUid, chunk, result.responses);
+    }
+  }
+);
+
+exports.notifyPaymentReminder = onDocumentCreated(
+  'notifications/{notificationId}',
+  async (event) => {
+    const reminder = event.data && event.data.data();
+    if (!reminder || reminder.type !== 'reminder' || !reminder.toUid) return;
+    const db = admin.firestore();
+    // A payment can be recorded by another user after the reminder was queued.
+    if (reminder.billId) {
+      const billSnap = await db.collection('bills').doc(reminder.billId).get();
+      if (!billSnap.exists) return;
+      const bill = billSnap.data();
+      if (bill.deleted) return;
+      const unpaid = bill.merchantPayments && Object.keys(bill.merchantPayments).length
+        ? (bill.paymentDebts || []).some((debt) =>
+          debt.debtorUid === reminder.toUid && debt.creditorUid !== reminder.toUid &&
+          Number(debt.amount || 0) - Number(debt.settledAmount || 0) >= 0.005)
+        : bill.createdBy !== reminder.toUid && (bill.splits || []).some((share) =>
+          share.uid === reminder.toUid && !share.paid &&
+          Number(share.amount || 0) - Number(share.paidAmount || 0) >= 0.005);
+      if (!unpaid) return;
+    }
+    const snap = await db.collection('users').doc(reminder.toUid).get();
+    if (!snap.exists) return;
+    const tokens = [...new Set(snap.get('fcmTokens') || [])];
+    if (!tokens.length) return;
+    const data = { type: 'reminder' };
+    if (typeof reminder.billId === 'string' && reminder.billId.length <= 128) {
+      data.billId = reminder.billId;
+    }
+    const notification = {
+      title: pushPreview(reminder.title || 'Payment reminder', 160),
+      body: pushPreview(reminder.body, 1024),
+    };
+    for (let start = 0; start < tokens.length; start += 500) {
+      const batch = tokens.slice(start, start + 500);
+      const res = await admin.messaging().sendEachForMulticast({
+        tokens: batch, notification, data,
+      });
+      await pruneBadTokens(db, reminder.toUid, batch, res.responses);
+    }
+  }
+);
+
 async function pruneBadTokens(db, uid, tokens, responses) {
   const bad = [];
   responses.forEach((resp, i) => {
