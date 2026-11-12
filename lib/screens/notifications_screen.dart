@@ -6,6 +6,7 @@ import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/app_drawer.dart';
 import '../widgets/studio_ui.dart';
 import '../theme.dart';
 import '../widgets/state_widgets.dart';
@@ -14,7 +15,10 @@ import '../utils/notification_destination.dart';
 /// In-app notification inbox: bill events, payments, invites, reminders.
 /// Tapping a notification marks it read and deep-links where relevant.
 class NotificationsScreen extends StatelessWidget {
-  const NotificationsScreen({super.key});
+  const NotificationsScreen({super.key, this.embedded = false});
+
+  /// Embedded inboxes keep the home shell beneath notification detail routes.
+  final bool embedded;
 
   IconData _iconFor(String type) {
     switch (type) {
@@ -37,6 +41,7 @@ class NotificationsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: embedded ? const SplitwizeMenuButton() : null,
         title: const Text('Notifications'),
         actions: [
           // Writes only.
@@ -142,12 +147,17 @@ class NotificationsScreen extends StatelessWidget {
       final repo = await ref.read(appRepositoryProvider.future);
       await repo.markNotificationRead(n.id);
     } catch (_) {}
-    if (!context.mounted) return;
+    if (!context.mounted || ModalRoute.of(context)?.isCurrent == false) return;
+    if (embedded && ref.read(tabIndexProvider) != 4) return;
     final destination = notificationDestination(
         type: n.type, groupId: n.groupId, billId: n.billId, fromInbox: true);
     if (destination != null) {
-      Navigator.of(context)
-          .pushReplacement(MaterialPageRoute(builder: (_) => destination));
+      final route = MaterialPageRoute<void>(builder: (_) => destination);
+      if (embedded) {
+        Navigator.of(context).push(route);
+      } else {
+        Navigator.of(context).pushReplacement(route);
+      }
     }
   }
 }

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/data_providers.dart';
+import '../providers/core_providers.dart';
 import '../screens/notifications_screen.dart';
+import 'app_drawer.dart';
 
 /// Shared app-bar notification action for Home, Balances, Groups and Friends.
 /// Uses the existing unread count provider and notification inbox.
@@ -18,11 +20,17 @@ class AppNotificationButton extends ConsumerWidget {
       child: IconButton(
         tooltip: 'Notifications',
         icon: const Icon(Icons.notifications_none_rounded),
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const NotificationsScreen(),
-          ),
-        ),
+        onPressed: () {
+          final homeContext = splitwizeScaffoldKey.currentContext;
+          if (homeContext != null &&
+              ModalRoute.of(homeContext) == ModalRoute.of(context)) {
+            ref.read(tabIndexProvider.notifier).set(4);
+          } else {
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const NotificationsScreen(),
+            ));
+          }
+        },
       ),
     );
   }

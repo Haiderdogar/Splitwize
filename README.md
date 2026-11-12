@@ -373,10 +373,13 @@ Deploy the reminder push trigger after updating this feature:
 
 ## Requests and group invitations
 
-Requests has separate Group incoming, Group outgoing, Incoming friend, and
-Outgoing friend lists, each with a count. The navigation badge totals all
-four lists. Friend request cards show the person's name, email, profile picture
-when available, request date, and status. Friends refreshes missing profile
+Notifications is the fifth navigation destination; its badge shows unread
+notifications. The **Invites** button beside **My groups** opens incoming and
+outgoing group invitations. The **Invites** button beside **Connected** on
+Friends opens incoming and outgoing friend invitations. Each button counts
+only its own invitations, and each screen shows counts for both directions.
+Friend request cards show the person's name, email, profile picture when
+available, request date, and status. Friends refreshes missing profile
 information so names and email addresses remain visible after connection sync.
 
 New group invitations retain snapshots of the actual inviter and recipient,

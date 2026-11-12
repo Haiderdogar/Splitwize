@@ -8,10 +8,13 @@ import 'package:splitwize/providers/core_providers.dart';
 import 'package:splitwize/providers/data_providers.dart';
 import 'package:splitwize/screens/group_detail_screen.dart';
 import 'package:splitwize/screens/group_invitation_screen.dart';
+import 'package:splitwize/screens/home_shell.dart';
 import 'package:splitwize/screens/notifications_screen.dart';
-import 'package:splitwize/screens/requests_tab.dart';
+import 'package:splitwize/screens/request_screens.dart';
 import 'package:splitwize/theme.dart';
 import 'package:splitwize/utils/notification_destination.dart';
+import 'package:splitwize/widgets/friend_request_card.dart';
+import 'package:splitwize/widgets/group_invitation_card.dart';
 import 'fake_sync_service.dart';
 
 const me =
@@ -45,6 +48,7 @@ class InvitationRepository extends Fake implements AppRepository {
   Future<void>? acceptGate;
   final cancelled = <String>[];
   final read = <String>[];
+  Future<void>? readGate;
   Stream<BillGroup?> watch() async* {
     yield group;
     yield* changes.stream;
@@ -53,6 +57,7 @@ class InvitationRepository extends Fake implements AppRepository {
   @override
   Future<void> markNotificationRead(String id) async {
     read.add(id);
+    await readGate;
   }
 
   @override
@@ -92,6 +97,9 @@ Future<void> pumpFlow(
     groupProvider.overrideWith((ref, id) => repo.watch()),
     groupInvitesProvider.overrideWith((ref) => Stream.value([incoming])),
     myGroupsProvider.overrideWith((ref) => Stream.value([outgoing])),
+    myBillsProvider.overrideWith((ref) => Stream.value(<Bill>[])),
+    balancesProvider.overrideWith((ref) => <FriendBalance>[]),
+    connectionsProvider.overrideWith((ref) => Stream.value([sender])),
     incomingRequestsProvider.overrideWith((ref) => Stream.value([
           ConnectionRequest(
               id: 'friend-in',
@@ -123,7 +131,6 @@ Future<void> pumpFlow(
     groupMembersProvider.overrideWith((ref, id) async => [me, sender]),
     invitedUsersProvider.overrideWith((ref, id) async => []),
     notificationsProvider.overrideWith((ref) => Stream.value(inbox)),
-    unreadCountProvider.overrideWith((ref) => 0),
   ], child: MaterialApp(theme: splitwizeLightTheme, home: screen)));
   await tester.pumpAndSettle();
 }
@@ -140,7 +147,10 @@ void main() {
   testWidgets(
       'friend incoming and outgoing cards show full name, email and date',
       (tester) async {
-    await pumpFlow(tester, const RequestsTab(initialIndex: 2), repo);
+    await pumpFlow(tester, const FriendRequestsScreen(), repo);
+    expect(find.text('Friend invitations'), findsOneWidget);
+    expect(find.byType(Tab), findsNWidgets(2));
+    expect(find.byType(GroupInvitationCard), findsNothing);
     expect(find.text(sender.displayName), findsOneWidget);
     expect(find.text(sender.email), findsOneWidget);
     expect(find.textContaining('Sent Nov 11, 2026'), findsOneWidget);
@@ -154,15 +164,18 @@ void main() {
 
   testWidgets('group directions show inviter, recipient, group and counts',
       (tester) async {
-    await pumpFlow(tester, const RequestsTab(), repo);
-    expect(find.text('Group incoming (1)'), findsOneWidget);
-    expect(find.text('Group outgoing (1)'), findsOneWidget);
+    await pumpFlow(tester, const GroupRequestsScreen(), repo);
+    expect(find.text('Group invitations'), findsOneWidget);
+    expect(find.byType(Tab), findsNWidgets(2));
+    expect(find.byType(FriendRequestCard), findsNothing);
+    expect(find.text('Incoming (1)'), findsOneWidget);
+    expect(find.text('Outgoing (1)'), findsOneWidget);
     expect(find.text('Group: Weekend'), findsOneWidget);
     expect(find.text(sender.email), findsOneWidget);
     expect(find.text('Decline'), findsNothing);
     expect(find.text('Group currency'), findsNothing);
-    await tester.ensureVisible(find.text('Group outgoing (1)'));
-    await tester.tap(find.text('Group outgoing (1)'));
+    await tester.ensureVisible(find.text('Outgoing (1)'));
+    await tester.tap(find.text('Outgoing (1)'));
     await tester.pumpAndSettle();
     expect(find.text('Group: Road trip'), findsOneWidget);
     expect(find.text(recipient.email), findsOneWidget);
@@ -170,6 +183,162 @@ void main() {
     await tester.tap(find.text('Cancel invitation'));
     await tester.pumpAndSettle();
     expect(repo.cancelled, ['g-out|fb']);
+  });
+
+  for (final screen in const [
+    GroupRequestsScreen(initialIndex: 1),
+    FriendRequestsScreen(initialIndex: 1),
+  ]) {
+    testWidgets('${screen.runtimeType} can open directly to outgoing',
+        (tester) async {
+      await pumpFlow(tester, screen, repo);
+      expect(find.text(recipient.email), findsOneWidget);
+      final tab = tester.widget<TabBar>(find.byType(TabBar));
+      expect(tab.tabs, hasLength(2));
+      expect(DefaultTabController.of(tester.element(find.byType(TabBar))).index,
+          1);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('Embedded inbox keeps the shell when opening a friend invitation',
+      (tester) async {
+    await pumpFlow(tester, const HomeShell(), repo, inbox: const [
+      AppNotification(
+          id: 'friend-notice',
+          toUid: 'me',
+          title: 'Hamza sent a friend invitation',
+          body: 'Review your incoming friend invitation.',
+          type: 'friend_request',
+          read: false),
+    ]);
+    final nav = find.byType(NavigationBar);
+    await tester
+        .tap(find.descendant(of: nav, matching: find.text('Notifications')));
+    await tester.pumpAndSettle();
+    expect(find.byType(BackButton), findsNothing);
+    expect(
+        tester
+            .widget<NotificationsScreen>(find.byType(NotificationsScreen))
+            .embedded,
+        isTrue);
+    await tester.tap(find.text('Hamza sent a friend invitation'));
+    await tester.pumpAndSettle();
+    expect(repo.read, ['friend-notice']);
+    expect(find.byType(FriendRequestsScreen), findsOneWidget);
+    expect(find.byType(GroupRequestsScreen), findsNothing);
+    expect(find.byType(HomeShell, skipOffstage: false), findsOneWidget);
+    expect(find.byType(BackButton), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.byType(HomeShell), findsOneWidget);
+    expect(find.text('Hamza sent a friend invitation'), findsOneWidget);
+    expect(tester.widget<NavigationBar>(nav).selectedIndex, 4);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Repeated embedded inbox taps open just one invitation route',
+      (tester) async {
+    final readComplete = Completer<void>();
+    repo.readGate = readComplete.future;
+    await pumpFlow(tester, const HomeShell(), repo, inbox: const [
+      AppNotification(
+          id: 'friend-repeat',
+          toUid: 'me',
+          title: 'Review Hamza invitation',
+          body: 'Review your incoming friend invitation.',
+          type: 'friend_request',
+          read: false),
+    ]);
+    final nav = find.byType(NavigationBar);
+    await tester
+        .tap(find.descendant(of: nav, matching: find.text('Notifications')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Review Hamza invitation'));
+    await tester.pump();
+    await tester.tap(find.text('Review Hamza invitation'));
+    await tester.pump();
+    expect(repo.read, ['friend-repeat', 'friend-repeat']);
+
+    readComplete.complete();
+    await tester.pumpAndSettle();
+    expect(
+        find.byType(FriendRequestsScreen, skipOffstage: false), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.byType(HomeShell), findsOneWidget);
+    expect(
+        find.byType(FriendRequestsScreen, skipOffstage: false), findsNothing);
+    expect(tester.widget<NavigationBar>(nav).selectedIndex, 4);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('A delayed notification does not open after changing tabs',
+      (tester) async {
+    final readComplete = Completer<void>();
+    repo.readGate = readComplete.future;
+    await pumpFlow(tester, const HomeShell(), repo, inbox: const [
+      AppNotification(
+          id: 'friend-delayed',
+          toUid: 'me',
+          title: 'Review delayed invitation',
+          body: 'Review your incoming friend invitation.',
+          type: 'friend_request',
+          read: false),
+    ]);
+    final nav = find.byType(NavigationBar);
+    await tester
+        .tap(find.descendant(of: nav, matching: find.text('Notifications')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Review delayed invitation'));
+    await tester.pump();
+    await tester.tap(find.descendant(of: nav, matching: find.text('Friends')));
+    await tester.pumpAndSettle();
+    readComplete.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(HomeShell), findsOneWidget);
+    expect(
+        find.byType(FriendRequestsScreen, skipOffstage: false), findsNothing);
+    expect(tester.widget<NavigationBar>(nav).selectedIndex, 3);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Standalone inbox keeps Back and replaces only its own route',
+      (tester) async {
+    await pumpFlow(
+        tester,
+        Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const NotificationsScreen())),
+              child: const Text('Open standalone inbox'),
+            ),
+          ),
+        ),
+        repo,
+        inbox: const [
+          AppNotification(
+              id: 'group-notice',
+              toUid: 'me',
+              title: 'Review group invitations',
+              body: 'Review your incoming group invitations.',
+              type: 'group_invite',
+              read: false),
+        ]);
+    await tester.tap(find.text('Open standalone inbox'));
+    await tester.pumpAndSettle();
+    expect(find.byType(BackButton), findsOneWidget);
+    await tester.tap(find.text('Review group invitations'));
+    await tester.pumpAndSettle();
+    expect(repo.read, ['group-notice']);
+    expect(find.byType(GroupRequestsScreen), findsOneWidget);
+    expect(find.byType(NotificationsScreen, skipOffstage: false), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Open standalone inbox'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -250,9 +419,13 @@ void main() {
             type: 'group_invite', groupId: 'g-in', fromInbox: true),
         isA<GroupInvitationScreen>());
     expect(
-        (notificationDestination(type: 'friend_request') as RequestsTab)
+        (notificationDestination(type: 'friend_request')
+                as FriendRequestsScreen)
             .initialIndex,
-        2);
-    expect(notificationDestination(type: 'group_invite'), isA<RequestsTab>());
+        0);
+    expect(notificationDestination(type: 'group_invite'),
+        isA<GroupRequestsScreen>());
+    expect(notificationDestination(type: 'group_invite', groupId: ''),
+        isA<GroupRequestsScreen>());
   });
 }

@@ -1,313 +1,309 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/core_providers.dart';
 import '../providers/form_providers.dart';
-import '../widgets/studio_ui.dart';
+import '../providers/onboarding_motion_provider.dart';
 import '../theme.dart';
+import '../widgets/onboarding_art.dart';
+import '../widgets/studio_ui.dart';
 
-/// One-time onboarding, shown exactly once per install (gated by
-/// [OnboardingSeen] in `main.dart`). Three swipeable pages with
-/// widget-drawn illustrations.
-///
-/// All state lives in [OnboardingFlow] — the page index and the
-/// [PageController] — and every animation is implicit
-/// (AnimatedContainer / AnimatedScale / AnimatedSlide), so this whole
-/// screen is StatelessWidgets with [Consumer] only where state changes.
+/// One-time onboarding with native, layered 3D illustrations.
+/// Auto-disposed providers own the flow and animation lifetimes.
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Consumer(
-        builder: (context, ref, _) {
-          final page = ref.watch(onboardingFlowProvider.select((s) => s.page));
-          final notifier = ref.read(onboardingFlowProvider.notifier);
-          final scheme = Theme.of(context).colorScheme;
-          final isDark = Theme.of(context).brightness == Brightness.dark;
-          // Soft per-page tint that cross-fades as you swipe.
-          final tint = Color.alphaBlend(
-            _kPages[page].accent.withValues(alpha: isDark ? 0.30 : 0.15),
-            scheme.surface,
-          );
-          Future<void> finish() =>
-              ref.read(onboardingSeenProvider.notifier).markSeen();
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 550),
-            curve: Curves.easeOut,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [tint, scheme.surface],
-                stops: const [0, 0.7],
-              ),
+      body: Consumer(builder: (context, ref, _) {
+        final page = ref.watch(onboardingFlowProvider.select((s) => s.page));
+        final flow = ref.read(onboardingFlowProvider.notifier);
+        final scheme = Theme.of(context).colorScheme;
+        final reduceMotion = MediaQuery.disableAnimationsOf(context);
+        final motion = ref.watch(onboardingMotionProvider);
+        motion
+            .setEnabled(!reduceMotion && TickerMode.valuesOf(context).enabled);
+
+        Future<void> finish() =>
+            ref.read(onboardingSeenProvider.notifier).markSeen();
+
+        void goTo(int index) {
+          if (reduceMotion) {
+            flow.controller.jumpToPage(index);
+          } else {
+            flow.controller.animateToPage(index,
+                duration: const Duration(milliseconds: 620),
+                curve: const Cubic(.22, 1, .36, 1));
+          }
+        }
+
+        return AnimatedContainer(
+          duration:
+              reduceMotion ? Duration.zero : const Duration(milliseconds: 650),
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: const Alignment(0, -.5),
+              radius: .9,
+              colors: [
+                Color.alphaBlend(
+                  _pages[page].accent.withValues(
+                      alpha: scheme.brightness == Brightness.dark ? .11 : .10),
+                  scheme.surface,
+                ),
+                scheme.surface,
+              ],
             ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  _Header(
-                    showSkip: page < _kPages.length - 1,
-                    onSkip: finish,
+          ),
+          child: SafeArea(
+            child: Column(children: [
+              _Header(page: page, onSkip: finish),
+              Expanded(
+                child: PageView.builder(
+                  controller: flow.controller,
+                  onPageChanged: flow.onPageChanged,
+                  itemCount: _pages.length,
+                  itemBuilder: (context, index) => _OnboardingPage(
+                    index: index,
+                    controller: flow.controller,
+                    motion: motion,
+                    reduceMotion: reduceMotion,
                   ),
-                  Expanded(
-                    child: PageView.builder(
-                      controller: notifier.controller,
-                      onPageChanged: notifier.onPageChanged,
-                      itemCount: _kPages.length,
-                      itemBuilder: (context, i) => switch (i) {
-                        0 => const _PageOne(),
-                        1 => const _PageTwo(),
-                        _ => const _PageThree(),
-                      },
-                    ),
-                  ),
-                  _Controls(
-                    page: page,
-                    onBack: notifier.previous,
-                    onNext: page == _kPages.length - 1 ? finish : notifier.next,
-                  ),
-                ],
+                ),
               ),
-            ),
-          );
-        },
-      ),
+              _Controls(
+                page: page,
+                reduceMotion: reduceMotion,
+                onBack: () => goTo(page - 1),
+                onNext:
+                    page == _pages.length - 1 ? finish : () => goTo(page + 1),
+                onSelect: goTo,
+              ),
+            ]),
+          ),
+        );
+      }),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Page data
-// ---------------------------------------------------------------------------
-
-class _OnbPage {
-  final Color accent;
+class _PageData {
+  const _PageData(this.title, this.body, this.accent, this.detail, this.icon);
   final String title;
   final String body;
-
-  const _OnbPage({
-    required this.accent,
-    required this.title,
-    required this.body,
-  });
+  final Color accent;
+  final String detail;
+  final IconData icon;
 }
 
-const _kPages = [
-  _OnbPage(
-    accent: SplitwizePalette.forest,
-    title: 'Split bills in seconds',
-    body: 'Add a bill, pick who was there, and split it equally, by '
-        'percentage, or with custom amounts. No more end-of-dinner maths.',
+const _pages = [
+  _PageData(
+    'Good times.\nFair shares.',
+    'Dinner, a weekend away, or the everyday.\n'
+        'Split any bill, any way that works for you.',
+    SplitwizePalette.lime,
+    'Equal, percentage, or custom splits',
+    Icons.call_split_rounded,
   ),
-  _OnbPage(
-    accent: SplitwizePalette.coral,
-    title: 'Everyone knows who owes what',
-    body: 'Friends are notified the moment a bill is added. Track who '
-        'has paid, send a friendly reminder, and settle up with one tap.',
+  _PageData(
+    'Less chasing.\nMore living.',
+    'Keep everyone in the loop. See who owes what,\n'
+        'send a little nudge, and settle up together.',
+    SplitwizePalette.coral,
+    'Clear balances. Happier friendships.',
+    Icons.favorite_border_rounded,
   ),
-  _OnbPage(
-    accent: SplitwizePalette.positive,
-    title: 'Works offline, syncs by itself',
-    body: 'No signal? No problem. Bills, groups and receipt photos are '
-        'saved on your phone and synced securely when you are back online.',
+  _PageData(
+    'Go anywhere.\nStay in sync.',
+    'Add your expenses, even off the grid.\n'
+        'We\'ll sync everything when you\'re back online.',
+    SplitwizePalette.lime,
+    'Offline ready. Automatically synced.',
+    Icons.cloud_done_outlined,
   ),
 ];
 
-// ---------------------------------------------------------------------------
-// Chrome: header + controls
-// ---------------------------------------------------------------------------
-
 class _Header extends StatelessWidget {
-  const _Header({required this.showSkip, required this.onSkip});
-
-  final bool showSkip;
+  const _Header({required this.page, required this.onSkip});
+  final int page;
   final VoidCallback onSkip;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 12, 4),
-      child: Row(
-        children: [
-          const SplitwizeMark(size: 34),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'Splitwize',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: -.3),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 16, 4),
+          child: Row(children: [
+            const ExcludeSemantics(child: SplitwizeMark(size: 32)),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text('splitwize',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -.8)),
             ),
-          ),
-          if (showSkip)
-            TextButton(onPressed: onSkip, child: const Text('Skip')),
-        ],
-      ),
-    );
-  }
-}
-
-class _Controls extends StatelessWidget {
-  const _Controls({
-    required this.page,
-    required this.onBack,
-    required this.onNext,
-  });
-
-  final int page;
-  final VoidCallback onBack;
-  final VoidCallback onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final accent = _kPages[page].accent;
-    final isLast = page == _kPages.length - 1;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 20, 22),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 68,
-            child: page > 0
-                ? TextButton(onPressed: onBack, child: const Text('Back'))
-                : null,
-          ),
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (var i = 0; i < _kPages.length; i++)
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOut,
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: i == page ? 26 : 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: i == page ? accent : scheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          // Flexible so the button can shrink on narrow screens /
-          // large text scales; its label scales down inside.
-          Flexible(
-            child: FilledButton.icon(
-              onPressed: onNext,
-              style: FilledButton.styleFrom(
-                backgroundColor: scheme.primary,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-              ),
-              icon: Icon(isLast ? Icons.check : Icons.arrow_forward, size: 18),
-              label: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(isLast ? 'Get started' : 'Next'),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-// ---------------------------------------------------------------------------
-// Pages
-// ---------------------------------------------------------------------------
-
-class _PageShell extends StatelessWidget {
-  const _PageShell({
-    required this.index,
-    required this.art,
-  });
-
-  final int index;
-  final Widget art;
-
-  @override
-  Widget build(BuildContext context) {
-    final data = _kPages[index];
-    final scheme = Theme.of(context).colorScheme;
-    // Scrollable when the viewport is short (small phones, landscape)
-    // so the page can never overflow; centered when there's room.
-    // (ConstrainedBox + IntrinsicHeight is what lets the Column's
-    // Spacers work inside a scroll view.)
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: IntrinsicHeight(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-              child: Column(
-                children: [
-                  const Spacer(flex: 2),
-                  // The illustration is decorative — its labels are
-                  // artwork, not content — so it doesn't grow with
-                  // the accessibility text scale (which would break
-                  // its fixed-size layout). Title/body below do scale.
-                  MediaQuery(
-                    data: MediaQuery.of(context)
-                        .copyWith(textScaler: TextScaler.noScaling),
-                    child: _AnimatedArt(index: index, child: art),
-                  ),
-                  const SizedBox(height: 38),
-                  Text(
-                    data.title,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    data.body,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                          height: 1.45,
-                        ),
-                  ),
-                  const Spacer(flex: 3),
-                ],
-              ),
-            ),
-          ),
+            if (page < _pages.length - 1)
+              TextButton(
+                onPressed: onSkip,
+                style: TextButton.styleFrom(
+                    foregroundColor:
+                        Theme.of(context).colorScheme.onSurfaceVariant,
+                    minimumSize: const Size(48, 48)),
+                child: const Text('Skip'),
+              )
+            else
+              const SizedBox(height: 48),
+          ]),
         ),
       ),
     );
   }
 }
 
-/// Pops the illustration in (scale + slight rise) when its page becomes
-/// the active one — implicit animations only.
-class _AnimatedArt extends StatelessWidget {
-  const _AnimatedArt({required this.index, required this.child});
-
+class _OnboardingPage extends StatelessWidget {
+  const _OnboardingPage({
+    required this.index,
+    required this.controller,
+    required this.motion,
+    required this.reduceMotion,
+  });
   final int index;
+  final PageController controller;
+  final OnboardingMotion motion;
+  final bool reduceMotion;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = _pages[index];
+    final theme = Theme.of(context);
+    return LayoutBuilder(builder: (context, constraints) {
+      final compact = constraints.maxHeight < 510;
+      final artHeight = (constraints.maxHeight * .58).clamp(160.0, 360.0);
+      return SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight - 16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ExcludeSemantics(
+                child: MediaQuery.withNoTextScaling(
+                  child: RepaintBoundary(
+                    child: SizedBox(
+                      height: artHeight,
+                      width: double.infinity,
+                      child: FittedBox(
+                        child: AnimatedBuilder(
+                          animation:
+                              Listenable.merge([motion.animation, controller]),
+                          builder: (context, _) {
+                            final offset = controller.hasClients &&
+                                    controller.position.hasContentDimensions
+                                ? (controller.page! - index).clamp(-1.0, 1.0)
+                                : 0.0;
+                            return OnboardingArt(
+                              index: index,
+                              phase:
+                                  reduceMotion ? .12 : motion.animation.value,
+                              pageOffset: reduceMotion ? 0 : offset,
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: compact ? 12 : 24),
+              _ContentReveal(
+                index: index,
+                reduceMotion: reduceMotion,
+                child: Column(children: [
+                  Semantics(
+                    header: true,
+                    child: Text(data.title,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.headlineLarge?.copyWith(
+                            fontSize: compact ? 32 : 40,
+                            height: 1.08,
+                            letterSpacing: -1.6,
+                            fontWeight: FontWeight.w800)),
+                  ),
+                  const SizedBox(height: 16),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 390),
+                    child: Text(data.body,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                            fontSize: compact ? 14 : 15,
+                            height: 1.6,
+                            color: theme.colorScheme.onSurfaceVariant)),
+                  ),
+                  SizedBox(height: compact ? 16 : 24),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 6,
+                    children: [
+                      ExcludeSemantics(
+                        child: Icon(data.icon,
+                            size: 15, color: theme.colorScheme.primary),
+                      ),
+                      Text(data.detail,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                              height: 1.5)),
+                    ],
+                  ),
+                ]),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+}
+
+class _ContentReveal extends StatelessWidget {
+  const _ContentReveal({
+    required this.index,
+    required this.reduceMotion,
+    required this.child,
+  });
+  final int index;
+  final bool reduceMotion;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Consumer(
-      builder: (context, ref, _) {
+      child: child,
+      builder: (context, ref, child) {
         final active =
             ref.watch(onboardingFlowProvider.select((s) => s.page == index));
-        return AnimatedSlide(
-          offset: active ? Offset.zero : const Offset(0, 0.05),
-          duration: const Duration(milliseconds: 550),
-          curve: Curves.easeOutCubic,
-          child: AnimatedScale(
-            scale: active ? 1 : 0.93,
-            duration: const Duration(milliseconds: 550),
-            curve: Curves.easeOutCubic,
-            child: child,
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: active ? 1 : 0),
+          duration:
+              reduceMotion ? Duration.zero : const Duration(milliseconds: 700),
+          curve: const Cubic(.22, 1, .36, 1),
+          child: child,
+          builder: (context, value, child) => Opacity(
+            opacity: reduceMotion ? 1 : .35 + value * .65,
+            child: Transform.translate(
+              offset: Offset(0, reduceMotion ? 0 : (1 - value) * 20),
+              child: child,
+            ),
           ),
         );
       },
@@ -315,547 +311,139 @@ class _AnimatedArt extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Illustration building blocks
-// ---------------------------------------------------------------------------
-
-/// A soft white "card" used as the base of each illustration.
-class _ArtCard extends StatelessWidget {
-  const _ArtCard({required this.child, this.width, this.padding});
-
-  final Widget child;
-  final double? width;
-  final EdgeInsets? padding;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      padding: padding ?? const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.09),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-}
-
-class _Bar extends StatelessWidget {
-  const _Bar(this.width);
-
-  final double width;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: 9,
-      decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .outlineVariant
-            .withValues(alpha: 0.75),
-        borderRadius: BorderRadius.circular(99),
-      ),
-    );
-  }
-}
-
-class _Blob extends StatelessWidget {
-  const _Blob({required this.color, required this.size, required this.alpha});
-
-  final Color color;
-  final double size;
-  final double alpha;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: alpha),
-        shape: BoxShape.circle,
-      ),
-    );
-  }
-}
-
-class _FloatChip extends StatelessWidget {
-  const _FloatChip({
-    required this.icon,
-    required this.label,
-    required this.background,
-    required this.foreground,
+class _Controls extends StatelessWidget {
+  const _Controls({
+    required this.page,
+    required this.reduceMotion,
+    required this.onBack,
+    required this.onNext,
+    required this.onSelect,
   });
-
-  final IconData icon;
-  final String label;
-  final Color background;
-  final Color foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(99),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: foreground),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: foreground,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AvatarStack extends StatelessWidget {
-  const _AvatarStack(this.people);
-
-  final List<(String, Color)> people;
+  final int page;
+  final bool reduceMotion;
+  final VoidCallback onBack;
+  final VoidCallback onNext;
+  final ValueChanged<int> onSelect;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 30 + (people.length - 1) * 20,
-      height: 30,
-      child: Stack(
-        children: [
-          for (var i = 0; i < people.length; i++)
-            Positioned(
-              left: i * 20.0,
-              child: Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: people[i].$2,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.surfaceContainerLowest,
-                    width: 2,
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    people[i].$1,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Page 1 — split a bill
-// ---------------------------------------------------------------------------
-
-class _PageOne extends StatelessWidget {
-  const _PageOne();
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = _kPages[0].accent;
     final scheme = Theme.of(context).colorScheme;
-    return _PageShell(
-      index: 0,
-      art: SizedBox(
-        height: 262,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Positioned(
-                top: 0,
-                left: 26,
-                child: _Blob(color: accent, size: 120, alpha: 0.14)),
-            Positioned(
-                bottom: 0,
-                right: 20,
-                child: _Blob(color: accent, size: 170, alpha: 0.10)),
-            _ArtCard(
-              width: 178,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.receipt_long, color: accent, size: 21),
-                      const SizedBox(width: 8),
-                      const Text('Dinner',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 14)),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  const _Bar(142),
-                  const SizedBox(height: 9),
-                  const _Bar(110),
-                  const SizedBox(height: 9),
-                  const _Bar(126),
-                  const Divider(height: 24),
-                  Row(
-                    children: [
-                      Text('Total',
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant)),
-                      const Spacer(),
-                      const Text('Rs 8,600.00',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 13)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const _AvatarStack([
-                    ('A', Color(0xFF00897B)),
-                    ('S', Color(0xFFEF6C00)),
-                    ('F', Color(0xFF5E35B1)),
-                    ('H', Color(0xFF43A047)),
-                  ]),
-                ],
+    final isLast = page == _pages.length - 1;
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              SizedBox(
+                width: 64,
+                height: 48,
+                child: page > 0
+                    ? IconButton(
+                        tooltip: 'Back',
+                        onPressed: onBack,
+                        icon: const Icon(Icons.arrow_back_rounded, size: 21),
+                        color: scheme.onSurfaceVariant)
+                    : null,
               ),
-            ),
-            Positioned(
-              top: 30,
-              right: 30,
-              child: Transform.rotate(
-                angle: -0.09,
-                child: _FloatChip(
-                  icon: Icons.balance,
-                  label: 'Equal split',
-                  background: accent,
-                  foreground: Colors.white,
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 34,
-              left: 18,
-              child: Transform.rotate(
-                angle: 0.07,
-                child: _FloatChip(
-                  icon: Icons.percent,
-                  label: '50% · custom',
-                  background: scheme.surfaceContainerLowest,
-                  foreground: accent,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Page 2 — everyone in the loop
-// ---------------------------------------------------------------------------
-
-class _PageTwo extends StatelessWidget {
-  const _PageTwo();
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = _kPages[1].accent;
-    final scheme = Theme.of(context).colorScheme;
-    return _PageShell(
-      index: 1,
-      art: SizedBox(
-        height: 262,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Positioned(
-                top: 4,
-                right: 30,
-                child: _Blob(color: accent, size: 130, alpha: 0.13)),
-            Positioned(
-                bottom: 2,
-                left: 22,
-                child: _Blob(color: accent, size: 160, alpha: 0.09)),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    _ArtCard(
-                      width: 276,
-                      padding: const EdgeInsets.all(14),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: accent,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.notifications,
-                                color: Colors.white, size: 22),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('New bill: Dinner',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13.5)),
-                                Text('Your share  Rs 2,150.00',
-                                    style: TextStyle(
-                                        fontSize: 12.5,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurfaceVariant)),
-                              ],
+              Expanded(
+                child: Semantics(
+                  label: 'Page ${page + 1} of ${_pages.length}',
+                  liveRegion: true,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(_pages.length, (index) {
+                      return Semantics(
+                        label: 'Go to page ${index + 1}',
+                        selected: index == page,
+                        button: true,
+                        child: InkResponse(
+                          onTap: () => onSelect(index),
+                          radius: 24,
+                          child: SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: Center(
+                              child: AnimatedContainer(
+                                duration: reduceMotion
+                                    ? Duration.zero
+                                    : const Duration(milliseconds: 380),
+                                curve: Curves.easeOutCubic,
+                                width: index == page ? 28 : 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: index == page
+                                      ? scheme.primary
+                                      : scheme.primary.withValues(alpha: .16),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
                             ),
                           ),
-                          Text('now',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant)),
-                        ],
-                      ),
-                    ),
-                    Positioned(
-                      top: -7,
-                      right: -5,
-                      child: Container(
-                        width: 25,
-                        height: 25,
-                        decoration: BoxDecoration(
-                          color: accent,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: scheme.surface, width: 2.5),
                         ),
-                        child: const Icon(Icons.check,
-                            color: Colors.white, size: 14),
+                      );
+                    }),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 64),
+            ]),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: onNext,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 12, 12),
+                  minimumSize: const Size(48, 60),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
+                ),
+                child: Row(children: [
+                  Expanded(
+                    child: Text(isLast ? 'Get started' : 'Continue',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700)),
+                  ),
+                  const SizedBox(width: 8),
+                  ExcludeSemantics(
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(end: page.toDouble()),
+                      duration: reduceMotion
+                          ? Duration.zero
+                          : const Duration(milliseconds: 500),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, value, _) => Transform.rotate(
+                        angle: value * math.pi * 2,
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                              color: scheme.onPrimary.withValues(alpha: .13),
+                              borderRadius: BorderRadius.circular(12)),
+                          child: Icon(
+                              isLast
+                                  ? Icons.check_rounded
+                                  : Icons.arrow_forward_rounded,
+                              size: 20),
+                        ),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                _ArtCard(
-                  width: 276,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _PaidRow(
-                          name: 'Ahmed Raza',
-                          color: const Color(0xFFEF6C00),
-                          accent: accent),
-                      const Divider(height: 16),
-                      _PaidRow(
-                          name: 'Sara Khan',
-                          color: const Color(0xFF5E35B1),
-                          accent: accent),
-                    ],
                   ),
-                ),
-              ],
+                ]),
+              ),
             ),
-          ],
+            const SizedBox(height: 12),
+            Text('A little less maths. A lot more life.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w400)),
+          ]),
         ),
-      ),
-    );
-  }
-}
-
-class _PaidRow extends StatelessWidget {
-  const _PaidRow({
-    required this.name,
-    required this.color,
-    required this.accent,
-  });
-
-  final String name;
-  final Color color;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: 14,
-          backgroundColor: color,
-          child: Text(
-            name[0],
-            style: const TextStyle(
-                color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text('$name paid', style: const TextStyle(fontSize: 13)),
-        ),
-        Container(
-          width: 22,
-          height: 22,
-          decoration: BoxDecoration(
-            color: accent.withValues(alpha: 0.16),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(Icons.check, color: accent, size: 14),
-        ),
-      ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Page 3 — offline-first sync
-// ---------------------------------------------------------------------------
-
-class _PageThree extends StatelessWidget {
-  const _PageThree();
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = _kPages[2].accent;
-    final green = _kPages[1].accent;
-    return _PageShell(
-      index: 2,
-      art: SizedBox(
-        height: 262,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Positioned(
-                top: 0,
-                left: 34,
-                child: _Blob(color: accent, size: 120, alpha: 0.13)),
-            Positioned(
-                bottom: 4,
-                right: 26,
-                child: _Blob(color: accent, size: 150, alpha: 0.09)),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 118,
-                  height: 118,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerLowest,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.09),
-                        blurRadius: 24,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Icon(Icons.cloud_sync, size: 54, color: accent),
-                ),
-                const SizedBox(height: 20),
-                _SyncPill(
-                  icon: Icons.wifi_off,
-                  label: 'Offline? Saved on your device',
-                  background:
-                      Theme.of(context).colorScheme.surfaceContainerHigh,
-                  foreground: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: Icon(Icons.arrow_downward, size: 17, color: accent),
-                ),
-                _SyncPill(
-                  icon: Icons.check,
-                  label: 'Back online? Synced automatically',
-                  background: green,
-                  foreground: Colors.white,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SyncPill extends StatelessWidget {
-  const _SyncPill({
-    required this.icon,
-    required this.label,
-    required this.background,
-    required this.foreground,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color background;
-  final Color foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(99),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: foreground),
-          const SizedBox(width: 7),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: foreground,
-            ),
-          ),
-        ],
       ),
     );
   }

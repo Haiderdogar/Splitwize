@@ -9,6 +9,7 @@
 // The real Roboto family is loaded from the Flutter SDK, because the
 // default test font is far wider than production fonts and would
 // report overflows that never happen on a device.
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -34,7 +35,7 @@ import 'package:splitwize/screens/notifications_screen.dart';
 import 'package:splitwize/screens/onboarding_screen.dart';
 import 'package:splitwize/screens/profile_tab.dart';
 import 'package:splitwize/screens/settings_screen.dart';
-import 'package:splitwize/screens/requests_tab.dart';
+import 'package:splitwize/screens/request_screens.dart';
 import 'package:splitwize/screens/sign_in_screen.dart';
 import 'package:splitwize/services/sync_service.dart';
 import 'package:splitwize/widgets/app_drawer.dart';
@@ -195,13 +196,22 @@ const testOutgoing = [
 // Harness
 // ---------------------------------------------------------------------------
 
-List<Override> testOverrides() => [
+List<Override> testOverrides({
+  Stream<List<AppNotification>>? inbox,
+  Stream<List<BillGroup>>? groups,
+  Stream<List<BillGroup>>? groupInvites,
+  Stream<List<ConnectionRequest>>? incomingRequests,
+  Stream<List<ConnectionRequest>>? outgoingRequests,
+}) =>
+    [
       syncServiceProvider.overrideWith((ref) async => FakeSyncService()),
       currentUidProvider.overrideWith((ref) => 'me'),
       myBillsProvider.overrideWith((ref) => Stream.value([testBill])),
       balancesProvider.overrideWith((ref) => testBalances),
-      myGroupsProvider.overrideWith((ref) => Stream.value([testGroup])),
-      groupInvitesProvider.overrideWith((ref) => Stream.value([incomingGroup])),
+      myGroupsProvider
+          .overrideWith((ref) => groups ?? Stream.value([testGroup])),
+      groupInvitesProvider
+          .overrideWith((ref) => groupInvites ?? Stream.value([incomingGroup])),
       appUserProvider.overrideWith((ref, uid) => Stream.value({
             me.uid: me,
             longNameFriend.uid: longNameFriend,
@@ -210,12 +220,12 @@ List<Override> testOverrides() => [
           }[uid])),
       connectionsProvider
           .overrideWith((ref) => Stream.value([longNameFriend, friend2])),
-      incomingRequestsProvider
-          .overrideWith((ref) => Stream.value(testIncoming)),
-      outgoingRequestsProvider
-          .overrideWith((ref) => Stream.value(testOutgoing)),
+      incomingRequestsProvider.overrideWith(
+          (ref) => incomingRequests ?? Stream.value(testIncoming)),
+      outgoingRequestsProvider.overrideWith(
+          (ref) => outgoingRequests ?? Stream.value(testOutgoing)),
       notificationsProvider
-          .overrideWith((ref) => Stream.value(testNotifications)),
+          .overrideWith((ref) => inbox ?? Stream.value(testNotifications)),
       currentAppUserProvider.overrideWith((ref) => Stream.value(me)),
       authStateChangesProvider.overrideWith((ref) => Stream.value(null)),
       billProvider.overrideWith((ref, id) => Stream.value(testBill)),
@@ -235,12 +245,23 @@ Future<void> pumpAt(
   Widget screen, {
   required Size size,
   double textScale = 1.0,
+  Stream<List<AppNotification>>? inbox,
+  Stream<List<BillGroup>>? groups,
+  Stream<List<BillGroup>>? groupInvites,
+  Stream<List<ConnectionRequest>>? incomingRequests,
+  Stream<List<ConnectionRequest>>? outgoingRequests,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   await tester.pumpWidget(
     ProviderScope(
-      overrides: testOverrides(),
+      overrides: testOverrides(
+        inbox: inbox,
+        groups: groups,
+        groupInvites: groupInvites,
+        incomingRequests: incomingRequests,
+        outgoingRequests: outgoingRequests,
+      ),
       child: MaterialApp(
         theme: ThemeData(
           fontFamily: 'Roboto',
@@ -311,7 +332,8 @@ void main() {
     'FriendsTab': const FriendsTab(),
     'ProfileTab': const ProfileTab(),
     'SettingsScreen': const SettingsScreen(),
-    'RequestsTab': const RequestsTab(),
+    'GroupRequests': const GroupRequestsScreen(),
+    'FriendRequests': const FriendRequestsScreen(),
     'Notifications': const NotificationsScreen(),
     'BillDetail': const BillDetailScreen(billId: 'b1'),
     'GroupDetail': const GroupDetailScreen(groupId: 'g1'),
@@ -320,30 +342,82 @@ void main() {
     'HomeShell': const HomeShell(),
   };
 
-  testWidgets('Requests tab and drawer keep Profile and Settings separate',
+  testWidgets(
+      'Invites stay with Groups and Friends; Notifications has its own tab',
       (tester) async {
     addTearDown(() => tester.view.reset());
     await pumpAt(tester, const HomeShell(), size: const Size(390, 844));
     final nav = find.byType(NavigationBar);
     expect(nav, findsOneWidget);
-    expect(find.descendant(of: nav, matching: find.text('Requests')),
+    expect(find.descendant(of: nav, matching: find.text('Notifications')),
         findsOneWidget);
+    expect(find.descendant(of: nav, matching: find.text('Requests')),
+        findsNothing);
     expect(
         find.descendant(of: nav, matching: find.text('Profile')), findsNothing);
-    expect(find.descendant(of: nav, matching: find.text('4')), findsWidgets);
+    expect(find.descendant(of: nav, matching: find.text('1')), findsWidgets);
+    expect(find.descendant(of: nav, matching: find.text('4')), findsNothing);
 
-    await tester.tap(find.descendant(of: nav, matching: find.text('Requests')));
+    await tester.tap(find.descendant(
+        of: find.byType(AppBar), matching: find.byTooltip('Notifications')));
     await tester.pumpAndSettle();
-    expect(find.text('Requests & Invitations'), findsOneWidget);
-    expect(find.text('Group incoming (1)'), findsOneWidget);
-    expect(find.text('Group outgoing (1)'), findsOneWidget);
+    expect(tester.widget<NavigationBar>(nav).selectedIndex, 4);
+    expect(find.byType(BackButton), findsNothing);
+
+    await tester.tap(find.descendant(of: nav, matching: find.text('Groups')));
+    await tester.pumpAndSettle();
+    expect(find.text('My groups'), findsOneWidget);
+    final groupInvites = find.byTooltip('Group invitations');
+    expect(groupInvites, findsOneWidget);
+    expect(find.descendant(of: groupInvites, matching: find.text('2')),
+        findsOneWidget);
+    await tester.tap(groupInvites);
+    await tester.pumpAndSettle();
+    expect(find.byType(GroupRequestsScreen), findsOneWidget);
+    expect(find.byType(Tab), findsNWidgets(2));
     expect(find.text('Incoming (1)'), findsOneWidget);
     expect(find.text('Outgoing (1)'), findsOneWidget);
-    await tester.ensureVisible(find.text('Incoming (1)'));
-    await tester.tap(find.text('Incoming (1)'));
+    expect(find.text('wants to connect with you'), findsNothing);
+    await tester.pageBack();
     await tester.pumpAndSettle();
-    expect(find.text('wants to connect with you'), findsOneWidget);
 
+    await tester.tap(find.descendant(of: nav, matching: find.text('Friends')));
+    await tester.pumpAndSettle();
+    final friendInvites = find.byTooltip('Friend invitations');
+    expect(friendInvites, findsOneWidget);
+    expect(find.descendant(of: friendInvites, matching: find.text('2')),
+        findsOneWidget);
+    await tester.tap(friendInvites);
+    await tester.pumpAndSettle();
+    expect(find.byType(FriendRequestsScreen), findsOneWidget);
+    expect(find.byType(Tab), findsNWidgets(2));
+    expect(find.text('Incoming (1)'), findsOneWidget);
+    expect(find.text('Outgoing (1)'), findsOneWidget);
+    expect(find.text('wants to connect with you'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester
+        .tap(find.descendant(of: nav, matching: find.text('Notifications')));
+    await tester.pumpAndSettle();
+    expect(find.byType(NotificationsScreen), findsOneWidget);
+    expect(find.text('Recent updates'), findsOneWidget);
+    expect(find.byType(BackButton), findsNothing);
+
+    splitwizeScaffoldKey.currentState!.openDrawer();
+    await tester.pumpAndSettle();
+    final drawerNotifications = find.descendant(
+        of: find.byType(Drawer), matching: find.text('Notifications'));
+    expect(drawerNotifications, findsOneWidget,
+        reason: 'The drawer must have one Notifications destination');
+    expect(
+        find.descendant(
+            of: find.byType(Drawer), matching: find.text('Requests')),
+        findsNothing);
+    await tester.tap(drawerNotifications);
+    await tester.pumpAndSettle();
+    expect(tester.widget<NavigationBar>(nav).selectedIndex, 4);
+    expect(find.byType(BackButton), findsNothing);
     splitwizeScaffoldKey.currentState!.openDrawer();
     await tester.pumpAndSettle();
     expect(find.text('View profile'), findsOneWidget);
@@ -367,6 +441,181 @@ void main() {
     expect(find.text('Personal details'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  for (final size in [const Size(390, 844), const Size(1024, 768)]) {
+    testWidgets('Notifications badge tracks unread inbox only at $size',
+        (tester) async {
+      addTearDown(tester.view.reset);
+      final inbox = StreamController<List<AppNotification>>();
+      addTearDown(inbox.close);
+      await pumpAt(tester, const HomeShell(), size: size, inbox: inbox.stream);
+      inbox.add([]);
+      await tester.pumpAndSettle();
+      final nav = size.width >= 760
+          ? find.byType(NavigationRail)
+          : find.byType(NavigationBar);
+      final navBadges = find.descendant(of: nav, matching: find.byType(Badge));
+
+      void expectVisibleBadge(int unread) {
+        final badges = tester
+            .widgetList<Badge>(navBadges)
+            .where((badge) => badge.isLabelVisible)
+            .toList();
+        if (unread == 0) {
+          expect(badges, isEmpty,
+              reason: 'Pending invitations must not create an inbox badge');
+        } else {
+          expect(badges, isNotEmpty);
+          for (final badge in badges) {
+            expect((badge.label! as Text).data, '$unread');
+          }
+        }
+      }
+
+      expectVisibleBadge(0);
+      await tester
+          .tap(find.descendant(of: nav, matching: find.text('Notifications')));
+      await tester.pumpAndSettle();
+      expect(find.text('All caught up.'), findsOneWidget);
+
+      inbox.add(testNotifications);
+      await tester.pumpAndSettle();
+      expectVisibleBadge(1);
+      expect(find.text('Recent updates'), findsOneWidget);
+
+      inbox.add([
+        for (final notification in testNotifications)
+          notification.copyWith(read: true),
+      ]);
+      await tester.pumpAndSettle();
+      expectVisibleBadge(0);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final isGroup in [true, false]) {
+    for (final compact in [false, true]) {
+      testWidgets(
+          'Invites totals update for ${isGroup ? 'Groups' : 'Friends'} in ${compact ? 'compact' : 'regular'} layout',
+          (tester) async {
+        addTearDown(tester.view.reset);
+        final semantics = tester.ensureSemantics();
+        final groups = StreamController<List<BillGroup>>.broadcast();
+        final groupInvites = StreamController<List<BillGroup>>.broadcast();
+        final incomingFriends =
+            StreamController<List<ConnectionRequest>>.broadcast();
+        final outgoingFriends =
+            StreamController<List<ConnectionRequest>>.broadcast();
+        addTearDown(groups.close);
+        addTearDown(groupInvites.close);
+        addTearDown(incomingFriends.close);
+        addTearDown(outgoingFriends.close);
+        try {
+          await pumpAt(
+            tester,
+            isGroup ? const GroupsTab() : const FriendsTab(),
+            size: compact ? const Size(320, 568) : const Size(390, 844),
+            textScale: compact ? 2 : 1,
+            groups: groups.stream,
+            groupInvites: groupInvites.stream,
+            incomingRequests: incomingFriends.stream,
+            outgoingRequests: outgoingFriends.stream,
+          );
+
+          List<ConnectionRequest> requests(int count,
+                  {required bool incoming}) =>
+              List.generate(
+                count,
+                (index) => ConnectionRequest(
+                  id: '${incoming ? 'in' : 'out'}-$index',
+                  fromUid: incoming ? 'friend-$index' : 'me',
+                  fromName: incoming ? 'Friend $index' : me.displayName,
+                  toUid: incoming ? 'me' : 'friend-$index',
+                  toName: incoming ? me.displayName : 'Friend $index',
+                  status: 'pending',
+                ),
+              );
+
+          Future<void> update({
+            required int incoming,
+            required int outgoing,
+            int otherIncoming = 7,
+            int otherOutgoing = 8,
+          }) async {
+            final groupIn = isGroup ? incoming : otherIncoming;
+            final groupOut = isGroup ? outgoing : otherOutgoing;
+            groupInvites.add(List.generate(
+              groupIn,
+              (index) => BillGroup(
+                id: 'incoming-group-$index',
+                name: 'Incoming group $index',
+                createdBy: 'f1',
+                members: const ['f1'],
+                invited: const ['me'],
+              ),
+            ));
+            groups.add([
+              testGroup.copyWith(
+                invited: List.generate(groupOut, (index) => 'recipient-$index'),
+              ),
+            ]);
+            incomingFriends.add(
+                requests(isGroup ? otherIncoming : incoming, incoming: true));
+            outgoingFriends.add(
+                requests(isGroup ? otherOutgoing : outgoing, incoming: false));
+            await tester.pumpAndSettle();
+          }
+
+          final tooltip = isGroup ? 'Group invitations' : 'Friend invitations';
+          final button = find.byTooltip(tooltip);
+          void expectTotal(int total) {
+            expect(button.hitTestable(), findsOneWidget);
+            final numericLabels = find.descendant(
+              of: button,
+              matching: find.byWidgetPredicate((widget) =>
+                  widget is Text &&
+                  RegExp(r'^\d+(?:\+)?$').hasMatch(widget.data ?? '')),
+            );
+            if (total == 0) {
+              expect(numericLabels, findsNothing,
+                  reason: 'No counter should remain when nothing is pending');
+            } else {
+              expect(numericLabels, findsOneWidget);
+              expect(tester.widget<Text>(numericLabels).data, '$total',
+                  reason: 'Show the exact total for this invitation category');
+            }
+            final data = tester
+                .getSemantics(find.bySemanticsLabel(tooltip))
+                .getSemanticsData();
+            expect(
+                data.value,
+                total == 0
+                    ? 'No pending invitations'
+                    : '$total pending invitations');
+            expect(tester.takeException(), isNull);
+          }
+
+          await update(incoming: 0, outgoing: 0);
+          expectTotal(0);
+          await update(incoming: 2, outgoing: 0);
+          expectTotal(2);
+          await update(incoming: 2, outgoing: 3);
+          expectTotal(5);
+          await update(
+              incoming: 2, outgoing: 3, otherIncoming: 20, otherOutgoing: 30);
+          expectTotal(5);
+          await update(incoming: 0, outgoing: 3);
+          expectTotal(3);
+          await update(incoming: 0, outgoing: 101);
+          expectTotal(101);
+          await update(incoming: 0, outgoing: 0);
+          expectTotal(0);
+        } finally {
+          semantics.dispose();
+        }
+      });
+    }
+  }
 
   testWidgets('Balances hides the highlighted introduction', (tester) async {
     addTearDown(() => tester.view.reset());

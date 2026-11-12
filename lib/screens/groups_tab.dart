@@ -4,12 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
+import '../providers/invitation_providers.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_notification_button.dart';
+import '../widgets/invitation_button.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
 import 'create_group_screen.dart';
 import 'group_detail_screen.dart';
+import 'request_screens.dart';
 
 class GroupsTab extends StatelessWidget {
   const GroupsTab({super.key});
@@ -26,10 +29,24 @@ class GroupsTab extends StatelessWidget {
         actions: const [AppNotificationButton(), SizedBox(width: 5)],
       ),
       body: CustomScrollView(slivers: [
-        const SliverPadding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           sliver: SliverToBoxAdapter(
-            child: SectionHeading('My groups'),
+            child: Consumer(builder: (context, ref, _) {
+              final incoming =
+                  ref.watch(groupInvitesProvider).value?.length ?? 0;
+              final outgoing =
+                  ref.watch(outgoingGroupInvitesProvider).value?.length ?? 0;
+              return SectionHeading(
+                'My groups',
+                trailing: InvitationButton(
+                  count: incoming + outgoing,
+                  tooltip: 'Group invitations',
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const GroupRequestsScreen())),
+                ),
+              );
+            }),
           ),
         ),
         SliverPadding(

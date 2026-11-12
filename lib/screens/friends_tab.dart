@@ -7,8 +7,10 @@ import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_notification_button.dart';
+import '../widgets/invitation_button.dart';
 import '../widgets/studio_ui.dart';
 import '../widgets/state_widgets.dart';
+import 'request_screens.dart';
 
 class FriendsTab extends ConsumerStatefulWidget {
   const FriendsTab({super.key});
@@ -82,7 +84,7 @@ class _FriendsTabState extends ConsumerState<FriendsTab>
           const SizedBox(width: 5),
         ],
       ),
-      // Connected friends only; requests have their own tab.
+      // Connected friends, with invitations opened from the section header.
       body: RefreshIndicator(
           onRefresh: _refresh,
           child: CustomScrollView(
@@ -143,10 +145,11 @@ class _FriendsTabState extends ConsumerState<FriendsTab>
 /// The count watches only the list lengths, so it never rebuilds on
 /// unrelated state changes.
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.text, {this.count});
+  const _SectionHeader(this.text, {this.count, this.trailing});
 
   final String text;
   final int? count;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -155,29 +158,38 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Text(
-            text,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: scheme.onSurfaceVariant,
+          Expanded(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  text,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
                 ),
-          ),
-          if (count != null && count! > 0) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: scheme.primaryContainer,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                '$count',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: scheme.onPrimaryContainer,
+                if (count != null && count! > 0)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(999),
                     ),
-              ),
+                    child: Text(
+                      '$count',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: scheme.onPrimaryContainer,
+                          ),
+                    ),
+                  ),
+              ],
             ),
-          ],
+          ),
+          if (trailing != null) trailing!,
         ],
       ),
     );
@@ -193,7 +205,19 @@ class _ConnectedHeader extends StatelessWidget {
       builder: (context, ref, _) {
         final count =
             ref.watch(connectionsProvider.select((v) => v.value?.length ?? 0));
-        return _SectionHeader('Connected', count: count);
+        final incoming = ref.watch(incomingRequestsProvider).value?.length ?? 0;
+        final outgoing =
+            ref.watch(outgoingRequestsProvider).value?.length ?? 0;
+        return _SectionHeader(
+          'Connected',
+          count: count,
+          trailing: InvitationButton(
+            count: incoming + outgoing,
+            tooltip: 'Friend invitations',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const FriendRequestsScreen())),
+          ),
+        );
       },
     );
   }

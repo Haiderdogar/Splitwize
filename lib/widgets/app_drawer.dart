@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
-import '../screens/notifications_screen.dart';
 import '../screens/profile_tab.dart';
 import '../screens/settings_screen.dart';
 import '../utils/current_user_identity.dart';
@@ -32,7 +31,7 @@ class SplitwizeDrawer extends ConsumerWidget {
     (name: 'Balances', icon: Icons.account_balance_wallet_outlined),
     (name: 'Groups', icon: Icons.groups_outlined),
     (name: 'Friends', icon: Icons.people_outline_rounded),
-    (name: 'Requests', icon: Icons.mark_email_unread_outlined),
+    (name: 'Notifications', icon: Icons.notifications_none_rounded),
   ];
 
   @override
@@ -146,17 +145,6 @@ class SplitwizeDrawer extends ConsumerWidget {
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 11),
               child: Divider(height: 1),
-            ),
-            ListTile(
-              leading: const Icon(Icons.notifications_none_rounded),
-              title: const Text('Notifications'),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const NotificationsScreen()));
-              },
             ),
             ListTile(
               leading: const Icon(Icons.settings_outlined),

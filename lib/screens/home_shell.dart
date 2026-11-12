@@ -7,9 +7,8 @@ import 'balances_tab.dart';
 import 'bills_tab.dart';
 import 'friends_tab.dart';
 import 'groups_tab.dart';
-import 'requests_tab.dart';
+import 'notifications_screen.dart';
 import '../providers/data_providers.dart';
-import '../providers/invitation_providers.dart';
 
 /// Standard Material navigation: calm, predictable, and accessible.
 /// The IndexedStack preserves each tab's list scroll and provider state.
@@ -21,7 +20,7 @@ class HomeShell extends ConsumerWidget {
     BalancesTab(),
     GroupsTab(),
     FriendsTab(),
-    RequestsTab(),
+    NotificationsScreen(embedded: true),
   ];
 
   static const _items = <({IconData icon, IconData active, String label})>[
@@ -46,23 +45,16 @@ class HomeShell extends ConsumerWidget {
       label: 'Friends'
     ),
     (
-      icon: Icons.mark_email_unread_outlined,
-      active: Icons.mark_email_read_rounded,
-      label: 'Requests'
+      icon: Icons.notifications_none_rounded,
+      active: Icons.notifications_rounded,
+      label: 'Notifications'
     ),
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(tabIndexProvider);
-    final int requestCount = (ref.watch(
-                groupInvitesProvider.select((v) => v.value?.length ?? 0)) +
-            ref.watch(
-                incomingRequestsProvider.select((v) => v.value?.length ?? 0)) +
-            ref.watch(
-                outgoingRequestsProvider.select((v) => v.value?.length ?? 0)) +
-            (ref.watch(outgoingGroupInvitesProvider).value?.length ?? 0))
-        .toInt();
+    final unreadCount = ref.watch(unreadCountProvider);
     final scheme = Theme.of(context).colorScheme;
     final wide = MediaQuery.sizeOf(context).width >= 760;
 
@@ -88,9 +80,9 @@ class HomeShell extends ConsumerWidget {
                     for (var i = 0; i < _items.length; i++)
                       NavigationRailDestination(
                         icon:
-                            _navIcon(_items[i].icon, i == 4 ? requestCount : 0),
+                            _navIcon(_items[i].icon, i == 4 ? unreadCount : 0),
                         selectedIcon: _navIcon(
-                            _items[i].active, i == 4 ? requestCount : 0),
+                            _items[i].active, i == 4 ? unreadCount : 0),
                         label: Text(_items[i].label),
                       ),
                   ],
@@ -118,9 +110,9 @@ class HomeShell extends ConsumerWidget {
                     for (var i = 0; i < _items.length; i++)
                       NavigationDestination(
                         icon:
-                            _navIcon(_items[i].icon, i == 4 ? requestCount : 0),
+                            _navIcon(_items[i].icon, i == 4 ? unreadCount : 0),
                         selectedIcon: _navIcon(
-                            _items[i].active, i == 4 ? requestCount : 0),
+                            _items[i].active, i == 4 ? unreadCount : 0),
                         label: _items[i].label,
                       ),
                   ],
