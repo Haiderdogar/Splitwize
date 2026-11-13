@@ -36,18 +36,19 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Prepare native branding from app_icon.png
+        run: dart run tool/generate_splash_assets.dart
+
       - name: Generate native Android and iOS launcher assets
         run: dart run flutter_launcher_icons
 
       - name: Generate native Android and iOS splash screens
-        run: |
-          dart run tool/generate_splash_assets.dart
-          dart run flutter_native_splash:create
+        run: dart run flutter_native_splash:create
 
       - name: Commit regenerated platform branding
         shell: bash
         run: |
-          git add android/app/src/main/res assets/splash ios/Runner/Assets.xcassets ios/Runner/Base.lproj/LaunchScreen.storyboard ios/Runner/Info.plist
+          git add android/app/src/main/res assets/icon/launcher_icon.png assets/splash ios/Runner/Assets.xcassets ios/Runner/Base.lproj/LaunchScreen.storyboard ios/Runner/Info.plist
           if git diff --cached --quiet; then
             echo "Launcher and splash assets already match the current icon."
             exit 0

@@ -16,8 +16,13 @@ class SplitwizeMark extends StatelessWidget {
         color: SplitwizePalette.forest,
         borderRadius: BorderRadius.circular(size * .29),
       ),
-      child: Icon(Icons.call_split_rounded, color: SplitwizePalette.lime,
-          size: size * .55),
+      clipBehavior: Clip.antiAlias,
+      // The source already includes transparent space around the artwork.
+      child: Image.asset(
+        'assets/icon/app_icon.png',
+        fit: BoxFit.contain,
+        excludeFromSemantics: true,
+      ),
     );
   }
 }

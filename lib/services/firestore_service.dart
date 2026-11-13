@@ -512,6 +512,10 @@ class FirestoreService {
     required String type, // friend_request | group_invite | reminder
     String? billId,
     String? groupId,
+    String? fromUid,
+    String? fromName,
+    String? fromEmail,
+    String? groupName,
   }) async {
     final notification = _db.collection('notifications').doc();
     final payload = {
@@ -521,6 +525,10 @@ class FirestoreService {
       'type': type,
       'billId': billId,
       'groupId': groupId,
+      'fromUid': fromUid,
+      'fromName': fromName,
+      'fromEmail': fromEmail,
+      'groupName': groupName,
       'read': false,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),

@@ -37,6 +37,70 @@ function pushPreview(value, maxBytes) {
   return preview;
 }
 
+const nonEmptyText = (value) => typeof value === 'string' ? value.trim() : '';
+
+function invitationSender(invite, profile) {
+  // A group invitation records the actual inviting member. Keep that profile
+  // together: a missing name must use their email, not a stale payload name.
+  const hasProfile = profile && [profile.uid, profile.displayName, profile.email]
+    .some((value) => nonEmptyText(value));
+  return {
+    fromUid: nonEmptyText(profile && profile.uid) || nonEmptyText(invite.fromUid),
+    fromName: nonEmptyText(hasProfile ? profile.displayName : invite.fromName),
+    fromEmail: nonEmptyText(hasProfile ? profile.email : invite.fromEmail),
+  };
+}
+
+function invitationData(invite, sender, groupName) {
+  const data = { type: invite.type, toUid: String(invite.toUid) };
+  for (const [key, maxBytes] of [
+    ['fromUid', 128], ['fromName', 256], ['fromEmail', 320],
+  ]) {
+    if (sender[key]) data[key] = pushPreview(sender[key], maxBytes);
+  }
+  if (invite.groupId) data.groupId = String(invite.groupId);
+  if (groupName) data.groupName = pushPreview(groupName, 256);
+  return data;
+}
+
+// Invitation documents are already written by the client. These triggers only
+// deliver their push, so there is still a single entry in the recipient's inbox.
+exports.notifyFriendRequest = onDocumentCreated(
+  'notifications/{notificationId}',
+  async (event) => {
+    const invite = event.data && event.data.data();
+    if (!invite || invite.type !== 'friend_request' || !invite.toUid) return;
+    const db = admin.firestore();
+    const sender = invitationSender(invite);
+    if (sender.fromUid) {
+      if (sender.fromUid === invite.toUid) return;
+      const pending = await db.collection('connectionRequests')
+        .where('fromUid', '==', sender.fromUid)
+        .where('toUid', '==', invite.toUid)
+        .where('status', '==', 'pending').limit(1).get();
+      if (pending.empty) return;
+    }
+    const user = await db.collection('users').doc(invite.toUid).get();
+    if (!user.exists) return;
+    const tokens = [...new Set(user.get('fcmTokens') || [])];
+    const name = sender.fromName || sender.fromEmail;
+    const body = name ? `${name} invited you to connect on Splitwize.`
+      : nonEmptyText(invite.body) || 'You have a new connection invitation.';
+    for (let index = 0; index < tokens.length; index += 500) {
+      const chunk = tokens.slice(index, index + 500);
+      const result = await admin.messaging().sendEachForMulticast({
+        tokens: chunk,
+        notification: {
+          title: pushPreview(invite.title || 'Connection invitation', 160),
+          body: pushPreview(body, 1024),
+        },
+        data: invitationData(invite, sender),
+      });
+      await pruneBadTokens(db, invite.toUid, chunk, result.responses);
+    }
+  }
+);
+
 exports.notifyGroupInvitation = onDocumentCreated(
   'notifications/{notificationId}',
   async (event) => {
@@ -48,6 +112,12 @@ exports.notifyGroupInvitation = onDocumentCreated(
     const group = groupSnap.data();
     if (group.deleted || !(group.invited || []).includes(invite.toUid) ||
         (group.members || []).includes(invite.toUid)) return;
+    const pending = group.invitations && group.invitations[invite.toUid];
+    const sender = invitationSender(invite, pending && pending.from);
+    const groupName = nonEmptyText(invite.groupName) || nonEmptyText(group.name);
+    const name = sender.fromName || sender.fromEmail;
+    const body = name && groupName ? `${name} invited you to join "${groupName}".`
+      : nonEmptyText(invite.body) || 'You have a new group invitation.';
     const user = await db.collection('users').doc(invite.toUid).get();
     if (!user.exists) return;
     const tokens = [...new Set(user.get('fcmTokens') || [])];
@@ -56,8 +126,8 @@ exports.notifyGroupInvitation = onDocumentCreated(
       const result = await admin.messaging().sendEachForMulticast({
         tokens: chunk,
         notification: { title: pushPreview(invite.title || 'Group invitation', 160),
-          body: pushPreview(invite.body, 1024) },
-        data: { type: 'group_invite', groupId: String(invite.groupId), toUid: String(invite.toUid) },
+          body: pushPreview(body, 1024) },
+        data: invitationData(invite, sender, groupName),
       });
       await pruneBadTokens(db, invite.toUid, chunk, result.responses);
     }

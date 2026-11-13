@@ -16,39 +16,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Download user-approved icon source
-        run: |
-          curl --fail --location --retry 3 --output assets/icon/app_icon.png "https://at.adobe.com/llGfUcPxdRa1qKHy"
-          echo '0c9056651cf13c0cd569720b08049c21d482185a61ad3ba242282ff799b692c5  assets/icon/app_icon.png' | sha256sum --check
-          file assets/icon/app_icon.png
-          python -m pip install 'Pillow>=10,<13'
-          python - <<'PY'
-          from PIL import Image
-          from pathlib import Path
-          root=Path('assets/icon')
-          # Keep app_icon.png exactly byte-for-byte as the user's uploaded PNG.
-          original=Image.open(root/'app_icon.png')
-          original.load()
-          if original.format != 'PNG' or original.size != (1254,1254):
-              raise RuntimeError('Uploaded icon has unexpected format or dimensions')
-          # Android adaptive icons are layered and system-masked; generate
-          # derivatives without altering the exact master asset.
-          rgba=original.convert('RGBA')
-          foreground=Image.new('RGBA',(1024,1024),(0,0,0,0))
-          artwork=rgba.resize((850,850),Image.Resampling.LANCZOS)
-          foreground.alpha_composite(artwork,(87,87))
-          foreground.save(root/'adaptive_foreground.png', optimize=True)
-          Image.new('RGB',(1024,1024),(3,68,39)).save(root/'adaptive_background.png')
-          PY
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
       - run: flutter pub get
+      - name: Prepare native branding from the repository app_icon.png
+        run: dart run tool/generate_splash_assets.dart
       - run: dart run flutter_launcher_icons
-      - run: |
-          dart run tool/generate_splash_assets.dart
-          dart run flutter_native_splash:create
+      - run: dart run flutter_native_splash:create
       - run: |
           flutter analyze
           flutter test

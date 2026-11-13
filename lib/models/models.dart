@@ -892,6 +892,10 @@ class AppNotification {
   final String type; // bill_created | bill_paid | friend_request | group_invite
   final String? billId;
   final String? groupId;
+  final String? fromUid;
+  final String? fromName;
+  final String? fromEmail;
+  final String? groupName;
   final bool read;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -904,6 +908,10 @@ class AppNotification {
     required this.type,
     this.billId,
     this.groupId,
+    this.fromUid,
+    this.fromName,
+    this.fromEmail,
+    this.groupName,
     required this.read,
     this.createdAt,
     this.updatedAt,
@@ -922,6 +930,10 @@ class AppNotification {
         type: (map['type'] as String?) ?? '',
         billId: map['billId'] as String?,
         groupId: map['groupId'] as String?,
+        fromUid: map['fromUid'] as String?,
+        fromName: map['fromName'] as String?,
+        fromEmail: map['fromEmail'] as String?,
+        groupName: map['groupName'] as String?,
         read: (map['read'] as bool?) ?? false,
         createdAt: dateFrom(map['createdAt']),
         updatedAt: dateFrom(map['updatedAt']),
@@ -934,6 +946,10 @@ class AppNotification {
         'type': type,
         'billId': billId,
         'groupId': groupId,
+        'fromUid': fromUid,
+        'fromName': fromName,
+        'fromEmail': fromEmail,
+        'groupName': groupName,
         'read': read,
         'createdAt': createdAt,
         'updatedAt': updatedAt,
@@ -948,6 +964,10 @@ class AppNotification {
       type: type,
       billId: billId,
       groupId: groupId,
+      fromUid: fromUid,
+      fromName: fromName,
+      fromEmail: fromEmail,
+      groupName: groupName,
       read: read ?? this.read,
       createdAt: createdAt,
       updatedAt: updatedAt,
@@ -968,6 +988,10 @@ class AppNotification {
           type == other.type &&
           billId == other.billId &&
           groupId == other.groupId &&
+          fromUid == other.fromUid &&
+          fromName == other.fromName &&
+          fromEmail == other.fromEmail &&
+          groupName == other.groupName &&
           read == other.read &&
           createdAt == other.createdAt;
 
@@ -980,6 +1004,10 @@ class AppNotification {
         type,
         billId,
         groupId,
+        fromUid,
+        fromName,
+        fromEmail,
+        groupName,
         read,
         createdAt,
       );

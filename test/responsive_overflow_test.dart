@@ -393,7 +393,9 @@ void main() {
     expect(find.byType(Tab), findsNWidgets(2));
     expect(find.text('Incoming (1)'), findsOneWidget);
     expect(find.text('Outgoing (1)'), findsOneWidget);
-    expect(find.text('wants to connect with you'), findsOneWidget);
+    expect(find.text('wants to connect with you'), findsNothing);
+    expect(find.text(testIncoming.single.fromName), findsOneWidget);
+    expect(find.text('Invited by'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
 

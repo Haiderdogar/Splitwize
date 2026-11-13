@@ -1,24 +1,19 @@
-import 'package:currency_picker/currency_picker.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../providers/core_providers.dart';
-import '../providers/data_providers.dart';
 import '../providers/monetization_providers.dart';
 import '../widgets/logout_button.dart';
 import '../widgets/paywall_sheet.dart';
-import '../widgets/state_widgets.dart';
-import '../widgets/studio_ui.dart';
-import 'bills_tab.dart' show currencyLabel;
+import 'settings/settings_connection.dart';
+import 'settings/settings_preferences.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    const divider = Divider(height: 1, indent: 56, endIndent: 16);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Scaffold(
       appBar: AppBar(
         leading: const BackButton(),
@@ -26,268 +21,184 @@ class SettingsScreen extends StatelessWidget {
       ),
       body: SafeArea(
         top: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          children: [
-            const SectionHeading('Preferences'),
-            const SizedBox(height: 8),
-            Card(
-              elevation: 0,
-              color: colorScheme.surfaceContainerLowest,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(color: colorScheme.outlineVariant),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: const Column(
-                mainAxisSize: MainAxisSize.min,
+        child: SingleChildScrollView(
+          key: const ValueKey('settings-scroll'),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _PushNotificationsTile(),
-                  divider,
-                  _SyncStatusTile(),
-                  divider,
-                  _DefaultCurrencyTile(),
-                  divider,
-                  _AppearanceTile(),
-                  divider,
-                  _AdFreeTile(),
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                          color: scheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(16)),
+                      child: Icon(Icons.tune_rounded,
+                          color: scheme.onPrimaryContainer, size: 26),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                        child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Your app, your way.',
+                            style: theme.textTheme.headlineSmall),
+                        const SizedBox(height: 6),
+                        Text('A few preferences for easier sharing.',
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                      ],
+                    )),
+                  ]),
+                  const SizedBox(height: 28),
+                  const _SettingsHeading('Personalize',
+                      subtitle: 'Small touches that make Splitwize yours.'),
+                  const SizedBox(height: 12),
+                  Material(
+                    color: scheme.surfaceContainerLowest,
+                    clipBehavior: Clip.antiAlias,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(color: scheme.outlineVariant)),
+                    child: const SettingsPreferences(),
+                  ),
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                        'Your currency is used for new groups and friend expenses.',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant)),
+                  ),
+                  const SizedBox(height: 28),
+                  const _SettingsHeading('Stay connected',
+                      subtitle: 'Keep up with shared expenses and updates.'),
+                  const SizedBox(height: 12),
+                  const SettingsNotificationsCard(),
+                  const SizedBox(height: 12),
+                  const SettingsSyncCard(),
+                  const SizedBox(height: 28),
+                  const _AdFreeCard(),
+                  const SizedBox(height: 28),
+                  const _SettingsHeading('Account'),
+                  const SizedBox(height: 12),
+                  Material(
+                    color: scheme.surfaceContainerLowest,
+                    clipBehavior: Clip.antiAlias,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        side: BorderSide(
+                            color: scheme.error.withValues(alpha: .2))),
+                    child: const LogoutButton(),
+                  ),
+                  const SizedBox(height: 28),
+                  Text('Simple splits. Clear balances.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant)),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            Card(
-              elevation: 0,
-              color: colorScheme.surfaceContainerLow,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: const LogoutButton(),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// My default currency — used for new groups and friend bills, and
-/// shown everywhere money is displayed. Saved on my profile, so it
-/// follows me across devices; works offline (queued profile update).
-class _DefaultCurrencyTile extends StatelessWidget {
-  const _DefaultCurrencyTile();
+class _SettingsHeading extends StatelessWidget {
+  const _SettingsHeading(this.title, {this.subtitle});
+  final String title;
+  final String? subtitle;
 
   @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final code =
-            ref.watch(currentAppUserProvider).value?.currencyCode ?? 'USD';
-        return ListTile(
-          leading: const Icon(Icons.currency_exchange),
-          title: const Text('Default currency'),
-          subtitle:
-              Text('${currencyLabel(code)} — for new groups & friend bills'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => showCurrencyPicker(
-            context: context,
-            showFlag: true,
-            favorite: const ['PKR', 'USD', 'EUR', 'GBP', 'AED', 'SAR', 'INR'],
-            onSelect: (c) async {
-              try {
-                final repo = await ref.read(appRepositoryProvider.future);
-                await repo.setMyCurrency(c.code);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text('Default currency set to ${c.code}.')),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Could not set currency: $e')),
-                  );
-                }
-              }
-            },
-          ),
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => Semantics(
+        header: true,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(subtitle!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ],
+        ]),
+      );
 }
 
-/// App appearance — Light, Dark, or follow the system. A per-device
-/// preference (stored locally); changing it re-themes the whole app
-/// immediately.
-class _AppearanceTile extends StatelessWidget {
-  const _AppearanceTile();
+class _AdFreeCard extends ConsumerWidget {
+  const _AdFreeCard();
 
   @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final mode =
-            ref.watch(themeModeSettingProvider).value ?? AppTheme.system;
-        return ListTile(
-          leading: const Icon(Icons.brightness_6_outlined),
-          title: const Text('Appearance'),
-          subtitle: Text(mode.label),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => showDialog<void>(
-            context: context,
-            builder: (_) => const _ThemePickerDialog(),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final plan = ref.watch(adFreeStatusProvider);
+    final active = plan.value == true;
+    final loading = plan.isLoading && !plan.hasValue;
+    final failed = plan.hasError && !plan.hasValue;
+    final dark = scheme.brightness == Brightness.dark;
+    final foreground = dark ? scheme.onSurface : scheme.onPrimary;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+          color: dark ? scheme.surfaceContainerHigh : scheme.primary,
+          borderRadius: BorderRadius.circular(22)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(active ? Icons.verified_outlined : Icons.block_outlined,
+              color: foreground, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+              child: Text('Ad-Free',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(color: foreground))),
+          if (active)
+            Text('Active',
+                style: theme.textTheme.labelMedium
+                    ?.copyWith(color: foreground, fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 16),
+        Text(
+            loading
+                ? 'Checking your plan…'
+                : failed
+                    ? 'Plan unavailable'
+                    : active
+                        ? 'More sharing. Zero ads.'
+                        : 'Keep the focus on your friends.',
+            style: theme.textTheme.titleLarge?.copyWith(color: foreground)),
+        const SizedBox(height: 8),
+        Text(
+            failed
+                ? 'We couldn’t load your subscription. Please try again.'
+                : loading
+                    ? 'Your subscription status will appear here.'
+                    : active
+                        ? 'Enjoy Splitwize without ads across the app.'
+                        : 'Remove ads across Splitwize with an Ad-Free subscription.',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: foreground.withValues(alpha: .8))),
+        if (!active && !loading) ...[
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+                backgroundColor: scheme.primaryContainer,
+                foregroundColor: scheme.onPrimaryContainer),
+            onPressed: failed
+                ? () => ref.invalidate(adFreeStatusProvider)
+                : () => showPaywallSheet(context),
+            icon: Icon(
+                failed ? Icons.refresh_rounded : Icons.arrow_forward_rounded,
+                size: 18),
+            label: Text(failed ? 'Retry' : 'Upgrade'),
           ),
-        );
-      },
-    );
-  }
-}
-
-/// Light / Dark / System radio picker — applies instantly on tap.
-class _ThemePickerDialog extends StatelessWidget {
-  const _ThemePickerDialog();
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final mode =
-            ref.watch(themeModeSettingProvider).value ?? AppTheme.system;
-        return AlertDialog(
-          title: const Text('Appearance'),
-          content: RadioGroup<AppTheme>(
-            groupValue: mode,
-            onChanged: (value) async {
-              if (value == null) return;
-              await ref.read(themeModeSettingProvider.notifier).setMode(value);
-              if (context.mounted) Navigator.of(context).pop();
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final option in AppTheme.values)
-                  RadioListTile<AppTheme>(
-                    value: option,
-                    title: Text(option.label),
-                    secondary: Icon(switch (option) {
-                      AppTheme.system => Icons.brightness_auto_outlined,
-                      AppTheme.light => Icons.light_mode_outlined,
-                      AppTheme.dark => Icons.dark_mode_outlined,
-                    }),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Uses the cached permission status so rebuilding Settings does not
-/// re-query Firebase Messaging or briefly display the wrong status.
-class _PushNotificationsTile extends StatelessWidget {
-  const _PushNotificationsTile();
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final status = ref.watch(notificationAuthorizationStatusProvider).value;
-        final enabled = status == AuthorizationStatus.authorized ||
-            status == AuthorizationStatus.provisional;
-        return ListTile(
-          leading: Icon(
-              enabled ? Icons.notifications_active : Icons.notifications_off),
-          title: const Text('Push notifications'),
-          subtitle: Text(enabled
-              ? 'On — you will be notified of new bills'
-              : 'Off — enable in system settings to get bill alerts'),
-        );
-      },
-    );
-  }
-}
-
-/// Offline/sync status — only this tile reacts to sync state.
-/// The app is offline-first: everything is stored locally in SQLite
-/// and synced with Firestore when a connection is available.
-class _SyncStatusTile extends StatelessWidget {
-  const _SyncStatusTile();
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final status = ref.watch(syncStatusProvider).value;
-        final online = status?.online ?? true;
-        final pending = status?.pending ?? 0;
-        final syncing = status?.syncing ?? false;
-        final subtitle = status?.error != null
-            ? 'Sync failed — will retry automatically'
-            : !online
-                ? 'Offline — changes are saved on this device'
-                : pending > 0
-                    ? '$pending change${pending == 1 ? '' : 's'} waiting to sync'
-                    : status?.lastSyncedAt != null
-                        ? 'All changes synced'
-                        : 'Local data up to date';
-        return ListTile(
-          leading: Icon(
-            syncing
-                ? Icons.sync
-                : online
-                    ? Icons.cloud_done
-                    : Icons.cloud_off,
-          ),
-          title: const Text('Sync'),
-          subtitle: Text(subtitle),
-          trailing: TextButton(
-            onPressed: syncing
-                ? null
-                : () => runGuarded(
-                      context,
-                      () async {
-                        final sync = await ref.read(syncServiceProvider.future);
-                        await sync.syncNow();
-                      },
-                      errorLabel: 'Sync failed',
-                    ),
-            child: const Text('Sync now'),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Ad-Free subscription status. The free tier shows ads; the tile
-/// opens the paywall. Subscribers see their active status.
-class _AdFreeTile extends StatelessWidget {
-  const _AdFreeTile();
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final isAdFree = ref.watch(adFreeStatusProvider).value ?? false;
-        if (isAdFree) {
-          return const ListTile(
-            leading: Icon(Icons.block),
-            title: Text('Ad-Free'),
-            subtitle: Text('Active — no ads'),
-          );
-        }
-        return ListTile(
-          leading: const Icon(Icons.block_outlined),
-          title: const Text('Ad-Free'),
-          subtitle: const Text('Remove all ads with a subscription'),
-          trailing: const Text('Upgrade'),
-          onTap: () => showPaywallSheet(context),
-        );
-      },
+        ],
+      ]),
     );
   }
 }

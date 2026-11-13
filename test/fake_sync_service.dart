@@ -3,6 +3,7 @@ import 'package:splitwize/services/sync_service.dart';
 
 class FakeSyncService extends Fake implements SyncService {
   int refreshCalls = 0;
+  final groupRefreshIds = <String>[];
   Future<void> Function()? onRefresh;
 
   @override
@@ -12,5 +13,7 @@ class FakeSyncService extends Fake implements SyncService {
   }
 
   @override
-  Future<void> refreshGroupInvitation(String groupId) async {}
+  Future<void> refreshGroupInvitation(String groupId) async {
+    groupRefreshIds.add(groupId);
+  }
 }

@@ -7,8 +7,15 @@ import '../widgets/state_widgets.dart';
 import 'group_detail_screen.dart';
 
 class GroupInvitationScreen extends ConsumerStatefulWidget {
-  const GroupInvitationScreen({super.key, required this.groupId});
+  const GroupInvitationScreen({
+    super.key,
+    required this.groupId,
+    this.incoming = true,
+    this.recipientUid,
+  }) : assert(incoming || recipientUid != null);
   final String groupId;
+  final bool incoming;
+  final String? recipientUid;
   @override
   ConsumerState<GroupInvitationScreen> createState() =>
       _GroupInvitationScreenState();
@@ -20,6 +27,12 @@ class _GroupInvitationScreenState extends ConsumerState<GroupInvitationScreen> {
   @override
   void initState() {
     super.initState();
+    // Outgoing invitations may still be queued locally. Their detail view
+    // follows the cache so it also works before the group has synced.
+    if (!widget.incoming) {
+      _loading = false;
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _refresh();
     });
@@ -45,8 +58,10 @@ class _GroupInvitationScreenState extends ConsumerState<GroupInvitationScreen> {
   Widget build(BuildContext context) {
     final asyncGroup = ref.watch(groupProvider(widget.groupId));
     final uid = ref.watch(currentUidProvider) ?? '';
+    final recipientUid = widget.incoming ? uid : widget.recipientUid!;
     final group = asyncGroup.value;
-    if (!_loading &&
+    if (widget.incoming &&
+        !_loading &&
         !_failed &&
         group != null &&
         !group.deleted &&
@@ -55,18 +70,28 @@ class _GroupInvitationScreenState extends ConsumerState<GroupInvitationScreen> {
     }
     return Scaffold(
       appBar: AppBar(
-          title: const Text('Incoming group invitation',
-              maxLines: 1, overflow: TextOverflow.ellipsis)),
+          title: Text(
+              widget.incoming
+                  ? 'Incoming group invitation'
+                  : 'Outgoing group invitation',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis)),
       body: _loading || asyncGroup.isLoading
           ? const ShimmerDetail()
           : _failed || asyncGroup.hasError
               ? LoadError(
                   message: 'Could not load this invitation.', onRetry: _refresh)
-              : group == null || group.deleted || !group.invited.contains(uid)
+              : group == null ||
+                      group.deleted ||
+                      !group.invited.contains(recipientUid) ||
+                      group.members.contains(recipientUid)
                   ? const Center(
                       child: Text('This invitation is no longer available.'))
                   : ListView(padding: const EdgeInsets.all(16), children: [
-                      GroupInvitationCard(group: group, recipientUid: uid),
+                      GroupInvitationCard(
+                          group: group,
+                          recipientUid: recipientUid,
+                          incoming: widget.incoming),
                     ]),
     );
   }

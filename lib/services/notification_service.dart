@@ -1,5 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import '../utils/invitation_notification_content.dart';
 import '../utils/notification_destination.dart';
 import 'firestore_service.dart';
 import 'secure_storage_service.dart';
@@ -77,11 +78,22 @@ class NotificationService {
     final context = navigatorKey.currentContext;
     if (context == null) return;
     final title = message.notification?.title ?? 'Splitwize';
-    final body = message.notification?.body ?? 'You have a new update.';
+    final body = invitationNotificationBody(
+          type: message.data['type'] as String? ?? '',
+          fromName: message.data['fromName'] as String?,
+          fromEmail: message.data['fromEmail'] as String?,
+          groupName: message.data['groupName'] as String?,
+        ) ??
+        message.notification?.body ??
+        'You have a new update.';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content:
-            Text('$title\n$body', maxLines: 4, overflow: TextOverflow.ellipsis),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.4,
+          ),
+          child: SingleChildScrollView(child: Text('$title\n$body')),
+        ),
         action: notificationDestination(
                     type: message.data['type'] as String? ?? '',
                     groupId: message.data['groupId'] as String?,

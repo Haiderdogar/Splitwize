@@ -364,6 +364,10 @@ class SyncService {
           type: p['type'] as String,
           billId: p['billId'] as String?,
           groupId: p['groupId'] as String?,
+          fromUid: p['fromUid'] as String?,
+          fromName: p['fromName'] as String?,
+          fromEmail: p['fromEmail'] as String?,
+          groupName: p['groupName'] as String?,
         );
       case 'user.upsert':
         await remote.upsertUser(AppUser.fromMap(

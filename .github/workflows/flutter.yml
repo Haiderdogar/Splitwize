@@ -106,13 +106,14 @@ jobs:
       - name: Verify release Google Sign-In configuration
         run: dart run tool/verify_android_sign_in.dart
 
+      - name: Prepare native branding from app_icon.png
+        run: dart run tool/generate_splash_assets.dart
+
       - name: Generate current Android launcher icons
         run: dart run flutter_launcher_icons
 
       - name: Generate native splash screens
-        run: |
-          dart run tool/generate_splash_assets.dart
-          dart run flutter_native_splash:create
+        run: dart run flutter_native_splash:create
 
       - name: Set release version
         id: version

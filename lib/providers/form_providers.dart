@@ -10,6 +10,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../data/app_repository.dart';
 import '../models/models.dart';
+import '../utils/invitation_notification_content.dart';
 import '../utils/money.dart';
 import 'core_providers.dart';
 import 'data_providers.dart';
@@ -628,10 +629,20 @@ class CreateGroupForm extends _$CreateGroupForm {
       for (final u in invitees) {
         await repo.sendNotification(
           toUid: u.uid,
-          title: 'Group invite',
-          body: '${me.displayName} (${me.email}) invited you to join "$name".',
+          title: 'Group invitation',
+          body: invitationNotificationBody(
+                type: 'group_invite',
+                fromName: me.displayName,
+                fromEmail: me.email,
+                groupName: name,
+              ) ??
+              'A group member invited you to join "$name".',
           type: 'group_invite',
           groupId: groupId,
+          fromUid: me.uid,
+          fromName: me.displayName,
+          fromEmail: me.email,
+          groupName: name,
         );
       }
       return null;
@@ -720,9 +731,17 @@ class AddFriend extends _$AddFriend {
       await repo.sendConnectionRequest(from: me, to: found);
       await repo.sendNotification(
         toUid: found.uid,
-        title: 'New friend request',
-        body: '${me.displayName} wants to connect with you on Splitwize.',
+        title: 'Connection invitation',
+        body: invitationNotificationBody(
+              type: 'friend_request',
+              fromName: me.displayName,
+              fromEmail: me.email,
+            ) ??
+            'Someone invited you to connect on Splitwize.',
         type: 'friend_request',
+        fromUid: me.uid,
+        fromName: me.displayName,
+        fromEmail: me.email,
       );
       return null;
     } catch (e) {

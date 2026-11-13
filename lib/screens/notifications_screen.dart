@@ -11,6 +11,7 @@ import '../widgets/studio_ui.dart';
 import '../theme.dart';
 import '../widgets/state_widgets.dart';
 import '../utils/notification_destination.dart';
+import '../utils/invitation_notification_content.dart';
 
 /// In-app notification inbox: bill events, payments, invites, reminders.
 /// Tapping a notification marks it read and deep-links where relevant.
@@ -95,6 +96,20 @@ class NotificationsScreen extends StatelessWidget {
                     return const SectionHeading('Recent updates');
                   }
                   final n = items[i - 1];
+                  final isInvitation =
+                      n.type == 'friend_request' || n.type == 'group_invite';
+                  final name = isInvitation ? n.fromName?.trim() ?? '' : '';
+                  final email = isInvitation ? n.fromEmail?.trim() ?? '' : '';
+                  final sender = name.isNotEmpty ? name : email;
+                  final group =
+                      n.type == 'group_invite' ? n.groupName?.trim() ?? '' : '';
+                  final body = invitationNotificationBody(
+                        type: n.type,
+                        fromName: name,
+                        fromEmail: email,
+                        groupName: group,
+                      ) ??
+                      n.body;
                   return Card(
                     color: n.read
                         ? null
@@ -104,7 +119,13 @@ class NotificationsScreen extends StatelessWidget {
                             .withValues(alpha: 0.5),
                     child: ListTile(
                       leading: PersonMark(
-                          initials: '', icon: _iconFor(n.type), size: 48),
+                          initials: AppUser(
+                                  uid: n.fromUid ?? '',
+                                  displayName: sender,
+                                  email: email)
+                              .initials,
+                          icon: sender.isEmpty ? _iconFor(n.type) : null,
+                          size: 48),
                       title: Text(
                         n.title,
                         style: TextStyle(
@@ -115,7 +136,13 @@ class NotificationsScreen extends StatelessWidget {
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(n.body),
+                          Text(body),
+                          if (sender.isNotEmpty || group.isNotEmpty)
+                            const SizedBox(height: 6),
+                          if (sender.isNotEmpty) Text('Invited by: $sender'),
+                          if (name.isNotEmpty && email.isNotEmpty)
+                            Text('Email: $email'),
+                          if (group.isNotEmpty) Text('Group: $group'),
                           if (n.createdAt != null)
                             Text(
                               DateFormat.yMMMd().add_jm().format(n.createdAt!),

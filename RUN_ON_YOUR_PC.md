@@ -1,4 +1,6 @@
-# Run Splitwize on your own computer
+# Run Splitwize on Android or iOS
+
+Use your development computer to build and run the Android or iOS mobile app.
 
 Everything you need is in this folder. The app is already connected to
 your Firebase project (**splitwize-e5208**) — the config files
@@ -11,19 +13,29 @@ rules are already deployed, so there is no backend setup to do.
 1. Download the Flutter SDK: https://docs.flutter.dev/get-started/install
    (this app was built with Flutter 3.47 / Dart 3.13 — any recent
    stable Flutter works).
-2. Install Android Studio (it brings the Android SDK) or use VS Code
-   with the Flutter extension.
-3. Run `flutter doctor` and fix anything it marks with ✗.
+2. For Android, install Android Studio with the Android SDK and command-line
+   tools. Set up an Android emulator or connect a phone with USB debugging on.
+3. For iOS, use macOS with Xcode and its command-line tools.
+   Set up an iOS simulator or connect an iPhone.
+4. Run `flutter doctor` and resolve issues for the mobile target you use:
+   the Android toolchain and an Android device/emulator, or Xcode and an
+   iPhone/iOS simulator. VS Code with the Flutter extension is optional
+   for editing the app.
 
 ## 2. Run the app
 
 ```bash
 cd splitwize
 flutter pub get
-flutter run            # pick your phone (USB debugging on) or an emulator
+flutter devices
+flutter run -d DEVICE_ID
 ```
 
-Or open the folder in VS Code / Android Studio and press Run.
+Replace `DEVICE_ID` with the ID of an Android phone/emulator or an iPhone/iOS
+simulator listed by `flutter devices`. iOS builds require macOS with Xcode.
+
+Or open the folder in VS Code / Android Studio, select an Android or iOS
+device, and press Run.
 
 ## 3. REQUIRED for Google Sign-In on Android: add your SHA-1
 

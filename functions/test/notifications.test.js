@@ -8,17 +8,31 @@ const { runInNewContext } = require('node:vm');
 // tests require no credentials and never send a notification to a device.
 function harness(responses, bill = {
   createdBy: 'me', splits: [{ uid: 'friend', amount: 15, paid: false }],
-}, group = { invited: ['friend'], members: ['me'] }) {
+}, group = { invited: ['friend'], members: ['me'] }, options = {}) {
   const updates = [];
   const inbox = [];
   const pushes = [];
   const db = {
     collection: (collection) => ({
+      where: (field, operator, value) => {
+        const filters = [[field, value]];
+        const query = {
+          where: (field, operator, value) => {
+            filters.push([field, value]);
+            return query;
+          },
+          limit: () => query,
+          get: async () => ({ empty: !(options.requests || []).some((request) =>
+            filters.every(([field, value]) => request[field] === value)) }),
+        };
+        return query;
+      },
       doc: (uid) => ({
         get: async () => collection === 'bills'
           ? { exists: bill !== null, data: () => bill }
           : collection === 'groups' ? { exists: group !== null, data: () => group }
-          : { exists: true, get: () => ['dead-a', 'dead-b', 'valid'] },
+          : { exists: options.userExists !== false,
+            get: () => options.tokens || ['dead-a', 'dead-b', 'valid'] },
         update: async (data) => updates.push({ uid, data }),
         collection,
         uid,
@@ -67,6 +81,69 @@ const deadResponses = [
   { success: true },
 ];
 
+const inviteEvent = (invite) => ({ data: { data: () => invite } });
+
+test('connection invitation names the sender and routes to incoming requests without a duplicate entry', async () => {
+  const h = harness(deadResponses, null, null, { requests: [
+    { fromUid: 'alice', toUid: 'friend', status: 'pending' },
+  ] });
+  await h.notifyFriendRequest(inviteEvent({
+    type: 'friend_request', toUid: 'friend', fromUid: 'alice',
+    fromName: 'Alice Khan', fromEmail: 'alice@example.com',
+    title: 'Connection invitation', body: 'You have a new update.',
+  }));
+  assert.equal(h.pushes.length, 1);
+  assert.equal(h.inbox.length, 0);
+  assert.equal(h.pushes[0].notification.title, 'Connection invitation');
+  assert.equal(h.pushes[0].notification.body, 'Alice Khan invited you to connect on Splitwize.');
+  assert.equal(h.pushes[0].data.type, 'friend_request');
+  assert.equal(h.pushes[0].data.toUid, 'friend');
+  assert.equal(h.pushes[0].data.fromUid, 'alice');
+  assert.equal(h.pushes[0].data.fromName, 'Alice Khan');
+  assert.equal(h.pushes[0].data.fromEmail, 'alice@example.com');
+  assert.equal(h.updates[0].uid, 'friend');
+  assert.deepEqual(Array.from(h.updates[0].data.fcmTokens.remove), ['dead-a', 'dead-b']);
+});
+
+test('connection invitation falls back to sender email or preserves the legacy body', async () => {
+  const h = harness(deadResponses);
+  await h.notifyFriendRequest(inviteEvent({
+    type: 'friend_request', toUid: 'friend',
+    fromName: '  ', fromEmail: ' alice@example.com ',
+  }));
+  assert.equal(h.pushes[0].notification.body, 'alice@example.com invited you to connect on Splitwize.');
+  await h.notifyFriendRequest(inviteEvent({
+    type: 'friend_request', toUid: 'friend', body: 'Alice wants to connect with you on Splitwize.',
+  }));
+  assert.equal(h.pushes[1].notification.body, 'Alice wants to connect with you on Splitwize.');
+});
+
+test('connection invitations no longer pending do not push', async () => {
+  for (const status of ['accepted', 'declined', 'cancelled', null]) {
+    const h = harness(deadResponses, null, null, { requests: status ? [
+      { fromUid: 'alice', toUid: 'friend', status },
+    ] : [] });
+    await h.notifyFriendRequest(inviteEvent({
+      type: 'friend_request', toUid: 'friend', fromUid: 'alice', fromName: 'Alice',
+    }));
+    assert.equal(h.pushes.length, 0);
+  }
+});
+
+test('invitation pushes ignore other notification types, self requests, and unavailable recipients', async () => {
+  const h = harness(deadResponses);
+  for (const type of ['bill_created', 'bill_paid', 'group_invite', 'reminder']) {
+    await h.notifyFriendRequest(inviteEvent({ type, toUid: 'friend', body: 'Update' }));
+  }
+  await h.notifyFriendRequest(inviteEvent({ type: 'friend_request', toUid: 'friend', fromUid: 'friend' }));
+  assert.equal(h.pushes.length, 0);
+  for (const options of [{ userExists: false }, { tokens: [] }]) {
+    const unavailable = harness(deadResponses, null, null, options);
+    await unavailable.notifyFriendRequest(inviteEvent({ type: 'friend_request', toUid: 'friend', body: 'Alice invited you.' }));
+    assert.equal(unavailable.pushes.length, 0);
+  }
+});
+
 test('group invitation push includes the route to the pending incoming invitation', async () => {
   const h = harness(deadResponses);
   await h.notifyGroupInvitation({ data: { data: () => ({ type: 'group_invite',
@@ -77,6 +154,68 @@ test('group invitation push includes the route to the pending incoming invitatio
   assert.equal(h.pushes[0].data.groupId, 'g1');
   assert.equal(h.pushes[0].data.toUid, 'friend');
   assert.equal(h.inbox.length, 0);
+});
+
+test('group invitation names the actual inviting member and group in the push', async () => {
+  const h = harness(deadResponses, null, {
+    name: 'Weekend Trip', createdBy: 'owner', members: ['owner', 'alice'], invited: ['friend'],
+    invitations: { friend: { from: { uid: 'alice', displayName: 'Alice Khan', email: 'alice@example.com' } } },
+  });
+  await h.notifyGroupInvitation(inviteEvent({
+    type: 'group_invite', groupId: 'g1', toUid: 'friend',
+    fromUid: 'alice', fromName: 'Outdated name', body: 'You have an update.',
+  }));
+  assert.equal(h.pushes.length, 1);
+  assert.equal(h.pushes[0].notification.body, 'Alice Khan invited you to join "Weekend Trip".');
+  assert.equal(h.pushes[0].data.fromUid, 'alice');
+  assert.equal(h.pushes[0].data.fromName, 'Alice Khan');
+  assert.equal(h.pushes[0].data.fromEmail, 'alice@example.com');
+  assert.equal(h.pushes[0].data.groupName, 'Weekend Trip');
+  assert.equal(h.inbox.length, 0);
+});
+
+test('group invitation uses supplied metadata and preserves a readable legacy message', async () => {
+  const h = harness(deadResponses);
+  await h.notifyGroupInvitation(inviteEvent({
+    type: 'group_invite', groupId: 'g1', toUid: 'friend',
+    fromName: ' ', fromEmail: 'alice@example.com', groupName: 'Housemates',
+  }));
+  assert.equal(h.pushes[0].notification.body, 'alice@example.com invited you to join "Housemates".');
+  await h.notifyGroupInvitation(inviteEvent({
+    type: 'group_invite', groupId: 'g1', toUid: 'friend', body: 'Alice invited you to join "Housemates".',
+  }));
+  assert.equal(h.pushes[1].notification.body, 'Alice invited you to join "Housemates".');
+});
+
+test('a canonical inviter email takes precedence over a stale notification name', async () => {
+  const h = harness(deadResponses, null, {
+    name: 'Housemates', members: ['owner', 'alice'], invited: ['friend'],
+    invitations: { friend: { from: { uid: 'alice', displayName: ' ', email: 'alice@example.com' } } },
+  });
+  await h.notifyGroupInvitation(inviteEvent({
+    type: 'group_invite', groupId: 'g1', toUid: 'friend',
+    fromUid: 'owner', fromName: 'Group Owner', fromEmail: 'owner@example.com',
+  }));
+  assert.equal(h.pushes[0].notification.body, 'alice@example.com invited you to join "Housemates".');
+  assert.equal(h.pushes[0].data.fromUid, 'alice');
+  assert.equal(h.pushes[0].data.fromName, undefined);
+  assert.equal(h.pushes[0].data.fromEmail, 'alice@example.com');
+});
+
+test('invitation previews and metadata stay bounded for long Unicode names', async () => {
+  const h = harness(deadResponses);
+  const fromName = '\u{1F469}\u{1F3FD}'.repeat(1000);
+  const invite = { type: 'group_invite', groupId: 'g1', toUid: 'friend',
+    fromName, fromEmail: 'a'.repeat(1000), groupName: '\u{1F3E0}'.repeat(1000), title: '\u{1F4E8}'.repeat(1000) };
+  await h.notifyGroupInvitation(inviteEvent(invite));
+  const push = h.pushes[0];
+  assert.ok(Buffer.byteLength(push.notification.title, 'utf8') <= 160);
+  assert.ok(Buffer.byteLength(push.notification.body, 'utf8') <= 1024);
+  assert.ok(Buffer.byteLength(push.data.fromName, 'utf8') <= 256);
+  assert.ok(Buffer.byteLength(push.data.fromEmail, 'utf8') <= 320);
+  assert.ok(Buffer.byteLength(push.data.groupName, 'utf8') <= 256);
+  assert.ok(!JSON.stringify(push).includes('\uFFFD'));
+  assert.equal(invite.fromName, fromName);
 });
 
 test('accepted, cancelled, deleted and missing group invitations do not push', async () => {

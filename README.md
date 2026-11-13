@@ -1,5 +1,7 @@
 # Splitwize
 
+Supported app platforms: **Android and iOS**.
+
 ## Mobile UI/UX design
 
 The editable **[Splitwize Figma design](https://www.figma.com/design/ZaZQoAlKg4TKDvi1yXjesB)**
@@ -223,7 +225,7 @@ see `firestore.indexes.json` for the composite indexes the queries need.
 ### 2. Connect the Flutter app
 ```bash
 dart pub global activate flutterfire_cli
-flutterfire configure   # select your project + Android/iOS
+flutterfire configure --platforms=android,ios   # select your Firebase project
 ```
 This replaces `lib/firebase_options.dart` with real config and drops
 `google-services.json` / `GoogleService-Info.plist` into place.
@@ -256,8 +258,9 @@ firebase deploy --only storage     # receipt photo rules (storage.rules)
 
 ### 3b. Receipt photo permissions (platform scaffold)
 
-When you wrap this `lib/` in a Flutter scaffold (`flutter create .`),
-add the camera/gallery permissions — `image_picker` needs them:
+The Android and iOS projects are included. If you need to regenerate the
+mobile scaffold, use `flutter create --platforms=android,ios .` and retain
+the camera/gallery permissions required by `image_picker`:
 
 Android (`android/app/src/main/AndroidManifest.xml`):
 ```xml
@@ -283,28 +286,32 @@ launcher icons and native splash screens. Configuration lives in
 
 ```bash
 flutter pub get
-dart run flutter_launcher_icons
 dart run tool/generate_splash_assets.dart
+dart run flutter_launcher_icons
 dart run flutter_native_splash:create
 ```
 
-The preparation script sizes the shared artwork and creates a padded
-Android 12 image so its circular mask preserves the entire logo. Light
-(`#F6F7FF`) and dark (`#101225`) backgrounds match the app themes. The
+The preparation script keeps `app_icon.png` unchanged and creates an opaque
+Android launcher image plus splash images sized for each platform. Adaptive
+Android icons use the original transparent artwork. All native backgrounds
+use forest green (`#013A27`) in both light and dark mode. The
 splash stays visible during Firebase initialization and disappears when
 Flutter draws its first frame; no artificial delay is added.
 
-Both branding workflows regenerate these resources automatically. Rebuild
+The branding and release workflows regenerate these resources automatically. Rebuild
 and reinstall the app to see native splash changes; hot reload cannot
-update them. Windows desktop plugin setup requires Developer Mode for
-symlinks; Android/iOS asset generation works independently.
+update them.
 
 ### 4. Run the app
 ```bash
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs  # Riverpod codegen
-flutter run
+flutter devices
+flutter run -d DEVICE_ID
 ```
+
+Replace `DEVICE_ID` with an Android phone/emulator or iPhone/iOS simulator
+ID from `flutter devices`. Building and running iOS requires macOS with Xcode.
 
 ## How push notifications work
 

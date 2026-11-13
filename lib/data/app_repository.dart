@@ -976,6 +976,10 @@ class AppRepository {
     required String type,
     String? billId,
     String? groupId,
+    String? fromUid,
+    String? fromName,
+    String? fromEmail,
+    String? groupName,
   }) async {
     await db.enqueue('notify', {
       'toUid': toUid,
@@ -984,6 +988,10 @@ class AppRepository {
       'type': type,
       'billId': billId,
       'groupId': groupId,
+      'fromUid': fromUid,
+      'fromName': fromName,
+      'fromEmail': fromEmail,
+      'groupName': groupName,
     });
     requestSync?.call();
   }

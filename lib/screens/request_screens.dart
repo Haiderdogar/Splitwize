@@ -1,30 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/invitation_providers.dart';
-import '../widgets/app_notification_button.dart';
-import '../widgets/friend_request_card.dart';
-import '../widgets/group_invitation_card.dart';
+import '../widgets/invitation_summary_tile.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
-import 'group_detail_screen.dart';
+import 'friend_invitation_screen.dart';
+import 'group_invitation_screen.dart';
 
 /// Group invitations opened from the Groups screen or a notification.
-class GroupRequestsScreen extends ConsumerWidget {
-  const GroupRequestsScreen({super.key, this.initialIndex = 0})
-      : assert(initialIndex >= 0 && initialIndex < 2);
+class GroupRequestsScreen extends ConsumerStatefulWidget {
+  const GroupRequestsScreen({
+    super.key,
+    this.initialIndex = 0,
+    this.initialGroupId,
+  }) : assert(initialIndex >= 0 && initialIndex < 2);
 
   final int initialIndex;
+  final String? initialGroupId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GroupRequestsScreen> createState() => _GroupRequestsScreenState();
+}
+
+class _GroupRequestsScreenState extends ConsumerState<GroupRequestsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    final groupId = widget.initialGroupId?.trim();
+    if (groupId == null || groupId.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refreshInitialInvitation(groupId);
+    });
+  }
+
+  Future<void> _refreshInitialInvitation(String groupId) async {
+    try {
+      final sync = await ref.read(syncServiceProvider.future);
+      if (mounted) await sync.refreshGroupInvitation(groupId);
+    } catch (_) {
+      // Keep cached invitations available when the push is opened offline.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final incoming = ref.watch(groupInvitesProvider).value?.length ?? 0;
     final outgoing = ref.watch(outgoingGroupInvitesProvider).value?.length ?? 0;
     return _RequestsShell(
       title: 'Group invitations',
-      initialIndex: initialIndex,
+      initialIndex: widget.initialIndex,
       incoming: incoming,
       outgoing: outgoing,
       children: const [
@@ -81,7 +109,6 @@ class _RequestsShell extends StatelessWidget {
         child: Scaffold(
           appBar: AppBar(
             title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            actions: const [AppNotificationButton(), SizedBox(width: 5)],
             bottom: TabBar(
               isScrollable: true,
               tabAlignment: TabAlignment.start,
@@ -147,24 +174,27 @@ class _GroupRequests extends ConsumerWidget {
                 final item = items[index];
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: GroupInvitationCard(
-                    group: item.group,
-                    recipientUid: item.recipientUid,
+                  child: InvitationSummaryTile(
+                    groupName: item.group.name,
                     incoming: incoming,
-                    onAccepted: incoming
-                        ? () async {
-                            final repo =
-                                await ref.read(appRepositoryProvider.future);
-                            await repo
-                                .acceptGroupInviteConfirmed(item.group.id);
-                            if (context.mounted) {
-                              Navigator.of(context).push(MaterialPageRoute(
-                                builder: (_) =>
-                                    GroupDetailScreen(groupId: item.group.id),
-                              ));
-                            }
-                          }
-                        : null,
+                    person: incoming
+                        ? item.group.invitations[item.recipientUid]?.from ??
+                            AppUser(
+                                uid: item.group.createdBy,
+                                displayName: 'Group owner',
+                                email: '')
+                        : item.group.invitations[item.recipientUid]?.to ??
+                            AppUser(
+                                uid: item.recipientUid,
+                                displayName: 'Invited person',
+                                email: ''),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => GroupInvitationScreen(
+                        groupId: item.group.id,
+                        incoming: incoming,
+                        recipientUid: item.recipientUid,
+                      ),
+                    )),
                   ),
                 );
               },
@@ -204,9 +234,22 @@ class _FriendRequests extends ConsumerWidget {
               itemCount: items.length,
               itemBuilder: (_, index) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: FriendRequestCard(
-                  request: items[index],
+                child: InvitationSummaryTile(
                   incoming: incoming,
+                  person: AppUser(
+                    uid: incoming ? items[index].fromUid : items[index].toUid,
+                    displayName:
+                        incoming ? items[index].fromName : items[index].toName,
+                    email: incoming
+                        ? items[index].fromEmail
+                        : items[index].toEmail,
+                  ),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => FriendInvitationScreen(
+                      request: items[index],
+                      incoming: incoming,
+                    ),
+                  )),
                 ),
               ),
             ),

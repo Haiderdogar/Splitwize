@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../screens/bill_detail_screen.dart';
-import '../screens/group_invitation_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/request_screens.dart';
 
@@ -10,9 +9,7 @@ Widget? notificationDestination(
     String? groupId,
     bool fromInbox = false}) {
   if (type == 'group_invite') {
-    return groupId == null || groupId.isEmpty
-        ? const GroupRequestsScreen()
-        : GroupInvitationScreen(groupId: groupId);
+    return GroupRequestsScreen(initialGroupId: groupId);
   }
   if (type == 'friend_request') return const FriendRequestsScreen();
   if (type == 'bill_created' || type == 'bill_paid' || type == 'reminder') {
