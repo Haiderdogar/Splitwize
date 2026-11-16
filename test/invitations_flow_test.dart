@@ -359,7 +359,8 @@ void main() {
     expect(find.byType(GroupInvitationCard), findsNothing);
     expect(find.text('Accept group invitation'), findsNothing);
     expect(find.text('Decline'), findsNothing);
-    expect(find.text('Group currency'), findsNothing);
+    expect(find.byTooltip('Change group currency'), findsNothing);
+    expect(find.byTooltip('Group currency'), findsNothing);
     await tester.ensureVisible(find.text('Outgoing (1)'));
     await tester.tap(find.text('Outgoing (1)'));
     await tester.pumpAndSettle();
@@ -692,17 +693,20 @@ void main() {
     expect(find.byType(GroupInvitationScreen), findsOneWidget);
     expect(find.text('Incoming group invitation'), findsOneWidget);
     expect(find.text(sender.email), findsOneWidget);
-    expect(find.text('Group currency'), findsNothing);
+    expect(find.byTooltip('Change group currency'), findsNothing);
+    expect(find.byTooltip('Group currency'), findsNothing);
     expect(billsRead, 0);
     await tester.tap(find.text('Accept group invitation'));
     await tester.pump();
     expect(repo.accepts, 1);
     expect(find.text('Accepting...'), findsOneWidget);
-    expect(find.text('Group currency'), findsNothing);
+    expect(find.byTooltip('Change group currency'), findsNothing);
+    expect(find.byTooltip('Group currency'), findsNothing);
     expect(billsRead, 0);
     accepted.complete();
     await tester.pumpAndSettle();
-    expect(find.text('Group currency'), findsOneWidget);
+    expect(find.byTooltip('Change group currency'), findsNothing);
+    expect(find.byTooltip('Group currency'), findsOneWidget);
     expect(billsRead, greaterThan(0));
     expect(tester.takeException(), isNull);
   });
@@ -714,7 +718,8 @@ void main() {
     var billsRead = 0;
     await pumpFlow(tester, const GroupDetailScreen(groupId: 'g-in'), repo,
         onBillsRead: () => billsRead++);
-    expect(find.text('Group currency'), findsNothing);
+    expect(find.byTooltip('Change group currency'), findsNothing);
+    expect(find.byTooltip('Group currency'), findsNothing);
     expect(billsRead, 0);
     await tester.tap(find.text('Accept group invitation'));
     await tester.pumpAndSettle();
@@ -722,7 +727,8 @@ void main() {
         find.text(
             'Could not accept invitation. Check your connection and try again.'),
         findsOneWidget);
-    expect(find.text('Group currency'), findsNothing);
+    expect(find.byTooltip('Change group currency'), findsNothing);
+    expect(find.byTooltip('Group currency'), findsNothing);
     expect(billsRead, 0);
     expect(repo.group.members, isNot(contains('me')));
   });
@@ -735,7 +741,8 @@ void main() {
     expect(
         find.text('This invitation is no longer available.'), findsOneWidget);
     expect(find.text('Accept group invitation'), findsNothing);
-    expect(find.text('Group currency'), findsNothing);
+    expect(find.byTooltip('Change group currency'), findsNothing);
+    expect(find.byTooltip('Group currency'), findsNothing);
   });
 
   test('push and inbox use the same safe group invitation route', () {

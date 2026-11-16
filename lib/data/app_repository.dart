@@ -191,9 +191,43 @@ class AppRepository {
 
   // ------------------------------------------------------------------ bills
 
+  /// All group amounts use the group's current currency, including bills
+  /// recorded before it changed. This only changes the label, never amounts.
+  /// Resolve each group once per query so bills in that group stay consistent.
+  Future<List<Bill>> _withGroupCurrencies(List<Bill> bills) async {
+    final currencies = <String, String?>{};
+    final resolved = <Bill>[];
+    for (final bill in bills) {
+      final groupId = bill.groupId;
+      if (groupId == null || groupId.isEmpty) {
+        resolved.add(bill);
+        continue;
+      }
+      if (!currencies.containsKey(groupId)) {
+        final group = await groupById(groupId);
+        currencies[groupId] =
+            group != null && !group.deleted ? group.currency : null;
+      }
+      final currency = currencies[groupId];
+      resolved.add(currency == null || currency == bill.currency
+          ? bill
+          : bill.copyWith(currency: currency));
+    }
+    return resolved;
+  }
+
+  /// Internal mutations retain the stored payload's fallback currency.
+  /// Public reads below resolve the current group currency for every screen.
+  Future<Bill?> _storedBillById(String billId) async {
+    final row = await db.billRow(billId);
+    return row == null ? null : Bill.fromMap(billId, row);
+  }
+
   Future<List<Bill>> _myBills() async {
     final rows = await db.billsFor(myUid);
-    final bills = [for (final r in rows) Bill.fromMap(r['__id'] as String, r)];
+    final bills = await _withGroupCurrencies([
+      for (final r in rows) Bill.fromMap(r['__id'] as String, r),
+    ]);
     bills.sort((a, b) => (b.createdAt ?? DateTime(1970))
         .compareTo(a.createdAt ?? DateTime(1970)));
     return bills;
@@ -201,24 +235,22 @@ class AppRepository {
 
   Stream<List<Bill>> watchMyBills() => _watch(_myBills);
 
-  Stream<Bill?> watchBill(String billId) => _watch(() async {
-        final row = await db.billRow(billId);
-        return row == null ? null : Bill.fromMap(billId, row);
-      });
+  Stream<Bill?> watchBill(String billId) => _watch(() => billById(billId));
 
   Stream<List<Bill>> watchBillsForGroup(String groupId) => _watch(() async {
         final rows = await db.billsForGroup(groupId);
-        final bills = [
-          for (final r in rows) Bill.fromMap(r['__id'] as String, r)
-        ];
+        final bills = await _withGroupCurrencies([
+          for (final r in rows) Bill.fromMap(r['__id'] as String, r),
+        ]);
         bills.sort((a, b) => (b.createdAt ?? DateTime(1970))
             .compareTo(a.createdAt ?? DateTime(1970)));
         return bills;
       });
 
   Future<Bill?> billById(String billId) async {
-    final row = await db.billRow(billId);
-    return row == null ? null : Bill.fromMap(billId, row);
+    final bill = await _storedBillById(billId);
+    if (bill == null) return null;
+    return (await _withGroupCurrencies([bill])).single;
   }
 
   /// Creates a bill locally and queues the Firestore create. Returns the
@@ -251,6 +283,9 @@ class AppRepository {
     final paymentDebts = paidAtMerchant.isEmpty
         ? const <BillDebt>[]
         : buildPaymentDebts(splits: splits, merchantPayments: paidAtMerchant);
+    final group = groupId == null ? null : await groupById(groupId);
+    final selectedCurrency =
+        group != null && !group.deleted ? group.currency : currency;
     if (!participantIds.contains(creator.uid)) {
       participantIds.add(creator.uid);
     }
@@ -273,7 +308,7 @@ class AppRepository {
       createdAt: now,
       updatedAt: now,
       receiptLocalPath: receiptLocalPath,
-      currency: currency,
+      currency: selectedCurrency,
     );
     await db.upsertBill(bill.id, bill.toMap(), syncState: 'pending');
     await db.enqueue('bill.create', {'bill': bill.toMap()..['id'] = bill.id});
@@ -290,7 +325,7 @@ class AppRepository {
   /// pending create (if any) reads the local row when it pushes
   /// and goes out without a receipt.
   Future<void> removeReceiptPhoto(String billId) async {
-    final bill = await billById(billId);
+    final bill = await _storedBillById(billId);
     if (bill == null || bill.createdBy != myUid) return;
     if (bill.receiptImageUrl == null && bill.receiptLocalPath == null) {
       return;
@@ -338,7 +373,7 @@ class AppRepository {
     required String uid,
     required bool paid,
   }) async {
-    final bill = await billById(billId);
+    final bill = await _storedBillById(billId);
     if (bill == null) return;
     if (bill.hasPaymentLedger) {
       // A recorded restaurant payment is NOT the same as a settlement.
@@ -366,7 +401,7 @@ class AppRepository {
     required String debtId,
     required double settledAmount,
   }) async {
-    final bill = await billById(billId);
+    final bill = await _storedBillById(billId);
     if (bill == null || !bill.hasPaymentLedger) return false;
     final debt = bill.paymentDebts.where((d) => d.id == debtId).firstOrNull;
     if (debt == null) return false;
@@ -450,7 +485,7 @@ class AppRepository {
       for (final alloc in entry.value) {
         // Reload per allocation: earlier allocations in this loop may
         // have updated the same bill.
-        final bill = await billById(entry.key);
+        final bill = await _storedBillById(entry.key);
         if (bill == null) break;
         if (alloc.debtId != null) {
           final debt =
@@ -673,11 +708,21 @@ class AppRepository {
     await db.upsertGroup(groupId, change(group).toMap(), syncState: state);
   }
 
-  /// Changes the group's currency. Applies locally at once and queues
-  /// the remote update. Existing bills keep the currency they were
-  /// created with; new bills in the group use the new one.
+  /// Changes the currency label for all existing and new group amounts.
+  /// The numbers stay unchanged. Group and bill streams refresh together,
+  /// and the group update syncs without rewriting other members' bill records.
+  /// Only the group's creator/admin can make this change.
   Future<void> setGroupCurrency(String groupId, String code) async {
-    await _updateGroup(groupId, (g) => g.copyWith(currency: code));
+    final group = await groupById(groupId);
+    if (group == null || group.deleted) {
+      throw StateError('This group is no longer available.');
+    }
+    if (group.createdBy != myUid || !group.members.contains(myUid)) {
+      throw StateError('Only the group creator can change its currency.');
+    }
+    final state = await db.groupSyncState(groupId) ?? 'synced';
+    await db.upsertGroup(groupId, group.copyWith(currency: code).toMap(),
+        syncState: state);
     await db.enqueue('group.currency', {'groupId': groupId, 'currency': code});
     _mutated();
   }
@@ -1012,7 +1057,7 @@ class AppRepository {
   /// sync: the local row keeps the download URL and drops the local
   /// file path (the temp file is deleted by [SyncService]).
   Future<void> applyReceiptUploaded(String billId, String url) async {
-    final bill = await billById(billId);
+    final bill = await _storedBillById(billId);
     if (bill == null) return;
     final state = await db.billSyncState(billId) ?? 'synced';
     await db.upsertBill(
@@ -1054,7 +1099,14 @@ class AppRepository {
     }
     final state = await db.groupSyncState(group.id);
     if (state == 'pending') return;
-    await db.upsertGroup(group.id, group.toMap(), syncState: 'synced');
+    // Membership and other remote changes can still arrive while offline
+    // currency edits are queued. Keep that local selection until it syncs.
+    final pendingCurrency = await db.pendingGroupCurrency(group.id);
+    await db.upsertGroup(
+      group.id,
+      group.copyWith(currency: pendingCurrency ?? group.currency).toMap(),
+      syncState: 'synced',
+    );
   }
 
   Future<void> applyRemoteNotification(AppNotification n) async {

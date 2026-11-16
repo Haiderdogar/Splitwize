@@ -1,6 +1,6 @@
 # Group details redesign
 
-The screen opened from **Groups → a group** has been rebuilt around a spending overview, personal balances, and three focused tabs.
+The screen opened from **Groups → a group** has a spending overview and three focused tabs. The personal net-balance card has been removed.
 
 ## Review
 
@@ -12,11 +12,11 @@ Reviewed the screen code and its navigation, providers, legacy shares, payment l
 
 | Step | Result |
 | --- | --- |
-| Open a group | Group name, membership, spending, and personal net balance appear first. Different currencies remain separate. |
+| Open a group | The app bar shows the group name, member count, and selected currency. Spending appears first in the body. |
 | Review expenses | A dated history offers All, Unsettled, and Settled filters. The selected filter survives tab changes. |
 | Review balances | Payments clearly show the amount, sender, and receiver. Eligible users confirm a settlement before it is recorded. |
 | Review members | Members and pending invitations have their own tab, with an Invite friends action. |
-| Change currency | Available beside the group overview and in settings; existing expenses keep their currency. |
+| Change currency | Only the creator/admin can change it in the app bar. Other members see it as read-only. The selected currency labels all existing and new group amounts; numbers remain unchanged. |
 | Add an expense | A persistent bottom action opens the form with the group selected. |
 
 Preserved the invitation acceptance gate, payer/receiver settlement permissions across all affected bills, and live provider updates. New balance calculations use the actual creditor and debtor for payment-ledger expenses, including partially settled amounts. Submission locks prevent repeated settlement and invitation taps.

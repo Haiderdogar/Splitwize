@@ -272,7 +272,8 @@ class BillGroup {
 
   /// ISO 4217 currency code for this group's bills (e.g. 'PKR').
   /// Chosen at creation from the creator's default and changeable
-  /// afterwards; existing bills keep the currency they were made with.
+  /// afterwards; all of the group's amounts use the selected currency label
+  /// without converting the numbers, including existing expenses.
   final String currency;
 
   const BillGroup({
@@ -600,9 +601,9 @@ class Bill {
   /// bill was created offline with a photo attached.
   final String? receiptLocalPath;
 
-  /// ISO 4217 currency code the amounts are in (e.g. 'PKR'). Copied
-  /// from the group when the bill is created (or the creator's default
-  /// currency for friend bills); a bill's currency never changes.
+  /// ISO 4217 currency code for these amounts. Repository reads use the
+  /// group's current currency for group bills, relabelling without conversion.
+  /// The stored code remains the fallback when the group is unavailable.
   final String currency;
 
   /// Soft-delete tombstone (see [BillGroup.deleted]).
@@ -700,6 +701,7 @@ class Bill {
   Bill copyWith({
     List<BillSplit>? splits,
     List<BillDebt>? paymentDebts,
+    String? currency,
     DateTime? updatedAt,
     String? receiptImageUrl,
     String? receiptLocalPath,
@@ -729,7 +731,7 @@ class Bill {
       receiptLocalPath: clearReceiptLocalPath
           ? null
           : (receiptLocalPath ?? this.receiptLocalPath),
-      currency: currency,
+      currency: currency ?? this.currency,
       deleted: deleted,
     );
   }

@@ -1,4 +1,4 @@
-﻿// Run with flutter test --no-pub tool/group_detail_capture.dart.
+// Run with flutter test --no-pub tool/group_detail_capture.dart.
 // Saves review screenshots in docs/ with in-memory data, real fonts and themes.
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -87,22 +87,27 @@ void main() {
       await tester.pumpWidget(ProviderScope(
         overrides: [
           currentUidProvider.overrideWith((ref) => 'me'),
-          currentAppUserProvider.overrideWith((ref) => Stream.value(fixture.me)),
+          currentAppUserProvider
+              .overrideWith((ref) => Stream.value(fixture.me)),
           authStateChangesProvider.overrideWith((ref) => Stream.value(null)),
-          groupProvider.overrideWith((ref, id) => Stream.value(
-              stress ? fixture.testGroup : _previewGroup)),
-          groupBillsProvider.overrideWith((ref, id) => Stream.value(
-              stress ? [fixture.testBill] : _previewBills)),
+          groupProvider.overrideWith((ref, id) =>
+              Stream.value(stress ? fixture.testGroup : _previewGroup)),
+          groupBillsProvider.overrideWith((ref, id) =>
+              Stream.value(stress ? [fixture.testBill] : _previewBills)),
           groupMembersProvider.overrideWith((ref, id) async => [
-            fixture.me,
-            stress
-                ? fixture.longNameFriend
-                : const AppUser(uid: 'f1', displayName: 'Sara Ahmed',
-                    email: 'sara@example.com'),
-            fixture.friend2,
-          ]),
-          invitedUsersProvider.overrideWith((ref, id) async => [fixture.invitedUser]),
-          connectionsProvider.overrideWith((ref) => Stream.value([fixture.friend2])),
+                fixture.me,
+                stress
+                    ? fixture.longNameFriend
+                    : const AppUser(
+                        uid: 'f1',
+                        displayName: 'Sara Ahmed',
+                        email: 'sara@example.com'),
+                fixture.friend2,
+              ]),
+          invitedUsersProvider
+              .overrideWith((ref, id) async => [fixture.invitedUser]),
+          connectionsProvider
+              .overrideWith((ref) => Stream.value([fixture.friend2])),
         ],
         child: RepaintBoundary(
           key: boundaryKey,
@@ -129,7 +134,8 @@ void main() {
           final boundary = boundaryKey.currentContext!.findRenderObject()!
               as RenderRepaintBoundary;
           final image = await boundary.toImage(pixelRatio: 2);
-          final bytes = (await image.toByteData(format: ui.ImageByteFormat.png))!;
+          final bytes =
+              (await image.toByteData(format: ui.ImageByteFormat.png))!;
           await Directory('docs').create(recursive: true);
           await File('docs/group-detail-after$suffix.png')
               .writeAsBytes(bytes.buffer.asUint8List());
@@ -152,9 +158,9 @@ void main() {
     await capture('-balances');
     await openTab('Members', 'group-members-g1');
     await capture('-members');
-    await tester.tap(find.byTooltip('Group settings'));
+    await tester.tap(find.byTooltip('Change group currency'));
     await tester.pumpAndSettle();
-    await capture('-settings');
+    await capture('-currency-picker');
 
     await pumpScreen(themeMode: ThemeMode.dark);
     await capture('-dark');

@@ -254,6 +254,22 @@ class LocalDatabase {
     return rows.isEmpty ? null : decode(rows.first['payload'] as String);
   }
 
+  /// The latest local currency choice still waiting to sync for this group.
+  Future<String?> pendingGroupCurrency(String groupId) async {
+    final operations = await _db.query('outbox',
+        columns: ['payload'],
+        where: 'type = ?',
+        whereArgs: ['group.currency'],
+        orderBy: 'id DESC');
+    for (final operation in operations) {
+      final payload = decode(operation['payload'] as String);
+      if (payload['groupId'] == groupId) {
+        return payload['currency'] as String?;
+      }
+    }
+    return null;
+  }
+
   Future<List<Map<String, dynamic>>> groupsFor(String uid) async {
     final rows = await _db.query('groups', orderBy: 'updated_at DESC');
     final out = <Map<String, dynamic>>[];

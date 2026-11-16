@@ -43,10 +43,13 @@ tiny.
   e.g. 3/5 paid with the outstanding total
 - **Currencies** — pick a default currency in Settings (searchable
   picker with flags, via `currency_picker`). Every group has its own
-  currency — set when the group is created, changeable anytime from the
-  group screen — and each bill is stamped with it, so amounts always show
-  the right symbol (Rs, €, $, …). Balances are tracked per currency and
-  never mixed.
+  currency — set when the group is created. Only its creator/admin can
+  change it from the group screen; other members see it as read-only.
+  Changing it relabels all existing and new group amounts
+  without changing the numbers; no exchange-rate conversion is performed.
+  Group totals, expense details, balances, and settlement plans use the
+  current group currency and symbol (Rs, €, $, …). Bills outside groups
+  retain their own currency. Balances across groups stay separated by currency.
 - **Dark theme** — full Material 3 dark theme across every screen;
   Settings → **Appearance** lets you choose **System default / Light /
   Dark** (per-device preference, applies instantly)

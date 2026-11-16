@@ -10,17 +10,17 @@ import '../theme.dart';
 import '../utils/current_user_identity.dart';
 import '../utils/money.dart';
 import 'money_text.dart';
-import 'studio_ui.dart';
 
+/// A scannable expense summary, with the bill total separate from your share.
 class BillListTile extends ConsumerWidget {
   const BillListTile({super.key, required this.bill, required this.uid});
+
   final Bill bill;
   final String uid;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final isOwner = bill.createdBy == uid;
     final google = ref.watch(authStateChangesProvider).value;
     final identity = resolveCurrentUserIdentity(
       cached: ref.watch(currentAppUserProvider).value,
@@ -31,6 +31,7 @@ class BillListTile extends ConsumerWidget {
         .where((payment) => payment.value > 0.005)
         .map((payment) => payment.key)
         .toList();
+
     String personName(String payerUid) {
       if (payerUid == uid) return '${identity.name} (you)';
       for (final split in bill.splits) {
@@ -40,95 +41,263 @@ class BillListTile extends ConsumerWidget {
     }
 
     final paidBy = !bill.hasPaymentLedger
-        ? 'Recorded by ${isOwner ? "${identity.name} (you)" : bill.createdByName}'
+        ? 'Recorded by ${bill.createdBy == uid ? "${identity.name} (you)" : bill.createdByName}'
         : payerIds.length == 1
             ? 'Paid by ${personName(payerIds.single)}'
             : 'Paid by ${payerIds.length} people';
-    final detail = bill.groupName ?? 'Personal expense';
+    final radius = BorderRadius.circular(20);
+
     return Material(
       color: scheme.surfaceContainerLowest,
       shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: scheme.outlineVariant)),
+        borderRadius: radius,
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: radius,
         onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => BillDetailScreen(billId: bill.id))),
+          builder: (_) => BillDetailScreen(billId: bill.id),
+        )),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
-          child: Row(children: [
-            const PersonMark(
-                initials: '', icon: Icons.receipt_long_outlined, size: 46),
-            const SizedBox(width: 11),
-            Expanded(
-                child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(bill.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 3),
-                Text('$detail · $paidBy',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: scheme.onSurfaceVariant)),
-                if (isOwner &&
-                    bill.groupName == null &&
-                    identity.email.isNotEmpty)
-                  Text(identity.email,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(height: 6),
-                Text(
-                    bill.fullySettled
-                        ? 'Settled'
-                        : '${formatMoney(bill.outstanding, bill.currency)} remaining to settle',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: bill.fullySettled
-                            ? scheme.owed
-                            : scheme.onSurfaceVariant)),
-              ],
-            )),
-            const SizedBox(width: 8),
-            SizedBox(
-                width: 94,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: MoneyText(bill.total,
-                            currencyCode: bill.currency,
-                            style: Theme.of(context).textTheme.titleMedium)),
-                    const SizedBox(height: 4),
-                    Text('Total bill',
-                        textAlign: TextAlign.end,
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall
-                            ?.copyWith(color: scheme.onSurfaceVariant)),
-                    if (bill.participantIds.contains(uid))
-                      Text(
-                          'Your share: ${formatMoney(bill.myShare(uid), bill.currency)}',
-                          textAlign: TextAlign.end,
-                          maxLines: 2,
-                          style: Theme.of(context).textTheme.labelSmall),
-                    if (bill.createdAt != null)
-                      Text(DateFormat.MMMd().format(bill.createdAt!),
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelSmall
-                              ?.copyWith(color: scheme.onSurfaceVariant)),
-                  ],
-                )),
-          ]),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ExpenseHeading(bill: bill),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(paidBy,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          )),
+                  if (bill.createdAt != null)
+                    Text(
+                      DateFormat.yMMMd().format(bill.createdAt!),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                    ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Divider(height: 1, color: scheme.outlineVariant),
+              ),
+              _ExpenseSettlement(bill: bill, uid: uid),
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _ExpenseHeading extends StatelessWidget {
+  const _ExpenseHeading({required this.bill});
+
+  final Bill bill;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final title = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 42,
+          height: 46,
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Icon(Icons.receipt_long_outlined,
+              size: 22, color: scheme.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(bill.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
+                  )),
+              const SizedBox(height: 4),
+              Text(bill.groupName ?? 'Personal expense',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  )),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    Widget total({required bool stacked}) => Column(
+          crossAxisAlignment:
+              stacked ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+          children: [
+            Text('Total bill',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                )),
+            const SizedBox(height: 3),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: stacked ? Alignment.centerLeft : Alignment.centerRight,
+              child: MoneyText(bill.total,
+                  currencyCode: bill.currency,
+                  style: theme.textTheme.titleLarge?.copyWith(fontSize: 20)),
+            ),
+          ],
+        );
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final stacked = constraints.maxWidth < 300 ||
+          MediaQuery.textScalerOf(context).scale(14) > 18.2;
+      if (stacked) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            title,
+            const SizedBox(height: 12),
+            total(stacked: true),
+          ],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: title),
+          const SizedBox(width: 12),
+          SizedBox(width: 105, child: total(stacked: false)),
+        ],
+      );
+    });
+  }
+}
+
+class _ExpenseSettlement extends StatelessWidget {
+  const _ExpenseSettlement({required this.bill, required this.uid});
+
+  final Bill bill;
+  final String uid;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final settled = bill.fullySettled;
+    final statusColor = settled ? scheme.owed : scheme.onSurface;
+    final settlementTotal = bill.hasPaymentLedger
+        ? bill.paymentDebts.fold(0.0, (total, debt) => total + debt.amount)
+        : bill.splits.fold(0.0, (total, share) => total + share.amount);
+    final progress = settled
+        ? 1.0
+        : settlementTotal > 0
+            ? (1 - bill.outstanding / settlementTotal).clamp(0.0, 1.0)
+            : 0.0;
+    final status = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(
+            settled ? Icons.check_circle_rounded : Icons.timelapse_rounded,
+            size: 16,
+            color: settled ? scheme.owed : scheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(settled ? 'Settled' : 'Unsettled',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.w700,
+                  )),
+              if (!settled) ...[
+                const SizedBox(height: 3),
+                Text(
+                    '${formatMoney(bill.outstanding, bill.currency)} remaining',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    )),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LayoutBuilder(builder: (context, constraints) {
+          final stacked = constraints.maxWidth < 300 ||
+              MediaQuery.textScalerOf(context).scale(14) > 18.2;
+          final share = Text(
+            'Your share: ${formatMoney(bill.myShare(uid), bill.currency)}',
+            textAlign: stacked ? TextAlign.start : TextAlign.end,
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: scheme.onSurface,
+            ),
+          );
+          if (stacked) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                status,
+                if (bill.participantIds.contains(uid)) ...[
+                  const SizedBox(height: 8),
+                  share,
+                ],
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: status),
+              if (bill.participantIds.contains(uid)) ...[
+                const SizedBox(width: 12),
+                Expanded(child: share),
+              ],
+            ],
+          );
+        }),
+        if (!settled && bill.splits.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: progress,
+            minHeight: 3,
+            borderRadius: BorderRadius.circular(4),
+            backgroundColor: scheme.surfaceContainerHigh,
+            color: scheme.primary,
+            semanticsLabel: 'Settlement progress',
+            semanticsValue: '${(progress * 100).round()}%',
+          ),
+          const SizedBox(height: 6),
+          Text('${bill.paidCount} of ${bill.splits.length} people settled',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              )),
+        ],
+      ],
     );
   }
 }

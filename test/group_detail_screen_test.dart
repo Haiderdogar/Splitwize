@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -5,14 +6,22 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:splitwize/data/app_repository.dart';
+import 'package:splitwize/data/local_database.dart';
 import 'package:splitwize/models/models.dart';
 import 'package:splitwize/providers/core_providers.dart';
 import 'package:splitwize/providers/data_providers.dart';
 import 'package:splitwize/providers/form_providers.dart';
 import 'package:splitwize/screens/create_bill_screen.dart';
+import 'package:splitwize/screens/bill_detail_screen.dart';
 import 'package:splitwize/screens/group_detail_screen.dart';
+import 'package:splitwize/services/firestore_service.dart';
+import 'package:splitwize/services/secure_storage_service.dart';
 import 'package:splitwize/theme.dart';
 import 'package:splitwize/utils/money.dart';
+import 'package:splitwize/widgets/money_text.dart';
+
+import 'test_harness.dart' as repository_fixture;
 
 const _me = AppUser(
   uid: 'me',
@@ -99,7 +108,7 @@ final _tickets = Bill(
     ),
   ],
   createdAt: DateTime(2026, 11, 12),
-  currency: 'USD',
+  currency: 'PKR',
 );
 
 final _coffee = Bill(
@@ -130,7 +139,7 @@ final _coffee = Bill(
     ),
   ],
   createdAt: DateTime(2026, 11, 11),
-  currency: 'USD',
+  currency: 'PKR',
 );
 
 Future<void> _loadRoboto() async {
@@ -160,6 +169,7 @@ Future<void> _pumpGroup(
   double textScale = 1,
   ThemeMode mode = ThemeMode.light,
   void Function()? onBillsRead,
+  Stream<BillGroup?>? groupUpdates,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -170,7 +180,8 @@ Future<void> _pumpGroup(
       currentUidProvider.overrideWith((ref) => _me.uid),
       currentAppUserProvider.overrideWith((ref) => Stream.value(_me)),
       authStateChangesProvider.overrideWith((ref) => Stream.value(null)),
-      groupProvider.overrideWith((ref, id) => Stream.value(group)),
+      groupProvider
+          .overrideWith((ref, id) => groupUpdates ?? Stream.value(group)),
       groupBillsProvider.overrideWith((ref, id) {
         onBillsRead?.call();
         return Stream.value(entries);
@@ -232,25 +243,51 @@ Future<void> _selectTab(WidgetTester tester, String label) async {
   expect(controller.index, ['Expenses', 'Balances', 'Members'].indexOf(label));
 }
 
-void main() {
-  setUpAll(_loadRoboto);
+Future<void> _waitForRepositoryWidget(
+    WidgetTester tester, Finder finder) async {
+  for (var attempt = 0; attempt < 100 && finder.evaluate().isEmpty; attempt++) {
+    // SQLite runs on the real event loop, outside the widget test's fake clock.
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
+    await tester.pump();
+  }
+  expect(finder, findsWidgets);
+  await tester.pumpAndSettle();
+}
 
-  testWidgets(
-      'overview keeps currencies and the actual payer balances separate',
+void main() {
+  setUpAll(() async {
+    await _loadRoboto();
+    await repository_fixture.initTestEnv();
+  });
+
+  testWidgets('overview shows group spending without a net balance card',
       (tester) async {
     await _pumpGroup(tester);
+    final appBar = find.byType(AppBar);
+    expect(
+      find.descendant(of: appBar, matching: find.text(_group.name)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: appBar, matching: find.text('2 members')),
+      findsOneWidget,
+    );
+    expect(find.text(_group.name), findsOneWidget,
+        reason: 'The group name is shown once in the app bar.');
+    expect(find.text('Group details'), findsNothing);
+    expect(find.text('Group currency'), findsNothing,
+        reason: 'The duplicate currency section is removed from the body.');
     String textAt(String key) =>
         tester.widget<Text>(find.byKey(ValueKey(key))).data!;
-    expect(textAt('group-spending-PKR'), formatMoney(100, 'PKR'));
-    expect(textAt('group-spending-USD'), formatMoney(30, 'USD'));
-    expect(
-        textAt('group-balance-PKR'), 'You owe ${formatMoney(30, 'PKR')} · PKR');
-    expect(textAt('group-balance-USD'),
-        'You are owed ${formatMoney(10, 'USD')} · USD');
+    expect(textAt('group-spending-PKR'), formatMoney(130, 'PKR'));
+    expect(find.byKey(const ValueKey('group-spending-USD')), findsNothing);
+    expect(find.text('Your net balance'), findsNothing);
+    expect(find.byKey(const ValueKey('group-balance-PKR')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('overview also respects partially settled legacy shares',
+  testWidgets('balances tab respects partially settled legacy shares',
       (tester) async {
     await _pumpGroup(tester, bills: const [
       Bill(
@@ -276,10 +313,10 @@ void main() {
         currency: 'PKR',
       ),
     ]);
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('group-balance-PKR'))).data,
-      'You owe ${formatMoney(30, 'PKR')} · PKR',
-    );
+    expect(find.text('Your net balance'), findsNothing);
+    await _selectTab(tester, 'Balances');
+    expect(find.text(formatMoney(30, 'PKR')), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Mark settled'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -322,8 +359,12 @@ void main() {
       reason: 'The pinned tabs must not cover the balances heading.',
     );
     final settle = find.widgetWithText(FilledButton, 'Mark settled');
-    expect(settle, findsNWidgets(2));
-    await tester.ensureVisible(settle.first);
+    expect(settle, findsOneWidget,
+        reason:
+            'Mutual debts now share one currency and leave one net payment.');
+    await Scrollable.ensureVisible(tester.element(settle.first), alignment: .5);
+    await tester.pumpAndSettle();
+    expect(settle.hitTestable(), findsOneWidget);
     await tester.tap(settle.first);
     // Allow the dialog's entrance animation to complete before inspecting it.
     await tester.pump(const Duration(milliseconds: 350));
@@ -353,33 +394,241 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('settings explains currency and opens the searchable picker',
+  testWidgets('app bar shows group currency and opens the searchable picker',
       (tester) async {
     await _pumpGroup(tester);
-    await tester.tap(find.byTooltip('Group settings'));
-    await tester.pumpAndSettle();
-    expect(find.text('Group settings'), findsOneWidget);
-    expect(
-      find.text('The group currency is used for new expenses. '
-          'Existing expenses keep their original currency.'),
-      findsOneWidget,
-    );
     final currencyButton = find.descendant(
-      of: find.byType(BottomSheet),
-      matching: find.byType(TextButton),
+      of: find.byType(AppBar),
+      matching: find.byTooltip('Change group currency'),
     );
     expect(currencyButton, findsOneWidget);
+    expect(
+      find.descendant(of: currencyButton, matching: find.text('PKR')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+          of: currencyButton, matching: find.byIcon(Icons.payments_outlined)),
+      findsOneWidget,
+    );
     await tester.tap(currencyButton);
     await tester.pumpAndSettle();
+    expect(
+      find.text('Current group currency: ${currencyLabel(_group.currency)}'),
+      findsOneWidget,
+    );
     final search = find.byType(TextField);
     expect(search, findsOneWidget);
     await tester.enterText(search, 'JPY');
     await tester.pumpAndSettle();
     expect(
-      find.byWidgetPredicate((widget) => widget is Text && widget.data == 'JPY'),
+      find.byWidgetPredicate(
+          (widget) => widget is Text && widget.data == 'JPY'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('currency follows the group rather than the profile default',
+      (tester) async {
+    final updates = StreamController<BillGroup?>();
+    addTearDown(updates.close);
+    final usdGroup = _group.copyWith(currency: 'USD');
+    updates.add(usdGroup);
+    await _pumpGroup(tester, group: usdGroup, groupUpdates: updates.stream);
+    final appBar = find.byType(AppBar);
+    expect(find.descendant(of: appBar, matching: find.text('USD')),
+        findsOneWidget);
+    expect(
+        find.descendant(of: appBar, matching: find.text('PKR')), findsNothing,
+        reason: 'The profile default must not replace this group\'s currency.');
+
+    updates.add(usdGroup.copyWith(currency: 'EUR'));
+    await tester.pumpAndSettle();
+    expect(find.descendant(of: appBar, matching: find.text('EUR')),
+        findsOneWidget);
+    expect(
+        find.descendant(of: appBar, matching: find.text('USD')), findsNothing);
+
+    await tester.tap(find.byTooltip('Change group currency'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Current group currency: ${currencyLabel('EUR')}'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('regular members see group currency without a change option',
+      (tester) async {
+    await _pumpGroup(
+      tester,
+      group: const BillGroup(
+        id: 'weekend',
+        name: 'Weekend in the mountains',
+        createdBy: 'hamza',
+        members: ['me', 'hamza'],
+        invited: ['zainab'],
+        currency: 'PKR',
+      ),
+    );
+    final currencyDisplay = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.byTooltip('Group currency'),
+    );
+    expect(currencyDisplay, findsOneWidget);
+    expect(find.byTooltip('Change group currency'), findsNothing);
+    expect(find.descendant(of: currencyDisplay, matching: find.text('PKR')),
+        findsOneWidget);
+    expect(
+      find.descendant(
+          of: currencyDisplay, matching: find.byIcon(Icons.payments_outlined)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+          of: currencyDisplay,
+          matching: find.byIcon(Icons.expand_more_rounded)),
+      findsNothing,
+    );
+    await tester
+        .tap(find.descendant(of: currencyDisplay, matching: find.text('PKR')));
+    await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'changing group currency updates overview, history and bill details',
+      (tester) async {
+    const databaseUid = 'group_currency_ui';
+    late AppRepository repository;
+    await tester.runAsync(() async {
+      await LocalDatabase.deleteForUid(databaseUid);
+      final database = await LocalDatabase.open(databaseUid);
+      await database.upsertUser(_me.uid, _me.toProfileMap());
+      await database.upsertUser(_friend.uid, _friend.toProfileMap());
+      await database.upsertGroup(_group.id, _group.toMap());
+      // Older bills can carry a different stored currency. The active group
+      // currency must govern every screen without changing their numbers.
+      for (final bill in [_dinner, _tickets.copyWith(currency: 'USD')]) {
+        await database.upsertBill(bill.id, bill.toMap());
+      }
+      repository = AppRepository(
+        db: database,
+        remote: FirestoreService(),
+        secure: SecureStorageService(),
+        myUid: _me.uid,
+      );
+    });
+    addTearDown(() async {
+      repository.dispose();
+      await LocalDatabase.deleteForUid(databaseUid);
+    });
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        currentUidProvider.overrideWith((ref) => _me.uid),
+        currentAppUserProvider.overrideWith((ref) => Stream.value(_me)),
+        authStateChangesProvider.overrideWith((ref) => Stream.value(null)),
+        appRepositoryProvider.overrideWith((ref) async => repository),
+        groupMembersProvider.overrideWith((ref, id) async => [_me, _friend]),
+        invitedUsersProvider.overrideWith((ref, id) async => [_invited]),
+        connectionsProvider.overrideWith((ref) => Stream.value([_friend])),
+      ],
+      child: MaterialApp(
+        theme: splitwizeLightTheme,
+        home: const GroupDetailScreen(groupId: 'weekend'),
+      ),
+    ));
+    await _waitForRepositoryWidget(
+        tester, find.byKey(const ValueKey('group-spending-PKR')));
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('group-spending-PKR')))
+          .data,
+      formatMoney(120, 'PKR'),
+    );
+
+    await tester.tap(find.byTooltip('Change group currency'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'EUR');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EUR').last);
+    await _waitForRepositoryWidget(
+        tester, find.byKey(const ValueKey('group-spending-EUR')));
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('EUR')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('group-spending-EUR')))
+          .data,
+      formatMoney(120, 'EUR'),
+    );
+    expect(find.text('Your net balance'), findsNothing);
+    expect(find.byKey(const ValueKey('group-balance-EUR')), findsNothing);
+    expect(find.text('${formatMoney(100, 'EUR')} EUR'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Friday dinner'));
+    await tester.tap(find.text('Friday dinner'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    Finder billAmounts(String code) => find.descendant(
+          of: find.byType(BillDetailScreen),
+          matching: find.byWidgetPredicate(
+              (widget) => widget is MoneyText && widget.currencyCode == code),
+        );
+    await _waitForRepositoryWidget(tester, billAmounts('EUR'));
+    expect(
+      tester
+          .widgetList<MoneyText>(find.byType(MoneyText))
+          .map((amount) => amount.currencyCode),
+      everyElement('EUR'),
+    );
+    await tester.runAsync(() => repository.setGroupCurrency(_group.id, 'GBP'));
+    await _waitForRepositoryWidget(tester, billAmounts('GBP'));
+    expect(
+      tester
+          .widgetList<MoneyText>(find.byType(MoneyText))
+          .map((amount) => amount.currencyCode),
+      everyElement('GBP'),
+    );
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    final groupScroll =
+        tester.state<NestedScrollViewState>(find.byType(NestedScrollView));
+    groupScroll.innerController.jumpTo(0);
+    groupScroll.outerController.jumpTo(0);
+    await tester.pump();
+    await _waitForRepositoryWidget(
+        tester, find.byKey(const ValueKey('group-spending-GBP')));
+    expect(find.text('${formatMoney(100, 'GBP')} GBP'), findsOneWidget);
+
+    // Let the successful currency-change toast clear the fixed action button.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add expense'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    Finder billAmount(String code) => find.byWidgetPredicate((widget) =>
+        widget is TextField &&
+        widget.decoration?.labelText == 'Bill amount' &&
+        widget.decoration?.prefixText == '${currencySymbol(code)} ');
+    await _waitForRepositoryWidget(tester, billAmount('GBP'));
+    await tester.enterText(billAmount('GBP'), '150');
+    await tester.runAsync(() => repository.setGroupCurrency(_group.id, 'EUR'));
+    await _waitForRepositoryWidget(tester, billAmount('EUR'));
+    final formContainer = ProviderScope.containerOf(
+        tester.element(find.byType(CreateBillScreen)),
+        listen: false);
+    expect(formContainer.read(createBillFormProvider).subtotalValue, 150);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('add expense opens the form with this group selected',
@@ -433,7 +682,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('nonmembers never subscribe to group bills or see settings',
+  testWidgets('nonmembers never subscribe to group bills or change currency',
       (tester) async {
     var billsRead = 0;
     await _pumpGroup(
@@ -448,7 +697,7 @@ void main() {
       onBillsRead: () => billsRead++,
     );
     expect(billsRead, 0);
-    expect(find.text('Group currency'), findsNothing);
+    expect(find.byTooltip('Change group currency'), findsNothing);
     expect(find.text('Add expense'), findsNothing);
     expect(find.byType(TabBar), findsNothing);
     expect(find.text('Join this group to view its details.'), findsOneWidget);

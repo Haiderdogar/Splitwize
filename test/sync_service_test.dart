@@ -20,6 +20,7 @@ class RecordingRemote extends FirestoreService {
   Completer<void>? writeGate;
   final writeStarted = Completer<void>();
   bool failWrites = false;
+  bool currencyForbidden = false;
   int pulls = 0;
   Future<void> Function()? beforePull;
   List<AppUser> connections = [];
@@ -46,6 +47,10 @@ class RecordingRemote extends FirestoreService {
   Future<void> setGroupCurrency(String groupId, String code) async {
     if (!writeStarted.isCompleted) writeStarted.complete();
     await writeGate?.future;
+    if (currencyForbidden) {
+      throw FirebaseException(
+          plugin: 'cloud_firestore', code: 'permission-denied');
+    }
     if (failWrites) throw StateError('Network unavailable');
     writes.add(groupId);
   }
@@ -127,6 +132,32 @@ void main() {
 
   Future<void> enqueueCurrency(String id) =>
       db.enqueue('group.currency', {'groupId': id, 'currency': 'USD'});
+
+  test(
+      'a rejected legacy member currency edit restores the group and unblocks sync',
+      () async {
+    const current = BillGroup(
+      id: 'g1',
+      name: 'Shared group',
+      createdBy: 'owner',
+      members: ['owner', 'sync-test'],
+      invited: [],
+      currency: 'USD',
+    );
+    await db.upsertGroup(current.id, current.copyWith(currency: 'EUR').toMap());
+    await db
+        .enqueue('group.currency', {'groupId': current.id, 'currency': 'EUR'});
+    remote.invitationGroup = current;
+    remote.currencyForbidden = true;
+
+    await sync.syncNow();
+
+    expect(remote.writes, isEmpty);
+    expect((await repo.groupById(current.id))!.currency, 'USD');
+    expect(await db.outboxCount(), 0);
+    expect(remote.pulls, greaterThan(0));
+    expect(sync.current.error, isNull);
+  });
 
   test('drains more than one outbox batch in order before pulling', () async {
     for (var i = 0; i < 205; i++) {

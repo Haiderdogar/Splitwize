@@ -12,6 +12,7 @@ function harness(responses, bill = {
   const updates = [];
   const inbox = [];
   const pushes = [];
+  const reads = [];
   const db = {
     collection: (collection) => ({
       where: (field, operator, value) => {
@@ -28,11 +29,17 @@ function harness(responses, bill = {
         return query;
       },
       doc: (uid) => ({
-        get: async () => collection === 'bills'
-          ? { exists: bill !== null, data: () => bill }
-          : collection === 'groups' ? { exists: group !== null, data: () => group }
-          : { exists: options.userExists !== false,
-            get: () => options.tokens || ['dead-a', 'dead-b', 'valid'] },
+        get: async () => {
+          reads.push({ collection, uid });
+          if (collection === 'groups' && options.groupReadError) {
+            throw new Error('Group is temporarily unavailable');
+          }
+          return collection === 'bills'
+            ? { exists: bill !== null, data: () => bill }
+            : collection === 'groups' ? { exists: group !== null, data: () => group }
+            : { exists: options.userExists !== false,
+              get: () => options.tokens || ['dead-a', 'dead-b', 'valid'] };
+        },
         update: async (data) => updates.push({ uid, data }),
         collection,
         uid,
@@ -72,7 +79,7 @@ function harness(responses, bill = {
       throw new Error(`Unexpected dependency: ${name}`);
     },
   });
-  return { ...exports, updates, inbox, pushes };
+  return { ...exports, updates, inbox, pushes, reads };
 }
 
 const deadResponses = [
@@ -242,6 +249,53 @@ test('bill created notifies each other participant once and removes individual d
   assert.deepEqual(Array.from(h.updates[0].data.fcmTokens.remove), ['dead-a', 'dead-b']);
 });
 
+test('new bill notifications use current group currency without converting amounts', async () => {
+  const h = harness(deadResponses, undefined, { currency: 'EUR' });
+  const bill = {
+    title: 'Lunch', total: 30, currency: 'USD', groupId: 'g1',
+    createdBy: 'me', createdByName: 'Me', participantIds: ['me', 'friend', 'other'],
+    splits: [{ uid: 'friend', amount: 15 }, { uid: 'other', amount: 15 }],
+  };
+  await h.notifyBillCreated({ params: { billId: 'b1' }, data: { data: () => bill } });
+  assert.equal(h.inbox.length, 2);
+  assert.equal(h.pushes.length, 2);
+  for (const message of [...h.inbox, ...h.pushes.map((push) => push.notification)]) {
+    assert.match(message.body, /EUR 30\.00/);
+    assert.match(message.body, /EUR 15\.00/);
+    assert.doesNotMatch(message.body, /USD/);
+  }
+  assert.equal(h.reads.filter((read) => read.collection === 'groups').length, 1);
+  assert.equal(bill.currency, 'USD');
+  assert.equal(bill.total, 30);
+});
+
+test('currency lookup falls back to the bill for missing, deleted or unavailable groups', async () => {
+  for (const [group, options] of [
+    [null, {}], [{ deleted: true, currency: 'EUR' }, {}],
+    [{ currency: ' ' }, {}], [{ currency: 'EUR' }, { groupReadError: true }],
+  ]) {
+    const h = harness(deadResponses, undefined, group, options);
+    await h.notifyBillCreated({ params: { billId: 'b1' }, data: { data: () => ({
+      title: 'Lunch', total: 30, currency: 'USD', groupId: 'g1',
+      createdBy: 'me', participantIds: ['friend'], splits: [{ uid: 'friend', amount: 15 }],
+    }) } });
+    assert.equal(h.inbox.length, 1);
+    assert.match(h.inbox[0].body, /USD 30\.00/);
+    assert.match(h.pushes[0].notification.body, /USD 15\.00/);
+  }
+});
+
+test('a bill outside a group keeps its own currency without looking up a group', async () => {
+  const h = harness(deadResponses, undefined, { currency: 'EUR' });
+  await h.notifyBillCreated({ params: { billId: 'b1' }, data: { data: () => ({
+    title: 'Lunch', total: 30, currency: 'GBP', createdBy: 'me',
+    participantIds: ['friend'], splits: [{ uid: 'friend', amount: 15 }],
+  }) } });
+  assert.match(h.inbox[0].body, /GBP 30\.00/);
+  assert.match(h.pushes[0].notification.body, /GBP 15\.00/);
+  assert.equal(h.reads.filter((read) => read.collection === 'groups').length, 0);
+});
+
 test('reminder inbox entry pushes to its recipient without creating a second entry', async () => {
   const h = harness(deadResponses);
   await h.notifyPaymentReminder({ data: { data: () => ({
@@ -318,9 +372,9 @@ test('transient push failures do not remove registered tokens', async () => {
 });
 
 test('new ledger settlement notifies the actual merchant creditor, not creator', async () => {
-  const h = harness(deadResponses);
+  const h = harness(deadResponses, undefined, { currency: 'EUR' });
   const before = {
-    createdBy: 'me', title: 'Hotel dinner', currency: 'PKR',
+    createdBy: 'me', title: 'Hotel dinner', currency: 'PKR', groupId: 'g1',
     splits: [{ uid: 'me', amount: 300 }, { uid: 'fa', amount: 300 }],
     merchantPayments: { me: 200, fa: 700 },
     paymentDebts: [{
@@ -340,15 +394,19 @@ test('new ledger settlement notifies the actual merchant creditor, not creator',
   assert.equal(h.inbox.length, 1);
   assert.equal(h.inbox[0].toUid, 'fa');
   assert.equal(h.inbox[0].title, 'Settlement recorded');
-  assert.match(h.inbox[0].body, /PKR 100\.00/);
+  assert.match(h.inbox[0].body, /EUR 100\.00/);
   assert.equal(h.pushes.length, 1);
+  assert.match(h.pushes[0].notification.body, /EUR 100\.00/);
+  assert.equal(h.reads.filter((read) => read.collection === 'groups').length, 1);
   await h.notifyBillPaid(event(after, { ...after, updatedAt: 123 }));
   assert.equal(h.inbox.length, 1);
+  assert.equal(h.reads.filter((read) => read.collection === 'groups').length, 1);
 });
 
 test('only a newly paid share notifies the creator; unrelated updates stay silent', async () => {
-  const h = harness(deadResponses);
-  const before = { createdBy: 'me', title: 'Lunch', splits: [{ uid: 'friend', paid: false, amount: 15 }] };
+  const h = harness(deadResponses, undefined, { currency: 'EUR' });
+  const before = { createdBy: 'me', title: 'Lunch', currency: 'USD', groupId: 'g1',
+    splits: [{ uid: 'friend', paid: false, amount: 15 }] };
   const after = { ...before, splits: [{ uid: 'friend', paid: true, amount: 15 }] };
   const event = (a, b) => ({ params: { billId: 'b1' }, data: {
     before: { data: () => a }, after: { data: () => b },
@@ -356,8 +414,12 @@ test('only a newly paid share notifies the creator; unrelated updates stay silen
   await h.notifyBillPaid(event(before, after));
   assert.equal(h.inbox.length, 1);
   assert.equal(h.inbox[0].toUid, 'me');
+  assert.match(h.inbox[0].body, /EUR 15\.00/);
+  assert.match(h.pushes[0].notification.body, /EUR 15\.00/);
+  assert.equal(h.reads.filter((read) => read.collection === 'groups').length, 1);
   assert.deepEqual(Array.from(h.updates[0].data.fcmTokens.remove), ['dead-a', 'dead-b']);
   await h.notifyBillPaid(event(after, { ...after, updatedAt: 123 }));
   assert.equal(h.inbox.length, 1);
   assert.equal(h.pushes.length, 1);
+  assert.equal(h.reads.filter((read) => read.collection === 'groups').length, 1);
 });

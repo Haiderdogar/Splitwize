@@ -48,8 +48,9 @@ service cloud.firestore {
       );
     }
 
-    // Groups: members and invited users can read/update
-    // (invites are accepted via arrayUnion/arrayRemove on these fields).
+    // Groups: members and invited users can read/update membership.
+    // Only the original creator (the group admin) can change currency.
+    // The creator field is immutable so members cannot promote themselves.
     match /groups/{groupId} {
       allow read: if signedIn() && (
         request.auth.uid in resource.data.members ||
@@ -57,10 +58,14 @@ service cloud.firestore {
       );
       allow create: if signedIn() &&
         request.resource.data.createdBy == request.auth.uid;
-      allow update: if signedIn() && (
-        request.auth.uid in resource.data.members ||
-        request.auth.uid in resource.data.invited
-      );
+      allow update: if signedIn() &&
+        request.resource.data.createdBy == resource.data.createdBy &&
+        (!request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['currency']) ||
+          request.auth.uid == resource.data.createdBy) && (
+          request.auth.uid in resource.data.members ||
+          request.auth.uid in resource.data.invited
+        );
       allow delete: if signedIn() &&
         resource.data.createdBy == request.auth.uid;
     }

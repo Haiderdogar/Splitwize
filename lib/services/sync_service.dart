@@ -280,8 +280,30 @@ class SyncService {
           } else if (type == 'group.create') {
             await db.markGroupSynced((payload['group'] as Map)['id'] as String);
           }
-        } catch (_) {
+        } catch (error) {
           if (_disposed) return;
+          if (type == 'group.currency' &&
+              error is FirebaseException &&
+              error.code == 'permission-denied') {
+            // Older versions let members queue currency changes. Restore the
+            // server's choice and discard a rejected edit so sync can continue.
+            final groupId = payload['groupId'] as String;
+            BillGroup? current;
+            try {
+              current = await remote.getGroup(groupId);
+            } on FirebaseException catch (readError) {
+              if (readError.code != 'permission-denied') rethrow;
+            }
+            if (_disposed) return;
+            await db.removeOutbox(id);
+            if (current == null) {
+              await db.deleteGroup(groupId);
+            } else {
+              await repository.applyRemoteGroup(current);
+            }
+            repository.notifyChanged();
+            continue;
+          }
           await db.bumpOutboxRetries(id);
           rethrow; // preserve order — retry everything next time
         }

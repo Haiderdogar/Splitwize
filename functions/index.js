@@ -39,6 +39,23 @@ function pushPreview(value, maxBytes) {
 
 const nonEmptyText = (value) => typeof value === 'string' ? value.trim() : '';
 
+// Group currency labels all of its expenses, including older bills. Changing
+// the label does not convert any amounts or rewrite existing notifications.
+async function billCurrency(db, bill) {
+  const fallback = nonEmptyText(bill.currency) || 'USD';
+  const groupId = nonEmptyText(bill.groupId);
+  if (!groupId) return fallback;
+  try {
+    const snapshot = await db.collection('groups').doc(groupId).get();
+    const group = snapshot.exists && snapshot.data();
+    return group && !group.deleted && nonEmptyText(group.currency) || fallback;
+  } catch (error) {
+    // A missing or temporarily unavailable group must not stop delivery.
+    console.error(`Failed to load currency for group ${groupId}`, error);
+    return fallback;
+  }
+}
+
 function invitationSender(invite, profile) {
   // A group invitation records the actual inviting member. Keep that profile
   // together: a missing name must use their email, not a stale payload name.
@@ -212,7 +229,7 @@ exports.notifyBillCreated = onDocumentCreated(
     if (participantIds.length === 0) return;
 
     const title = `New bill: ${bill.title || "Split"}`;
-    const cur = bill.currency || 'USD';
+    const cur = await billCurrency(db, bill);
     const total = money(bill.total, cur);
 
     // Load each recipient once.
@@ -304,12 +321,13 @@ exports.notifyBillPaid = onDocumentUpdated(
       if (!changes.length) return;
 
       const db = admin.firestore();
+      const cur = await billCurrency(db, after);
       const batch = db.batch();
       for (const { debt, delta } of changes) {
         batch.set(db.collection("notifications").doc(), {
           toUid: debt.creditorUid,
           title: "Settlement recorded",
-          body: `${debt.debtorName || "A friend"} settled ${money(delta, after.currency || 'USD')} for "${after.title || "a bill"}".`,
+          body: `${debt.debtorName || "A friend"} settled ${money(delta, cur)} for "${after.title || "a bill"}".`,
           type: "bill_paid",
           billId: String(billId),
           read: false,
@@ -328,7 +346,7 @@ exports.notifyBillPaid = onDocumentUpdated(
             tokens,
             notification: {
               title: "Settlement recorded",
-              body: `${debt.debtorName || "A friend"} settled ${money(delta, after.currency || 'USD')} for "${after.title || "a bill"}".`,
+              body: `${debt.debtorName || "A friend"} settled ${money(delta, cur)} for "${after.title || "a bill"}".`,
             },
             data: { type: "bill_paid", billId: String(billId) },
           });
@@ -343,6 +361,7 @@ exports.notifyBillPaid = onDocumentUpdated(
     if (newlyPaid.length === 0) return;
 
     const db = admin.firestore();
+    const cur = await billCurrency(db, after);
     const creatorId = after.createdBy;
     let creatorTokens = [];
     try {
@@ -359,7 +378,7 @@ exports.notifyBillPaid = onDocumentUpdated(
       batch.set(ref, {
         toUid: creatorId,
         title: "Share marked as paid",
-        body: `${s.displayName || "Someone"} marked their ${money(s.amount, after.currency || 'USD')} share of "${after.title || "a bill"}" as paid.`,
+        body: `${s.displayName || "Someone"} marked their ${money(s.amount, cur)} share of "${after.title || "a bill"}" as paid.`,
         type: "bill_paid",
         billId: String(billId),
         read: false,
@@ -379,7 +398,7 @@ exports.notifyBillPaid = onDocumentUpdated(
           title: "Share marked as paid",
           body:
             newlyPaid.length === 1
-              ? `${names} marked their ${money(newlyPaid[0].amount, after.currency || 'USD')} share of "${after.title || "a bill"}" as paid.`
+              ? `${names} marked their ${money(newlyPaid[0].amount, cur)} share of "${after.title || "a bill"}" as paid.`
               : `${newlyPaid.length} shares of "${after.title || "a bill"}" were marked as paid.`,
         },
         data: { type: "bill_paid", billId: String(billId) },

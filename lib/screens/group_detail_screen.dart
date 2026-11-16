@@ -7,6 +7,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../utils/money.dart';
 import '../widgets/group_invitation_card.dart';
+import '../widgets/scrolling_group_name.dart';
 import '../widgets/state_widgets.dart';
 import 'create_bill_screen.dart';
 import 'group_detail/group_balances.dart';
@@ -23,18 +24,42 @@ class GroupDetailScreen extends ConsumerWidget {
     final groupAsync = ref.watch(groupProvider(groupId));
     final uid = ref.watch(currentUidProvider) ?? '';
     final group = groupAsync.value;
+    final theme = Theme.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
+    final hasGroup = group != null && !group.deleted;
     final isMember =
         group != null && !group.deleted && group.members.contains(uid);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Group details'),
+        toolbarHeight: hasGroup
+            ? 28 +
+                textScaler.scale(theme.textTheme.titleMedium?.fontSize ?? 16) +
+                textScaler.scale(theme.textTheme.bodySmall?.fontSize ?? 12)
+            : null,
+        title: !hasGroup
+            ? const Text('Group details')
+            : Tooltip(
+                message: group.name,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ScrollingGroupName(
+                        name: group.name, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${group.members.length} '
+                      '${group.members.length == 1 ? 'member' : 'members'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
         actions: [
-          if (isMember)
-            IconButton(
-              tooltip: 'Group settings',
-              onPressed: () => _showSettings(context, group),
-              icon: const Icon(Icons.tune_rounded),
-            ),
+          if (isMember) _GroupCurrencyButton(group: group),
           const SizedBox(width: 8),
         ],
       ),
@@ -68,40 +93,6 @@ class GroupDetailScreen extends ConsumerWidget {
       ),
     );
   }
-
-  void _showSettings(BuildContext context, BillGroup group) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) => SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Group settings',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
-              Consumer(builder: (context, ref, _) {
-                final current =
-                    ref.watch(groupProvider(group.id)).value ?? group;
-                return _GroupCurrencyButton(group: current, expanded: true);
-              }),
-              const SizedBox(height: 12),
-              Text(
-                  'The group currency is used for new expenses. '
-                  'Existing expenses keep their original currency.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _GroupBody extends StatefulWidget {
@@ -125,8 +116,7 @@ class _GroupBodyState extends State<_GroupBody>
   @override
   Widget build(BuildContext context) {
     final group = widget.group;
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     return SafeArea(
       top: false,
       child: Center(
@@ -139,49 +129,7 @@ class _GroupBodyState extends State<_GroupBody>
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                     sliver: SliverToBoxAdapter(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 52,
-                                height: 52,
-                                decoration: BoxDecoration(
-                                  color: scheme.primaryContainer,
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                                child: Icon(Icons.groups_rounded,
-                                    size: 28, color: scheme.onPrimaryContainer),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                  child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(group.name,
-                                      style: theme.textTheme.headlineSmall),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                      '${group.members.length} '
-                                      '${group.members.length == 1 ? 'member' : 'members'}'
-                                      '${group.invited.isEmpty ? '' : ' · ${group.invited.length} invited'}',
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
-                                              color: scheme.onSurfaceVariant)),
-                                ],
-                              )),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          _GroupCurrencyButton(group: group),
-                          const SizedBox(height: 12),
-                          GroupOverview(
-                              group: group,
-                              onBalances: () => _tabs.animateTo(1)),
-                        ],
-                      ),
+                      child: GroupOverview(group: group),
                     ),
                   ),
                   SliverOverlapAbsorber(
@@ -287,56 +235,86 @@ class _GroupTabHeader extends SliverPersistentHeaderDelegate {
 }
 
 class _GroupCurrencyButton extends ConsumerWidget {
-  const _GroupCurrencyButton({required this.group, this.expanded = false});
+  const _GroupCurrencyButton({required this.group});
   final BillGroup group;
-  final bool expanded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    return TextButton(
-      style: TextButton.styleFrom(
-        foregroundColor: scheme.onSurfaceVariant,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        minimumSize: const Size(48, 48),
-      ),
-      onPressed: () => showCurrencyPicker(
-        context: context,
-        showFlag: true,
-        favorite: const ['PKR', 'USD', 'EUR', 'GBP', 'AED', 'SAR', 'INR'],
-        onSelect: (currency) async {
-          try {
-            final repo = await ref.read(appRepositoryProvider.future);
-            await repo.setGroupCurrency(group.id, currency.code);
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('Group currency changed to ${currency.code}. '
-                      'New expenses will use it.')));
-            }
-          } catch (_) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content:
-                      Text('Could not change currency. Please try again.')));
-            }
-          }
-        },
-      ),
-      child: Row(
-        mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
-        children: [
-          const Icon(Icons.payments_outlined, size: 18),
-          const SizedBox(width: 8),
-          Flexible(
-              child: Text(
-                  expanded ? currencyLabel(group.currency) : 'Group currency')),
-          const SizedBox(width: 8),
-          Text(group.currency,
-              style: TextStyle(
-                  color: scheme.primary, fontWeight: FontWeight.w800)),
+    final canEdit = group.createdBy == ref.watch(currentUidProvider);
+    final label = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.payments_outlined, size: 18),
+        const SizedBox(width: 8),
+        Text(group.currency,
+            style:
+                TextStyle(color: scheme.primary, fontWeight: FontWeight.w800)),
+        if (canEdit) ...[
           const SizedBox(width: 4),
           const Icon(Icons.expand_more_rounded, size: 18),
         ],
+      ],
+    );
+    if (!canEdit) {
+      return Tooltip(
+        message: 'Group currency',
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: label,
+        ),
+      );
+    }
+    return Tooltip(
+      message: 'Change group currency',
+      child: TextButton(
+        style: TextButton.styleFrom(
+          foregroundColor: scheme.onSurfaceVariant,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          minimumSize: const Size(48, 48),
+        ),
+        onPressed: () => showCurrencyPicker(
+          context: context,
+          showFlag: true,
+          favorite: {
+            group.currency,
+            'PKR',
+            'USD',
+            'EUR',
+            'GBP',
+            'AED',
+            'SAR',
+            'INR',
+          }.toList(),
+          theme: CurrencyPickerThemeData(
+            inputDecoration: InputDecoration(
+              labelText: 'Search',
+              hintText: 'Search',
+              prefixIcon: const Icon(Icons.search),
+              helperText:
+                  'Current group currency: ${currencyLabel(group.currency)}',
+              helperMaxLines: 2,
+            ),
+          ),
+          onSelect: (currency) async {
+            try {
+              final repo = await ref.read(appRepositoryProvider.future);
+              await repo.setGroupCurrency(group.id, currency.code);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('Group currency changed to ${currency.code}. '
+                        'All group amounts use it; numbers stay the same.')));
+              }
+            } catch (_) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content:
+                        Text('Could not change currency. Please try again.')));
+              }
+            }
+          },
+        ),
+        child: label,
       ),
     );
   }
