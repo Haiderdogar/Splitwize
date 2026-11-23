@@ -44,6 +44,14 @@ class _BillsTabState extends ConsumerState<BillsTab> {
     setState(() => _filter = ExpenseFilter.all);
   }
 
+  void _toggleSearch() => setState(() {
+        _showSearch = !_showSearch;
+        if (!_showSearch) {
+          _searchController.clear();
+          FocusScope.of(context).unfocus();
+        }
+      });
+
   List<Bill> _visibleBills(List<Bill> bills) {
     final query = _searchController.text.trim().toLowerCase();
     final visible = bills.where((bill) {
@@ -100,7 +108,15 @@ class _BillsTabState extends ConsumerState<BillsTab> {
                 style: theme.textTheme.titleLarge),
           ),
         ]),
-        actions: const [AppNotificationButton(), SizedBox(width: 8)],
+        actions: [
+          IconButton(
+            tooltip: _showSearch ? 'Close search' : 'Search expenses',
+            onPressed: _toggleSearch,
+            icon: Icon(_showSearch ? Icons.close_rounded : Icons.search_rounded),
+          ),
+          const AppNotificationButton(),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
         top: false,
@@ -137,17 +153,6 @@ class _BillsTabState extends ConsumerState<BillsTab> {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              ExpenseHomeHeading(
-                                billCount: bills.length,
-                                searching: _showSearch,
-                                onSearch: () => setState(() {
-                                  _showSearch = !_showSearch;
-                                  if (!_showSearch) {
-                                    _searchController.clear();
-                                    FocusScope.of(context).unfocus();
-                                  }
-                                }),
-                              ),
                               if (_showSearch)
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 16),
@@ -160,7 +165,6 @@ class _BillsTabState extends ConsumerState<BillsTab> {
                                         FocusScope.of(context).unfocus(),
                                     decoration: InputDecoration(
                                       hintText: 'Search expenses',
-                                      labelText: 'Search expenses',
                                       prefixIcon:
                                           const Icon(Icons.search_rounded),
                                       suffixIcon: _searchController.text.isEmpty
@@ -188,12 +192,7 @@ class _BillsTabState extends ConsumerState<BillsTab> {
                                   icon: Icons.receipt_long_outlined,
                                   title: 'Your first split starts here',
                                   message:
-                                      'Dinner, a trip, or the everyday. Add an expense and split it with friends.',
-                                  action: FilledButton.icon(
-                                    onPressed: _addExpense,
-                                    icon: const Icon(Icons.add_rounded),
-                                    label: const Text('Add your first expense'),
-                                  ),
+                                      'Add an expense to start splitting with friends.',
                                 )
                               else if (visible.isEmpty)
                                 InlineEmpty(
@@ -211,7 +210,7 @@ class _BillsTabState extends ConsumerState<BillsTab> {
                                           .isNotEmpty
                                       ? 'Try a different name, group, or currency.'
                                       : _filter == ExpenseFilter.open
-                                          ? 'Every shared bill is taken care of.'
+                                          ? 'Unsettled expenses will appear here.'
                                           : 'Expenses appear here once everyone has settled.',
                                   action: TextButton(
                                     onPressed: _resetFilters,

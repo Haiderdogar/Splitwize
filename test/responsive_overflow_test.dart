@@ -670,7 +670,9 @@ void main() {
     expect(find.text('New group'), findsNothing);
     expect(find.text('AT A GLANCE'), findsNothing);
     expect(find.text('Your balances'), findsNothing);
-    expect(find.text('Expenses'), findsOneWidget);
+    // The AppBar already names the screen, so there is no second heading.
+    expect(find.text('Expenses'), findsNothing);
+    expect(find.byTooltip('Search expenses'), findsOneWidget);
     expect(find.text('All (1)'), findsOneWidget);
     expect(find.text('Unsettled (1)'), findsOneWidget);
     expect(find.text('Settled (0)'), findsOneWidget);

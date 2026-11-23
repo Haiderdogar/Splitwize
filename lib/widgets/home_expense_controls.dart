@@ -2,61 +2,6 @@ import 'package:flutter/material.dart';
 
 enum ExpenseFilter { all, open, settled }
 
-class ExpenseHomeHeading extends StatelessWidget {
-  const ExpenseHomeHeading({
-    super.key,
-    required this.billCount,
-    required this.searching,
-    required this.onSearch,
-  });
-
-  final int billCount;
-  final bool searching;
-  final VoidCallback onSearch;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Row(children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Semantics(
-                header: true,
-                child: Text('Expenses', style: theme.textTheme.headlineLarge),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                billCount == 0
-                    ? 'Good times. Clear splits.'
-                    : '$billCount shared ${billCount == 1 ? 'expense' : 'expenses'}, all in one place.',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        IconButton.outlined(
-          tooltip: searching ? 'Close search' : 'Search expenses',
-          onPressed: onSearch,
-          style: IconButton.styleFrom(
-            backgroundColor: theme.colorScheme.surfaceContainerLowest,
-            side: BorderSide(color: theme.colorScheme.outlineVariant),
-            minimumSize: const Size(48, 48),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          ),
-          icon: Icon(searching ? Icons.close_rounded : Icons.search_rounded),
-        ),
-      ]),
-    );
-  }
-}
-
 class ExpenseFilterBar extends StatelessWidget {
   const ExpenseFilterBar({
     super.key,
@@ -128,6 +73,34 @@ class ExpenseListHeading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final sort = PopupMenuButton<bool>(
+      tooltip: 'Sort expenses',
+      initialValue: oldestFirst,
+      onSelected: onSort,
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: false, child: Text('Newest first')),
+        PopupMenuItem(value: true, child: Text('Oldest first')),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.swap_vert_rounded,
+              size: 17, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 4),
+          Text(oldestFirst ? 'Oldest first' : 'Newest first',
+              style: theme.textTheme.labelMedium
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          const SizedBox(width: 2),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              size: 16, color: theme.colorScheme.onSurfaceVariant),
+        ]),
+      ),
+    );
+    // Without a search or filter the list needs no label of its own, so the
+    // sort control sits alone on the trailing edge.
+    if (!filtered) {
+      return Align(alignment: AlignmentDirectional.centerEnd, child: sort);
+    }
     return Wrap(
       alignment: WrapAlignment.spaceBetween,
       crossAxisAlignment: WrapCrossAlignment.center,
@@ -136,36 +109,12 @@ class ExpenseListHeading extends StatelessWidget {
         Semantics(
           header: true,
           child: Text(
-            filtered
-                ? '$count ${count == 1 ? 'result' : 'results'}'
-                : 'Recent activity',
+            '$count ${count == 1 ? 'result' : 'results'}',
             style: theme.textTheme.titleSmall
                 ?.copyWith(fontWeight: FontWeight.w700),
           ),
         ),
-        PopupMenuButton<bool>(
-          tooltip: 'Sort expenses',
-          initialValue: oldestFirst,
-          onSelected: onSort,
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: false, child: Text('Newest first')),
-            PopupMenuItem(value: true, child: Text('Oldest first')),
-          ],
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.swap_vert_rounded,
-                  size: 17, color: theme.colorScheme.onSurfaceVariant),
-              const SizedBox(width: 4),
-              Text(oldestFirst ? 'Oldest first' : 'Newest first',
-                  style: theme.textTheme.labelMedium
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-              const SizedBox(width: 2),
-              Icon(Icons.keyboard_arrow_down_rounded,
-                  size: 16, color: theme.colorScheme.onSurfaceVariant),
-            ]),
-          ),
-        ),
+        sort,
       ],
     );
   }
