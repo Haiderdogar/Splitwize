@@ -517,7 +517,9 @@ void main() {
       expect(find.text('Your groups.'), findsNothing);
       expect(find.text('Keep trips, housemates and shared plans together.'),
           findsNothing);
-      expect(find.text('My groups'), findsOneWidget);
+      // The AppBar already names the screen, so there is no second heading.
+      expect(find.text('My groups'), findsNothing);
+      expect(find.byTooltip('Group invitations'), findsOneWidget);
       expect(find.text('Invitations'), findsNothing);
       expect(find.byType(FloatingActionButton), findsOneWidget);
       expect(tester.takeException(), isNull);

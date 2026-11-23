@@ -26,31 +26,16 @@ class GroupsTab extends StatelessWidget {
       appBar: AppBar(
         leading: const SplitwizeMenuButton(),
         title: const Text('Groups'),
-        actions: const [AppNotificationButton(), SizedBox(width: 5)],
+        actions: const [
+          _GroupInvitationsAction(),
+          SizedBox(width: 4),
+          AppNotificationButton(),
+          SizedBox(width: 5),
+        ],
       ),
       body: CustomScrollView(slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          sliver: SliverToBoxAdapter(
-            child: Consumer(builder: (context, ref, _) {
-              final incoming =
-                  ref.watch(groupInvitesProvider).value?.length ?? 0;
-              final outgoing =
-                  ref.watch(outgoingGroupInvitesProvider).value?.length ?? 0;
-              return SectionHeading(
-                'My groups',
-                trailing: InvitationButton(
-                  count: incoming + outgoing,
-                  tooltip: 'Group invitations',
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const GroupRequestsScreen())),
-                ),
-              );
-            }),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           sliver: Consumer(builder: (context, ref, _) {
             final asyncGroups = ref.watch(myGroupsProvider);
             return asyncGroups.when(
@@ -89,10 +74,6 @@ class GroupsTab extends StatelessWidget {
                     icon: Icons.groups_outlined,
                     title: 'No groups yet',
                     message: 'Make a group for a trip, flat or project.',
-                    action: FilledButton(
-                      onPressed: () => _create(context),
-                      child: const Text('Create your first group'),
-                    ),
                   ));
                 }
                 return SliverList.builder(
@@ -120,6 +101,25 @@ class GroupsTab extends StatelessWidget {
         onPressed: () => _create(context),
         child: const Icon(Icons.add_rounded),
       ),
+    );
+  }
+}
+
+/// App-bar shortcut to group invitations; the counter totals incoming and
+/// outgoing invitations.
+class _GroupInvitationsAction extends ConsumerWidget {
+  const _GroupInvitationsAction();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final incoming = ref.watch(groupInvitesProvider).value?.length ?? 0;
+    final outgoing =
+        ref.watch(outgoingGroupInvitesProvider).value?.length ?? 0;
+    return InvitationButton(
+      count: incoming + outgoing,
+      tooltip: 'Group invitations',
+      onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const GroupRequestsScreen())),
     );
   }
 }

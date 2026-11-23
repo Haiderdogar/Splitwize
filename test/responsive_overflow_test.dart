@@ -366,7 +366,7 @@ void main() {
 
     await tester.tap(find.descendant(of: nav, matching: find.text('Groups')));
     await tester.pumpAndSettle();
-    expect(find.text('My groups'), findsOneWidget);
+    expect(find.text('My groups'), findsNothing);
     final groupInvites = find.byTooltip('Group invitations');
     expect(groupInvites, findsOneWidget);
     expect(find.descendant(of: groupInvites, matching: find.text('2')),
