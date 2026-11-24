@@ -81,10 +81,9 @@ class _OverviewCard extends StatelessWidget {
             children: [
               Row(children: [
                 Expanded(
-                  child: Text('TOTAL GROUP SPENDING',
-                      style: theme.textTheme.labelSmall?.copyWith(
+                  child: Text('Total spent',
+                      style: theme.textTheme.labelMedium?.copyWith(
                         color: secondary,
-                        letterSpacing: 1.2,
                         fontWeight: FontWeight.w700,
                       )),
                 ),
@@ -107,9 +106,12 @@ class _OverviewCard extends StatelessWidget {
                             fontWeight: FontWeight.w800,
                             letterSpacing: -.8,
                           )),
-                      Text(entry.key,
-                          style: theme.textTheme.labelMedium
-                              ?.copyWith(color: secondary)),
+                      // formatMoney already carries the currency, so the code is
+                      // only repeated when several currencies are listed.
+                      if (totals.length > 1)
+                        Text(entry.key,
+                            style: theme.textTheme.labelMedium
+                                ?.copyWith(color: secondary)),
                     ],
                   ),
                 ),

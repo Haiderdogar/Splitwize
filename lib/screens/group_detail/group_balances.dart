@@ -92,26 +92,6 @@ class _GroupBalancesSectionState extends ConsumerState<GroupBalancesSection> {
         String nameOf(String uid, String name) =>
             uid == myUid ? '${identity.name} (you)' : name;
         return SliverMainAxisGroup(slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Settle up',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 5),
-                  Text(
-                    'A simpler way to square up. Record a payment after '
-                    'the money has changed hands.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-          ),
           SliverList.builder(
             itemCount: entries.length,
             itemBuilder: (context, index) {
@@ -332,9 +312,6 @@ class _SettlementCard extends StatelessWidget {
                   style: theme.textTheme.labelLarge
                       ?.copyWith(color: scheme.primary)),
             ),
-            Text(currency,
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: scheme.onSurfaceVariant)),
           ]),
           const SizedBox(height: 10),
           Text(formatMoney(amount, currency),

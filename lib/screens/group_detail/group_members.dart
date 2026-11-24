@@ -32,15 +32,7 @@ class GroupMembersTab extends ConsumerWidget {
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
           sliver: SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SectionHeading('The people in your group',
-                    subtitle: '${group.members.length} joined · '
-                        '${group.invited.length} pending'),
-                GroupInviteButton(group: group),
-              ],
-            ),
+            child: GroupInviteButton(group: group),
           ),
         ),
         SliverPadding(
@@ -73,8 +65,7 @@ class GroupMembersTab extends ConsumerWidget {
           const SliverPadding(
             padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
             sliver: SliverToBoxAdapter(
-              child: SectionHeading('Pending invitations',
-                  subtitle: 'They can join once they accept your invitation.'),
+              child: SectionHeading('Pending invitations'),
             ),
           ),
           SliverPadding(

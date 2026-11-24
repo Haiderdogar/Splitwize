@@ -167,22 +167,31 @@ class _GroupBodyState extends State<_GroupBody>
                 ),
               ),
             ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-              decoration: BoxDecoration(
-                color: scheme.surface,
-                border: Border(top: BorderSide(color: scheme.outlineVariant)),
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) =>
-                          CreateBillScreen(initialGroupId: group.id))),
-                  icon: const Icon(Icons.add_rounded, size: 22),
-                  label: const Text('Add expense'),
-                ),
-              ),
+            // Adding an expense only makes sense next to the expense list, so
+            // the bar is hidden on the Balances and Members tabs.
+            ListenableBuilder(
+              listenable: _tabs,
+              builder: (context, _) => _tabs.index != 0
+                  ? const SizedBox.shrink()
+                  : Container(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                      decoration: BoxDecoration(
+                        color: scheme.surface,
+                        border: Border(
+                            top: BorderSide(color: scheme.outlineVariant)),
+                      ),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (_) => CreateBillScreen(
+                                      initialGroupId: group.id))),
+                          icon: const Icon(Icons.add_rounded, size: 22),
+                          label: const Text('Add expense'),
+                        ),
+                      ),
+                    ),
             ),
           ]),
         ),

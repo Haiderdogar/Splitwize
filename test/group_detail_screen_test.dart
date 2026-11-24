@@ -344,9 +344,9 @@ void main() {
     await _pumpGroup(tester);
     await _selectTab(tester, 'Members');
     expect(
-      tester.getTopLeft(find.text('The people in your group')).dy,
+      tester.getTopLeft(find.text('Invite friends')).dy,
       greaterThanOrEqualTo(tester.getBottomLeft(find.byType(TabBar)).dy),
-      reason: 'The pinned tabs must not cover the members heading.',
+      reason: 'The pinned tabs must not cover the first item on the tab.',
     );
     expect(find.textContaining(_friend.displayName), findsWidgets);
     expect(find.textContaining(_invited.displayName), findsWidgets);
@@ -354,9 +354,14 @@ void main() {
 
     await _selectTab(tester, 'Balances');
     expect(
-      tester.getTopLeft(find.text('Settle up')).dy,
+      tester
+          .getTopLeft(find
+              .textContaining(RegExp(
+                  r'^(You pay|You receive|Group payment|Mutual balance)$'))
+              .first)
+          .dy,
       greaterThanOrEqualTo(tester.getBottomLeft(find.byType(TabBar)).dy),
-      reason: 'The pinned tabs must not cover the balances heading.',
+      reason: 'The pinned tabs must not cover the first settlement.',
     );
     final settle = find.widgetWithText(FilledButton, 'Mark settled');
     expect(settle, findsOneWidget,
@@ -572,7 +577,7 @@ void main() {
     );
     expect(find.text('Your net balance'), findsNothing);
     expect(find.byKey(const ValueKey('group-balance-EUR')), findsNothing);
-    expect(find.text('${formatMoney(100, 'EUR')} EUR'), findsOneWidget);
+    expect(find.text(formatMoney(100, 'EUR')), findsOneWidget);
 
     await tester.ensureVisible(find.text('Friday dinner'));
     await tester.tap(find.text('Friday dinner'));
@@ -607,7 +612,7 @@ void main() {
     await tester.pump();
     await _waitForRepositoryWidget(
         tester, find.byKey(const ValueKey('group-spending-GBP')));
-    expect(find.text('${formatMoney(100, 'GBP')} GBP'), findsOneWidget);
+    expect(find.text(formatMoney(100, 'GBP')), findsOneWidget);
 
     // Let the successful currency-change toast clear the fixed action button.
     await tester.pump(const Duration(seconds: 5));
@@ -721,7 +726,12 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: '$tab in $mode');
-        expect(find.text('Add expense').hitTestable(), findsOneWidget);
+        // The Add expense bar belongs to the Expenses tab only.
+        expect(
+          find.text('Add expense').hitTestable(),
+          tab == 'Expenses' ? findsOneWidget : findsNothing,
+          reason: 'Add expense visibility on $tab in $mode',
+        );
       }
     });
   }

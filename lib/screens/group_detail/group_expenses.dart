@@ -71,8 +71,7 @@ class _GroupExpensesTabState extends ConsumerState<GroupExpensesTab>
 
               return SliverMainAxisGroup(slivers: [
                 SliverToBoxAdapter(
-                  child: _HistoryHeading(
-                    count: ordered.length,
+                  child: _ExpenseFilterBar(
                     filter: _filter,
                     onFilter: (value) => setState(() => _filter = value),
                   ),
@@ -125,34 +124,22 @@ class _GroupExpensesTabState extends ConsumerState<GroupExpensesTab>
   }
 }
 
-class _HistoryHeading extends StatelessWidget {
-  const _HistoryHeading({
-    required this.count,
+/// The All / Unsettled / Settled chips. The tab itself already names the list,
+/// so there is no separate heading or count above them.
+class _ExpenseFilterBar extends StatelessWidget {
+  const _ExpenseFilterBar({
     required this.filter,
     required this.onFilter,
   });
 
-  final int count;
   final _ExpenseFilter filter;
   final ValueChanged<_ExpenseFilter> onFilter;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(children: [
-          Expanded(
-            child: Text('Expense history', style: theme.textTheme.titleMedium),
-          ),
-          const SizedBox(width: 8),
-          Text('$count total',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              )),
-        ]),
-        const SizedBox(height: 12),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [
@@ -285,7 +272,7 @@ class _ExpenseRow extends StatelessWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          '${formatMoney(bill.total, bill.currency)} ${bill.currency}',
+                          formatMoney(bill.total, bill.currency),
                           style: theme.textTheme.titleSmall
                               ?.copyWith(fontWeight: FontWeight.w800),
                         ),
