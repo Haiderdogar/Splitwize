@@ -206,11 +206,11 @@ void main() {
       'Sync',
       'Default currency',
       'Appearance',
-      'Ad-Free',
       'Log out'
     ]) {
       expect(find.text(label), findsOneWidget);
     }
+    expect(find.text('Ad-Free'), findsNothing);
     expect(find.text('Personal details'), findsNothing);
     expect(find.byTooltip('Edit name'), findsNothing);
     await tester.tap(find.text('Appearance'));

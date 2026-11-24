@@ -15,7 +15,6 @@ import 'package:splitwize/screens/settings_screen.dart';
 import 'package:splitwize/services/sync_service.dart';
 import 'package:splitwize/theme.dart';
 import 'package:splitwize/widgets/app_drawer.dart';
-import 'package:splitwize/widgets/paywall_sheet.dart';
 
 import 'responsive_overflow_test.dart' as responsive show loadRoboto;
 
@@ -65,19 +64,16 @@ class _Appearance extends ThemeModeSetting {
   }
 }
 
+/// The home banner still reads the entitlement, so tests keep it off storage.
 class _AdFree extends AdFreeStatus {
-  _AdFree(this.active);
-  final bool active;
-
   @override
-  Future<bool> build() async => active;
+  Future<bool> build() async => false;
 }
 
 Future<void> _pumpSettings(
   WidgetTester tester,
   _SettingsRepository repository, {
   Widget screen = const SettingsScreen(),
-  bool adFree = false,
   _SettingsSync? sync,
   Stream<SyncState>? syncStates,
   Future<AuthorizationStatus?>? permission,
@@ -98,9 +94,7 @@ Future<void> _pumpSettings(
       syncStatusProvider
           .overrideWith((ref) => syncStates ?? Stream.value(const SyncState())),
       syncServiceProvider.overrideWith((ref) async => sync ?? _SettingsSync()),
-      adFreeStatusProvider.overrideWith(() => _AdFree(adFree)),
-      adFreePricesProvider.overrideWith(
-          (ref) async => (monthly: r'$0.99/month', yearly: r'$7/year')),
+      adFreeStatusProvider.overrideWith(_AdFree.new),
       myBillsProvider.overrideWith((ref) => Stream.value(const <Bill>[])),
       notificationsProvider
           .overrideWith((ref) => Stream.value(const <AppNotification>[])),
@@ -154,6 +148,9 @@ void main() {
     await _reveal(tester, find.text('Log out'));
     expect(find.text('Log out'), findsOneWidget);
     expect(find.text('Simple splits. Clear balances.'), findsNothing);
+    // The Ad-Free purchase is not offered for now.
+    expect(find.text('Ad-Free'), findsNothing);
+    expect(find.text('Upgrade'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -242,29 +239,6 @@ void main() {
     states.add(const SyncState());
     await tester.pumpAndSettle();
     expect(tester.widget<ButtonStyleButton>(button).onPressed, isNotNull);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('free account upgrade opens the existing subscription sheet',
-      (tester) async {
-    await _pumpSettings(tester, repository);
-    await _reveal(tester, find.text('Upgrade'));
-    await tester.tap(find.text('Upgrade'));
-    await tester.pumpAndSettle();
-    expect(find.byType(PaywallSheet), findsOneWidget);
-    expect(find.text('Splitwize Ad-Free'), findsOneWidget);
-    expect(find.text('Subscribe'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('active subscription does not offer another upgrade',
-      (tester) async {
-    await _pumpSettings(tester, repository, adFree: true);
-    await _reveal(tester, find.text('Ad-Free'));
-    expect(find.text('Upgrade'), findsNothing);
-    expect(find.textContaining(RegExp('active', caseSensitive: false)),
-        findsWidgets);
-    expect(find.byType(PaywallSheet), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

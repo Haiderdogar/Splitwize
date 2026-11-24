@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../providers/monetization_providers.dart';
 import '../widgets/logout_button.dart';
-import '../widgets/paywall_sheet.dart';
 import 'settings/settings_connection.dart';
 import 'settings/settings_preferences.dart';
 
@@ -55,8 +52,6 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   const SettingsSyncCard(),
                   const SizedBox(height: 28),
-                  const _AdFreeCard(),
-                  const SizedBox(height: 28),
                   // Log out is the only account action, so it has no heading.
                   Material(
                     color: scheme.surfaceContainerLowest,
@@ -86,77 +81,4 @@ class _SettingsHeading extends StatelessWidget {
         header: true,
         child: Text(title, style: Theme.of(context).textTheme.titleMedium),
       );
-}
-
-class _AdFreeCard extends ConsumerWidget {
-  const _AdFreeCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final plan = ref.watch(adFreeStatusProvider);
-    final active = plan.value == true;
-    final loading = plan.isLoading && !plan.hasValue;
-    final failed = plan.hasError && !plan.hasValue;
-    final dark = scheme.brightness == Brightness.dark;
-    final foreground = dark ? scheme.onSurface : scheme.onPrimary;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-          color: dark ? scheme.surfaceContainerHigh : scheme.primary,
-          borderRadius: BorderRadius.circular(22)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(active ? Icons.verified_outlined : Icons.block_outlined,
-              color: foreground, size: 22),
-          const SizedBox(width: 10),
-          Expanded(
-              child: Text('Ad-Free',
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(color: foreground))),
-          if (active)
-            Text('Active',
-                style: theme.textTheme.labelMedium
-                    ?.copyWith(color: foreground, fontWeight: FontWeight.w700)),
-        ]),
-        const SizedBox(height: 16),
-        Text(
-            loading
-                ? 'Checking your plan…'
-                : failed
-                    ? 'Plan unavailable'
-                    : active
-                        ? 'More sharing. Zero ads.'
-                        : 'Keep the focus on your friends.',
-            style: theme.textTheme.titleLarge?.copyWith(color: foreground)),
-        const SizedBox(height: 8),
-        Text(
-            failed
-                ? 'We couldn’t load your subscription. Please try again.'
-                : loading
-                    ? 'Your subscription status will appear here.'
-                    : active
-                        ? 'Enjoy Splitwize without ads across the app.'
-                        : 'Remove ads across Splitwize with an Ad-Free subscription.',
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: foreground.withValues(alpha: .8))),
-        if (!active && !loading) ...[
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-                backgroundColor: scheme.primaryContainer,
-                foregroundColor: scheme.onPrimaryContainer),
-            onPressed: failed
-                ? () => ref.invalidate(adFreeStatusProvider)
-                : () => showPaywallSheet(context),
-            icon: Icon(
-                failed ? Icons.refresh_rounded : Icons.arrow_forward_rounded,
-                size: 18),
-            label: Text(failed ? 'Retry' : 'Upgrade'),
-          ),
-        ],
-      ]),
-    );
-  }
 }
