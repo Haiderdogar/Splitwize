@@ -422,9 +422,16 @@ void main() {
     expect(find.byType(BackButton), findsNothing);
     splitwizeScaffoldKey.currentState!.openDrawer();
     await tester.pumpAndSettle();
-    expect(find.text('View profile'), findsOneWidget);
-    expect(find.text('YOU'), findsOneWidget);
-    await tester.tap(find.text('View profile'));
+    // The profile card names the user and opens the profile; it carries no
+    // "YOU" or "View profile" labels, and the nav list has no section label.
+    expect(find.text('View profile'), findsNothing);
+    expect(find.text('YOU'), findsNothing);
+    expect(find.text('WORKSPACE'), findsNothing);
+    expect(find.text('Simple splits. Clear balances.'), findsNothing);
+    final profileCard = find.descendant(
+        of: find.byType(Drawer), matching: find.text(me.displayName));
+    expect(profileCard, findsOneWidget);
+    await tester.tap(profileCard);
     await tester.pumpAndSettle();
     expect(find.text('Profile'), findsOneWidget);
     expect(find.text('Personal details'), findsNothing);

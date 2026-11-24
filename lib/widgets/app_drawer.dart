@@ -62,68 +62,53 @@ class SplitwizeDrawer extends ConsumerWidget {
               ]),
             ),
             const SizedBox(height: 23),
-            Material(
-              color: scheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(18),
-              child: InkWell(
+            // The whole card opens the profile; the chevron says so, so there
+            // is no separate "View profile" label.
+            Semantics(
+              button: true,
+              hint: 'View profile',
+              child: Material(
+                color: scheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(18),
-                onTap: () {
-                  final navigator = Navigator.of(context);
-                  navigator.pop();
-                  navigator.push(
-                      MaterialPageRoute(builder: (_) => const ProfileTab()));
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(children: [
-                    PersonMark(initials: identity.initials, size: 44),
-                    const SizedBox(width: 11),
-                    Expanded(
-                        child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          Expanded(
-                              child: Text(identity.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style:
-                                      Theme.of(context).textTheme.titleSmall)),
-                          const SizedBox(width: 5),
-                          Text('YOU',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
-                                  ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: scheme.primary)),
-                        ]),
-                        if (identity.email.isNotEmpty)
-                          Text(identity.email,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () {
+                    final navigator = Navigator.of(context);
+                    navigator.pop();
+                    navigator.push(
+                        MaterialPageRoute(builder: (_) => const ProfileTab()));
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(children: [
+                      PersonMark(initials: identity.initials, size: 44),
+                      const SizedBox(width: 11),
+                      Expanded(
+                          child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(identity.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: scheme.onSurfaceVariant)),
-                        Text('View profile',
-                            style: Theme.of(context).textTheme.labelSmall),
-                      ],
-                    )),
-                    const Icon(Icons.chevron_right_rounded),
-                  ]),
+                              style: Theme.of(context).textTheme.titleSmall),
+                          if (identity.email.isNotEmpty)
+                            Text(identity.email,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                        color: scheme.onSurfaceVariant)),
+                        ],
+                      )),
+                      const Icon(Icons.chevron_right_rounded),
+                    ]),
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 25),
-            Padding(
-              padding: const EdgeInsets.only(left: 12, bottom: 7),
-              child: Text('WORKSPACE',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      letterSpacing: 1.1,
-                      fontWeight: FontWeight.w800,
-                      color: scheme.onSurfaceVariant)),
-            ),
+            const SizedBox(height: 16),
             for (var i = 0; i < _items.length; i++)
               Padding(
                 padding: const EdgeInsets.only(bottom: 3),
@@ -159,15 +144,6 @@ class SplitwizeDrawer extends ConsumerWidget {
               },
             ),
             const LogoutButton(),
-            const SizedBox(height: 18),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text('Simple splits. Clear balances.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant)),
-            ),
           ],
         ),
       ),
