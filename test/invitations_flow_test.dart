@@ -528,7 +528,7 @@ void main() {
     ]);
     final nav = find.byType(NavigationBar);
     await tester
-        .tap(find.descendant(of: nav, matching: find.text('Notifications')));
+        .tap(find.descendant(of: nav, matching: find.text('Activity')));
     await tester.pumpAndSettle();
     expect(find.byType(BackButton), findsNothing);
     expect(
@@ -548,7 +548,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(HomeShell), findsOneWidget);
     expect(find.text('Hamza sent a friend invitation'), findsOneWidget);
-    expect(tester.widget<NavigationBar>(nav).selectedIndex, 4);
+    expect(tester.widget<NavigationBar>(nav).selectedIndex, 3);
     expect(tester.takeException(), isNull);
   });
 
@@ -567,7 +567,7 @@ void main() {
     ]);
     final nav = find.byType(NavigationBar);
     await tester
-        .tap(find.descendant(of: nav, matching: find.text('Notifications')));
+        .tap(find.descendant(of: nav, matching: find.text('Activity')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Review Hamza invitation'));
     await tester.pump();
@@ -584,7 +584,7 @@ void main() {
     expect(find.byType(HomeShell), findsOneWidget);
     expect(
         find.byType(FriendRequestsScreen, skipOffstage: false), findsNothing);
-    expect(tester.widget<NavigationBar>(nav).selectedIndex, 4);
+    expect(tester.widget<NavigationBar>(nav).selectedIndex, 3);
     expect(tester.takeException(), isNull);
   });
 
@@ -603,7 +603,7 @@ void main() {
     ]);
     final nav = find.byType(NavigationBar);
     await tester
-        .tap(find.descendant(of: nav, matching: find.text('Notifications')));
+        .tap(find.descendant(of: nav, matching: find.text('Activity')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Review delayed invitation'));
     await tester.pump();
@@ -614,7 +614,7 @@ void main() {
     expect(find.byType(HomeShell), findsOneWidget);
     expect(
         find.byType(FriendRequestsScreen, skipOffstage: false), findsNothing);
-    expect(tester.widget<NavigationBar>(nav).selectedIndex, 3);
+    expect(tester.widget<NavigationBar>(nav).selectedIndex, 2);
     expect(tester.takeException(), isNull);
   });
 

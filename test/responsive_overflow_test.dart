@@ -22,7 +22,6 @@ import 'package:splitwize/models/models.dart';
 import 'package:splitwize/providers/core_providers.dart';
 import 'package:splitwize/providers/data_providers.dart';
 import 'package:splitwize/providers/form_providers.dart';
-import 'package:splitwize/screens/balances_tab.dart';
 import 'package:splitwize/screens/bill_detail_screen.dart';
 import 'package:splitwize/screens/bills_tab.dart';
 import 'package:splitwize/screens/create_bill_screen.dart';
@@ -327,7 +326,6 @@ void main() {
     'Onboarding': const OnboardingScreen(),
     'SignIn': const SignInScreen(),
     'BillsTab': const BillsTab(),
-    'BalancesTab': const BalancesTab(),
     'GroupsTab': const GroupsTab(),
     'FriendsTab': const FriendsTab(),
     'ProfileTab': const ProfileTab(),
@@ -343,14 +341,22 @@ void main() {
   };
 
   testWidgets(
-      'Invites stay with Groups and Friends; Notifications has its own tab',
+      'Invites stay with Groups and Friends; Activity has its own tab',
       (tester) async {
     addTearDown(() => tester.view.reset());
     await pumpAt(tester, const HomeShell(), size: const Size(390, 844));
     final nav = find.byType(NavigationBar);
     expect(nav, findsOneWidget);
-    expect(find.descendant(of: nav, matching: find.text('Notifications')),
+    expect(find.descendant(of: nav, matching: find.text('Activity')),
         findsOneWidget);
+    // Four destinations: Balances now lives inside Friends.
+    for (final label in ['Home', 'Groups', 'Friends']) {
+      expect(find.descendant(of: nav, matching: find.text(label)),
+          findsOneWidget);
+    }
+    expect(find.descendant(of: nav, matching: find.text('Balances')),
+        findsNothing);
+    expect(find.byType(NavigationDestination), findsNWidgets(4));
     expect(find.descendant(of: nav, matching: find.text('Requests')),
         findsNothing);
     expect(
@@ -358,10 +364,13 @@ void main() {
     expect(find.descendant(of: nav, matching: find.text('1')), findsWidgets);
     expect(find.descendant(of: nav, matching: find.text('4')), findsNothing);
 
-    await tester.tap(find.descendant(
-        of: find.byType(AppBar), matching: find.byTooltip('Notifications')));
+    // The Activity tab carries the unread badge, so no bell sits in the app
+    // bars.
+    expect(find.byTooltip('Notifications'), findsNothing);
+    await tester
+        .tap(find.descendant(of: nav, matching: find.text('Activity')));
     await tester.pumpAndSettle();
-    expect(tester.widget<NavigationBar>(nav).selectedIndex, 4);
+    expect(tester.widget<NavigationBar>(nav).selectedIndex, 3);
     expect(find.byType(BackButton), findsNothing);
 
     await tester.tap(find.descendant(of: nav, matching: find.text('Groups')));
@@ -400,7 +409,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester
-        .tap(find.descendant(of: nav, matching: find.text('Notifications')));
+        .tap(find.descendant(of: nav, matching: find.text('Activity')));
     await tester.pumpAndSettle();
     expect(find.byType(NotificationsScreen), findsOneWidget);
     expect(find.text('Recent updates'), findsNothing);
@@ -408,20 +417,23 @@ void main() {
 
     splitwizeScaffoldKey.currentState!.openDrawer();
     await tester.pumpAndSettle();
-    final drawerNotifications = find.descendant(
-        of: find.byType(Drawer), matching: find.text('Notifications'));
-    expect(drawerNotifications, findsOneWidget,
-        reason: 'The drawer must have one Notifications destination');
-    expect(
-        find.descendant(
-            of: find.byType(Drawer), matching: find.text('Requests')),
-        findsNothing);
-    await tester.tap(drawerNotifications);
-    await tester.pumpAndSettle();
-    expect(tester.widget<NavigationBar>(nav).selectedIndex, 4);
-    expect(find.byType(BackButton), findsNothing);
-    splitwizeScaffoldKey.currentState!.openDrawer();
-    await tester.pumpAndSettle();
+    // The bottom bar already lists the tabs, so the drawer does not repeat
+    // them; it only holds the profile, Settings and Log out.
+    for (final label in [
+      'Home',
+      'Groups',
+      'Friends',
+      'Balances',
+      'Activity',
+      'Notifications',
+      'Requests',
+    ]) {
+      expect(
+          find.descendant(
+              of: find.byType(Drawer), matching: find.text(label)),
+          findsNothing,
+          reason: '$label belongs in the bottom bar, not the drawer');
+    }
     // The profile card names the user and opens the profile; it carries no
     // "YOU" or "View profile" labels, and the nav list has no section label.
     expect(find.text('View profile'), findsNothing);
@@ -484,7 +496,7 @@ void main() {
 
       expectVisibleBadge(0);
       await tester
-          .tap(find.descendant(of: nav, matching: find.text('Notifications')));
+          .tap(find.descendant(of: nav, matching: find.text('Activity')));
       await tester.pumpAndSettle();
       expect(find.text('All caught up.'), findsOneWidget);
       expect(find.text('Mark all read'), findsNothing);
@@ -631,17 +643,6 @@ void main() {
     }
   }
 
-  testWidgets('Balances hides the highlighted introduction', (tester) async {
-    addTearDown(() => tester.view.reset());
-    await pumpAt(tester, const BalancesTab(), size: const Size(390, 844));
-    expect(find.text('SETTLEMENTS'), findsNothing);
-    expect(find.text('Keep it balanced.'), findsNothing);
-    expect(find.text('A simple view of what you owe and what comes back.'),
-        findsNothing);
-    expect(find.text('Your totals'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
   testWidgets('Notifications opens straight to the inbox, with no extra heading',
       (tester) async {
     addTearDown(() => tester.view.reset());
@@ -704,7 +705,7 @@ void main() {
       expect(tester.takeException(), isNull);
       final drawerScroll = find.descendant(
           of: find.byType(Drawer), matching: find.byType(Scrollable));
-      for (final label in ['Settings', 'Notifications', 'Log out']) {
+      for (final label in ['Settings', 'Log out']) {
         final item = find.descendant(
             of: find.byType(Drawer), matching: find.text(label));
         await tester.scrollUntilVisible(item, 100, scrollable: drawerScroll);
@@ -738,7 +739,6 @@ void main() {
   for (final name in [
     'Onboarding',
     'FriendsTab',
-    'BalancesTab',
     'BillsTab',
     'GroupDetail'
   ]) {

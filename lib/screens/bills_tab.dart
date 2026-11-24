@@ -7,7 +7,6 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/app_drawer.dart';
-import '../widgets/app_notification_button.dart';
 import '../widgets/balance_totals.dart';
 import '../widgets/bill_list_tile.dart';
 import '../widgets/home_expense_controls.dart';
@@ -115,7 +114,6 @@ class _BillsTabState extends ConsumerState<BillsTab> {
             onPressed: _toggleSearch,
             icon: Icon(_showSearch ? Icons.close_rounded : Icons.search_rounded),
           ),
-          const AppNotificationButton(),
           const SizedBox(width: 8),
         ],
       ),

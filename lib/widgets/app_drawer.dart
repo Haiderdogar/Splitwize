@@ -26,14 +26,6 @@ class SplitwizeMenuButton extends StatelessWidget {
 class SplitwizeDrawer extends ConsumerWidget {
   const SplitwizeDrawer({super.key});
 
-  static const _items = <({String name, IconData icon})>[
-    (name: 'Home', icon: Icons.space_dashboard_outlined),
-    (name: 'Balances', icon: Icons.account_balance_wallet_outlined),
-    (name: 'Groups', icon: Icons.groups_outlined),
-    (name: 'Friends', icon: Icons.people_outline_rounded),
-    (name: 'Notifications', icon: Icons.notifications_none_rounded),
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
@@ -43,7 +35,6 @@ class SplitwizeDrawer extends ConsumerWidget {
         cached: user,
         googleName: google?.displayName,
         googleEmail: google?.email);
-    final selected = ref.watch(tabIndexProvider);
     return Drawer(
       width: MediaQuery.sizeOf(context).width < 370 ? 288 : 320,
       backgroundColor: scheme.surface,
@@ -109,28 +100,6 @@ class SplitwizeDrawer extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 16),
-            for (var i = 0; i < _items.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: ListTile(
-                  selected: selected == i,
-                  selectedTileColor: scheme.primaryContainer,
-                  selectedColor: scheme.onPrimaryContainer,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  leading: Icon(_items[i].icon),
-                  title: Text(_items[i].name,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  onTap: () {
-                    ref.read(tabIndexProvider.notifier).set(i);
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 11),
-              child: Divider(height: 1),
-            ),
             ListTile(
               leading: const Icon(Icons.settings_outlined),
               title: const Text('Settings'),

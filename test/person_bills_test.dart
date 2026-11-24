@@ -7,13 +7,16 @@ import 'package:splitwize/data/app_repository.dart';
 import 'package:splitwize/models/models.dart';
 import 'package:splitwize/providers/core_providers.dart';
 import 'package:splitwize/providers/data_providers.dart';
-import 'package:splitwize/screens/balances_tab.dart';
 import 'package:splitwize/screens/bill_detail_screen.dart';
+import 'package:splitwize/screens/friends_tab.dart';
 import 'package:splitwize/screens/person_bills_screen.dart';
 import 'package:splitwize/screens/notifications_screen.dart';
 import 'package:splitwize/theme.dart';
+import 'package:splitwize/utils/money.dart';
 import 'package:splitwize/utils/person_bills.dart';
 import 'package:splitwize/widgets/state_widgets.dart';
+
+import 'fake_sync_service.dart';
 
 Bill sampleBill(
   String id, {
@@ -46,6 +49,9 @@ Bill sampleBill(
       deleted: deleted,
       createdAt: DateTime(2026, 11, day),
     );
+
+const hamza = AppUser(
+    uid: 'friend', displayName: 'Hamza Malik', email: 'hamza@example.com');
 
 const balance = FriendBalance(
   uid: 'friend',
@@ -95,6 +101,7 @@ Future<void> pumpScreen(
   double textScale = 1,
   AppRepository? repository,
   List<FriendBalance>? balances,
+  List<AppUser> friends = const [hamza],
   List<AppNotification> inbox = const [],
   Stream<Bill?>? detail,
 }) async {
@@ -107,6 +114,13 @@ Future<void> pumpScreen(
       notificationsProvider.overrideWith((ref) => Stream.value(inbox)),
       myBillsProvider.overrideWith((ref) => bills ?? Stream.value(fixtures)),
       balancesProvider.overrideWith((ref) => balances ?? [balance]),
+      // Friends is where balances live, so it needs its own data too.
+      syncServiceProvider.overrideWith((ref) async => FakeSyncService()),
+      connectionsProvider.overrideWith((ref) => Stream.value(friends)),
+      incomingRequestsProvider
+          .overrideWith((ref) => Stream.value(const <ConnectionRequest>[])),
+      outgoingRequestsProvider
+          .overrideWith((ref) => Stream.value(const <ConnectionRequest>[])),
       if (repository != null)
         appRepositoryProvider.overrideWith((ref) async => repository),
       billProvider.overrideWith((ref, id) =>
@@ -175,9 +189,8 @@ void main() {
 
   testWidgets('person count opens shared history, then bill details and back',
       (tester) async {
-    await pumpScreen(tester, const BalancesTab());
-    expect(find.text('2 shared bills'), findsOneWidget);
-    expect(find.text('1 open in USD'), findsOneWidget);
+    await pumpScreen(tester, const FriendsTab());
+    expect(find.text('You owe ${formatMoney(50, 'USD')}'), findsOneWidget);
     await tester.tap(find.text('Hamza Malik'));
     await tester.pumpAndSettle();
     expect(find.byType(PersonBillsScreen), findsOneWidget);
@@ -215,26 +228,27 @@ void main() {
         isTrue);
     await tester.pageBack();
     await tester.pumpAndSettle();
-    expect(find.text('Balances'), findsOneWidget);
+    expect(find.byType(PersonBillsScreen), findsNothing);
+    expect(find.text('Friends'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('repayment button retains its action inside the tappable card',
       (tester) async {
-    await pumpScreen(tester, const BalancesTab());
+    await pumpScreen(tester, const FriendsTab());
     await tester.tap(find.text('Record repayment'));
     await tester.pumpAndSettle();
     expect(find.text('Record repayment?'), findsOneWidget);
     expect(find.byType(PersonBillsScreen), findsNothing);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(find.text('Balances'), findsOneWidget);
+    expect(find.text('Friends'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Balances no longer shows a reminder for money owed to you',
+  testWidgets('Friends does not show a reminder for money owed to you',
       (tester) async {
-    await pumpScreen(tester, const BalancesTab(), balances: const [
+    await pumpScreen(tester, const FriendsTab(), balances: const [
       FriendBalance(
           uid: 'friend',
           displayName: 'Hamza Malik',

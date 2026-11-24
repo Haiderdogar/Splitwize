@@ -95,7 +95,7 @@ void main() {
 
     test('logs out once and resets navigation when all changes are synced',
         () async {
-      container.read(tabIndexProvider.notifier).set(4);
+      container.read(tabIndexProvider.notifier).set(3);
       final result = await container
           .read(logoutControllerProvider.notifier)
           .logOut(

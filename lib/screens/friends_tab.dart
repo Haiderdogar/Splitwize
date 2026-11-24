@@ -8,7 +8,6 @@ import '../providers/form_providers.dart';
 import '../theme.dart';
 import '../utils/money.dart';
 import '../widgets/app_drawer.dart';
-import '../widgets/app_notification_button.dart';
 import '../widgets/balance_totals.dart';
 import '../widgets/invitation_button.dart';
 import '../widgets/repayment_action.dart';
@@ -47,7 +46,7 @@ class _FriendsTabState extends ConsumerState<FriendsTab>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && ref.read(tabIndexProvider) == 3) {
+    if (state == AppLifecycleState.resumed && ref.read(tabIndexProvider) == 2) {
       _refresh();
     }
   }
@@ -74,7 +73,7 @@ class _FriendsTabState extends ConsumerState<FriendsTab>
   @override
   Widget build(BuildContext context) {
     ref.listen(tabIndexProvider, (previous, next) {
-      if (next == 3 && previous != 3) _refresh();
+      if (next == 2 && previous != 2) _refresh();
     });
     return Scaffold(
       appBar: AppBar(
@@ -82,9 +81,7 @@ class _FriendsTabState extends ConsumerState<FriendsTab>
         title: const Text('Friends'),
         actions: const [
           _FriendInvitationsAction(),
-          SizedBox(width: 4),
-          AppNotificationButton(),
-          SizedBox(width: 5),
+          SizedBox(width: 8),
         ],
       ),
       // Connected friends. The list refreshes on open, on return to the tab,

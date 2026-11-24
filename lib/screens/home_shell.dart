@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/core_providers.dart';
 import '../widgets/app_drawer.dart';
-import 'balances_tab.dart';
 import 'bills_tab.dart';
 import 'friends_tab.dart';
 import 'groups_tab.dart';
@@ -17,22 +16,19 @@ class HomeShell extends ConsumerWidget {
 
   static const _tabs = [
     BillsTab(),
-    BalancesTab(),
     GroupsTab(),
     FriendsTab(),
     NotificationsScreen(embedded: true),
   ];
+
+  /// Position of the Activity tab, which carries the unread badge.
+  static const _activityIndex = 3;
 
   static const _items = <({IconData icon, IconData active, String label})>[
     (
       icon: Icons.space_dashboard_outlined,
       active: Icons.space_dashboard_rounded,
       label: 'Home'
-    ),
-    (
-      icon: Icons.account_balance_wallet_outlined,
-      active: Icons.account_balance_wallet_rounded,
-      label: 'Balances'
     ),
     (
       icon: Icons.groups_outlined,
@@ -47,7 +43,7 @@ class HomeShell extends ConsumerWidget {
     (
       icon: Icons.notifications_none_rounded,
       active: Icons.notifications_rounded,
-      label: 'Notifications'
+      label: 'Activity'
     ),
   ];
 
@@ -80,9 +76,9 @@ class HomeShell extends ConsumerWidget {
                     for (var i = 0; i < _items.length; i++)
                       NavigationRailDestination(
                         icon:
-                            _navIcon(_items[i].icon, i == 4 ? unreadCount : 0),
+                            _navIcon(_items[i].icon, i == _activityIndex ? unreadCount : 0),
                         selectedIcon: _navIcon(
-                            _items[i].active, i == 4 ? unreadCount : 0),
+                            _items[i].active, i == _activityIndex ? unreadCount : 0),
                         label: Text(_items[i].label),
                       ),
                   ],
@@ -110,9 +106,9 @@ class HomeShell extends ConsumerWidget {
                     for (var i = 0; i < _items.length; i++)
                       NavigationDestination(
                         icon:
-                            _navIcon(_items[i].icon, i == 4 ? unreadCount : 0),
+                            _navIcon(_items[i].icon, i == _activityIndex ? unreadCount : 0),
                         selectedIcon: _navIcon(
-                            _items[i].active, i == 4 ? unreadCount : 0),
+                            _items[i].active, i == _activityIndex ? unreadCount : 0),
                         label: _items[i].label,
                       ),
                   ],

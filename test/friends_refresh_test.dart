@@ -57,7 +57,7 @@ void main() {
     final sync = FakeSyncService();
     final container = await pumpFriends(tester, sync, Stream.value([friendA]));
     expect(sync.refreshCalls, 1);
-    container.read(tabIndexProvider.notifier).set(3);
+    container.read(tabIndexProvider.notifier).set(2);
     await tester.pumpAndSettle();
     expect(sync.refreshCalls, 2);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);

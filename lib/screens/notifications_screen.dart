@@ -43,7 +43,7 @@ class NotificationsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         leading: embedded ? const SplitwizeMenuButton() : null,
-        title: const Text('Notifications'),
+        title: const Text('Activity'),
         actions: [
           // Only offered while something is unread; otherwise it does nothing.
           Consumer(
@@ -175,7 +175,7 @@ class NotificationsScreen extends StatelessWidget {
       await repo.markNotificationRead(n.id);
     } catch (_) {}
     if (!context.mounted || ModalRoute.of(context)?.isCurrent == false) return;
-    if (embedded && ref.read(tabIndexProvider) != 4) return;
+    if (embedded && ref.read(tabIndexProvider) != 3) return;
     final destination = notificationDestination(
         type: n.type, groupId: n.groupId, billId: n.billId, fromInbox: true);
     if (destination != null) {

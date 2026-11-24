@@ -6,7 +6,6 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/invitation_providers.dart';
 import '../widgets/app_drawer.dart';
-import '../widgets/app_notification_button.dart';
 import '../widgets/invitation_button.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
@@ -28,9 +27,7 @@ class GroupsTab extends StatelessWidget {
         title: const Text('Groups'),
         actions: const [
           _GroupInvitationsAction(),
-          SizedBox(width: 4),
-          AppNotificationButton(),
-          SizedBox(width: 5),
+          SizedBox(width: 8),
         ],
       ),
       body: CustomScrollView(slivers: [
