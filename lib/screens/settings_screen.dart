@@ -23,40 +23,14 @@ class SettingsScreen extends StatelessWidget {
         top: false,
         child: SingleChildScrollView(
           key: const ValueKey('settings-scroll'),
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 720),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                          color: scheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(16)),
-                      child: Icon(Icons.tune_rounded,
-                          color: scheme.onPrimaryContainer, size: 26),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                        child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Your app, your way.',
-                            style: theme.textTheme.headlineSmall),
-                        const SizedBox(height: 6),
-                        Text('A few preferences for easier sharing.',
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(color: scheme.onSurfaceVariant)),
-                      ],
-                    )),
-                  ]),
-                  const SizedBox(height: 28),
-                  const _SettingsHeading('Personalize',
-                      subtitle: 'Small touches that make Splitwize yours.'),
+                  const _SettingsHeading('Personalize'),
                   const SizedBox(height: 12),
                   Material(
                     color: scheme.surfaceContainerLowest,
@@ -75,8 +49,7 @@ class SettingsScreen extends StatelessWidget {
                             ?.copyWith(color: scheme.onSurfaceVariant)),
                   ),
                   const SizedBox(height: 28),
-                  const _SettingsHeading('Stay connected',
-                      subtitle: 'Keep up with shared expenses and updates.'),
+                  const _SettingsHeading('Stay connected'),
                   const SizedBox(height: 12),
                   const SettingsNotificationsCard(),
                   const SizedBox(height: 12),
@@ -84,8 +57,7 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 28),
                   const _AdFreeCard(),
                   const SizedBox(height: 28),
-                  const _SettingsHeading('Account'),
-                  const SizedBox(height: 12),
+                  // Log out is the only account action, so it has no heading.
                   Material(
                     color: scheme.surfaceContainerLowest,
                     clipBehavior: Clip.antiAlias,
@@ -95,11 +67,6 @@ class SettingsScreen extends StatelessWidget {
                             color: scheme.error.withValues(alpha: .2))),
                     child: const LogoutButton(),
                   ),
-                  const SizedBox(height: 28),
-                  Text('Simple splits. Clear balances.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: scheme.onSurfaceVariant)),
                 ],
               ),
             ),
@@ -111,22 +78,13 @@ class SettingsScreen extends StatelessWidget {
 }
 
 class _SettingsHeading extends StatelessWidget {
-  const _SettingsHeading(this.title, {this.subtitle});
+  const _SettingsHeading(this.title);
   final String title;
-  final String? subtitle;
 
   @override
   Widget build(BuildContext context) => Semantics(
         header: true,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
-          if (subtitle != null) ...[
-            const SizedBox(height: 4),
-            Text(subtitle!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          ],
-        ]),
+        child: Text(title, style: Theme.of(context).textTheme.titleMedium),
       );
 }
 

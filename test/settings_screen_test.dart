@@ -139,6 +139,24 @@ void main() {
     await repository.changes.close();
   });
 
+  testWidgets('settings opens straight to its controls without intro text',
+      (tester) async {
+    await _pumpSettings(tester, repository);
+    expect(find.text('Your app, your way.'), findsNothing);
+    expect(find.text('A few preferences for easier sharing.'), findsNothing);
+    expect(find.text('Small touches that make Splitwize yours.'), findsNothing);
+    expect(
+        find.text('Keep up with shared expenses and updates.'), findsNothing);
+    expect(find.text('Personalize'), findsOneWidget);
+    expect(find.text('Stay connected'), findsOneWidget);
+    expect(find.text('Account'), findsNothing,
+        reason: 'Log out is the only account action, so it needs no heading.');
+    await _reveal(tester, find.text('Log out'));
+    expect(find.text('Log out'), findsOneWidget);
+    expect(find.text('Simple splits. Clear balances.'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
       'notification permission loading and errors stay explicit and retry',
       (tester) async {
