@@ -5,11 +5,16 @@ import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../providers/form_providers.dart';
+import '../theme.dart';
+import '../utils/money.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_notification_button.dart';
+import '../widgets/balance_totals.dart';
 import '../widgets/invitation_button.dart';
+import '../widgets/repayment_action.dart';
 import '../widgets/studio_ui.dart';
 import '../widgets/state_widgets.dart';
+import 'person_bills_screen.dart';
 import 'request_screens.dart';
 
 class FriendsTab extends ConsumerStatefulWidget {
@@ -112,6 +117,13 @@ class _FriendsTabState extends ConsumerState<FriendsTab>
                 SliverToBoxAdapter(
                     child: LoadError.compact(
                         message: _refreshError!, onRetry: _refresh)),
+              // What you owe and are owed, per currency, above the people.
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: BalanceTotals(topPadding: 12),
+                ),
+              ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                 sliver: _Connections(
@@ -182,6 +194,28 @@ class _EmptyRow extends StatelessWidget {
       );
 }
 
+/// One person in the list: a friend, and/or someone I share a balance with.
+class _PersonRow {
+  const _PersonRow({
+    required this.uid,
+    required this.name,
+    required this.initials,
+    required this.friend,
+    required this.balances,
+  });
+
+  final String uid;
+  final String name;
+  final String initials;
+
+  /// Null when this person is not one of my friends but still owes me or is
+  /// owed by me.
+  final AppUser? friend;
+
+  /// One entry per currency; empty when nothing is outstanding.
+  final List<FriendBalance> balances;
+}
+
 class _Connections extends StatelessWidget {
   const _Connections(
       {required this.query,
@@ -209,15 +243,18 @@ class _Connections extends StatelessWidget {
             ),
           ),
           data: (friends) {
+            final balances = ref.watch(balancesProvider);
+            final rows = _rows(friends, balances);
             final keyword = query.trim().toLowerCase();
             final visible = keyword.isEmpty
-                ? friends
-                : friends
-                    .where((friend) =>
-                        friend.displayName.toLowerCase().contains(keyword) ||
-                        friend.email.toLowerCase().contains(keyword))
+                ? rows
+                : rows
+                    .where((row) =>
+                        row.name.toLowerCase().contains(keyword) ||
+                        (row.friend?.email.toLowerCase().contains(keyword) ??
+                            false))
                     .toList();
-            if (friends.isEmpty) {
+            if (rows.isEmpty) {
               if (refreshing) {
                 return const SliverToBoxAdapter(child: ShimmerRows(count: 3));
               }
@@ -241,44 +278,141 @@ class _Connections extends StatelessWidget {
             }
             return SliverList.builder(
               itemCount: visible.length,
-              itemBuilder: (itemContext, i) {
-                final f = visible[i];
-                return Card(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    leading: PersonMark(initials: f.initials),
-                    title: Text(f.displayName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium),
-                    subtitle: Text(
-                      f.email.isEmpty ? 'Email unavailable' : f.email,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    trailing: PopupMenuButton<String>(
-                      tooltip: 'Friend options',
-                      icon: const Icon(Icons.more_vert_rounded),
-                      onSelected: (action) {
-                        if (action == 'remove') {
-                          _confirmRemove(context, ref, myUid, f);
-                        }
-                      },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
-                            value: 'remove', child: Text('Remove friend')),
-                      ],
-                    ),
-                  ),
-                );
-              },
+              itemBuilder: (itemContext, i) =>
+                  _personCard(itemContext, ref, myUid, visible[i]),
             );
           },
         );
       },
+    );
+  }
+
+  /// Friends plus anyone else I share an unpaid balance with (for example a
+  /// group member who is not a friend), so no balance is ever hidden. People
+  /// with a balance come first, largest first; the rest keep their order.
+  List<_PersonRow> _rows(List<AppUser> friends, List<FriendBalance> balances) {
+    final friendsByUid = {for (final friend in friends) friend.uid: friend};
+    final byUid = <String, List<FriendBalance>>{};
+    for (final balance in balances) {
+      (byUid[balance.uid] ??= <FriendBalance>[]).add(balance);
+    }
+    return [
+      for (final entry in byUid.entries)
+        _PersonRow(
+          uid: entry.key,
+          name: friendsByUid[entry.key]?.displayName ??
+              entry.value.first.displayName,
+          initials:
+              friendsByUid[entry.key]?.initials ?? entry.value.first.initials,
+          friend: friendsByUid[entry.key],
+          balances: entry.value,
+        ),
+      for (final friend in friends)
+        if (!byUid.containsKey(friend.uid))
+          _PersonRow(
+            uid: friend.uid,
+            name: friend.displayName,
+            initials: friend.initials,
+            friend: friend,
+            balances: const [],
+          ),
+    ];
+  }
+
+  Widget _personCard(
+      BuildContext context, WidgetRef ref, String myUid, _PersonRow row) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final hasBalance = row.balances.isNotEmpty;
+    final friend = row.friend;
+    final lineStyle =
+        theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700);
+    final repayments = [
+      for (final b in row.balances)
+        if (b.iOweThem > 0.005) b,
+    ];
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: hasBalance
+            ? () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => PersonBillsScreen(
+                    personUid: row.uid,
+                    personName: row.name,
+                  ),
+                ))
+            : null,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16, 12, friend == null ? 16 : 4, 12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              PersonMark(initials: row.initials),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(row.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium),
+                        const SizedBox(height: 2),
+                        if (!hasBalance)
+                          Text(
+                            friend == null || friend.email.isEmpty
+                                ? 'Email unavailable'
+                                : friend.email,
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: scheme.onSurfaceVariant),
+                          ),
+                        for (final b in row.balances) ...[
+                          if (b.owesMe > 0.005)
+                            Text(
+                                'Owes you ${formatMoney(b.owesMe, b.currency)}',
+                                style:
+                                    lineStyle?.copyWith(color: scheme.owed)),
+                          if (b.iOweThem > 0.005)
+                            Text(
+                                'You owe ${formatMoney(b.iOweThem, b.currency)}',
+                                style: lineStyle?.copyWith(color: scheme.owe)),
+                        ],
+                      ]),
+                ),
+              ),
+              if (friend != null)
+                PopupMenuButton<String>(
+                  tooltip: 'Friend options',
+                  icon: const Icon(Icons.more_vert_rounded),
+                  onSelected: (action) {
+                    if (action == 'remove') {
+                      _confirmRemove(context, ref, myUid, friend);
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                        value: 'remove', child: Text('Remove friend')),
+                  ],
+                ),
+            ]),
+            if (repayments.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.fromLTRB(0, 10, friend == null ? 0 : 12, 0),
+                child: Wrap(spacing: 8, runSpacing: 6, children: [
+                  for (final b in repayments)
+                    FilledButton.tonalIcon(
+                      onPressed: () => recordRepayment(context, ref, b),
+                      icon: const Icon(Icons.check_rounded, size: 18),
+                      label: Text(row.balances.length > 1
+                          ? 'Record repayment (${b.currency})'
+                          : 'Record repayment'),
+                    ),
+                ]),
+              ),
+          ]),
+        ),
+      ),
     );
   }
 

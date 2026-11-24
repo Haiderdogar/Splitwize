@@ -476,6 +476,7 @@ void main() {
                 (ref) => Stream.value(const <ConnectionRequest>[])),
             connectionsProvider
                 .overrideWith((ref) => Stream.value([friendA, friendB])),
+            balancesProvider.overrideWith((ref) => const <FriendBalance>[]),
           ],
           child: const MaterialApp(home: FriendsTab()),
         ),

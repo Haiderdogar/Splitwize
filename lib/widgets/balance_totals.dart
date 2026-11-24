@@ -27,9 +27,10 @@ Map<String, ({double owed, double owe})> balanceTotalsByCurrency(
 /// One panel with an "Owed to you / You owe" pair for each currency.
 /// It shows nothing while there are no outstanding balances.
 class BalanceTotals extends ConsumerWidget {
-  const BalanceTotals({super.key, this.bottomPadding = 0});
+  const BalanceTotals({super.key, this.topPadding = 0, this.bottomPadding = 0});
 
-  /// Space kept below the panel, only while the panel is shown.
+  /// Space kept above and below the panel, only while the panel is shown.
+  final double topPadding;
   final double bottomPadding;
 
   @override
@@ -39,7 +40,7 @@ class BalanceTotals extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final codes = totals.keys.toList()..sort();
     return Padding(
-      padding: EdgeInsets.only(bottom: bottomPadding),
+      padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
       child: SoftPanel(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           for (var i = 0; i < codes.length; i++) ...[
