@@ -45,23 +45,28 @@ class NotificationsScreen extends StatelessWidget {
         leading: embedded ? const SplitwizeMenuButton() : null,
         title: const Text('Notifications'),
         actions: [
-          // Writes only.
+          // Only offered while something is unread; otherwise it does nothing.
           Consumer(
-            builder: (context, ref, _) => TextButton(
-              onPressed: () {
-                final uid = ref.read(currentUidProvider);
-                if (uid == null) return;
-                runGuarded(
-                  context,
-                  () async {
-                    final repo = await ref.read(appRepositoryProvider.future);
-                    await repo.markAllNotificationsRead();
-                  },
-                  errorLabel: 'Could not mark all read',
-                );
-              },
-              child: const Text('Mark all read'),
-            ),
+            builder: (context, ref, _) {
+              final hasUnread = ref.watch(notificationsProvider.select(
+                  (items) => items.value?.any((n) => !n.read) ?? false));
+              if (!hasUnread) return const SizedBox.shrink();
+              return TextButton(
+                onPressed: () {
+                  final uid = ref.read(currentUidProvider);
+                  if (uid == null) return;
+                  runGuarded(
+                    context,
+                    () async {
+                      final repo = await ref.read(appRepositoryProvider.future);
+                      await repo.markAllNotificationsRead();
+                    },
+                    errorLabel: 'Could not mark all read',
+                  );
+                },
+                child: const Text('Mark all read'),
+              );
+            },
           ),
         ],
       ),
@@ -89,13 +94,10 @@ class NotificationsScreen extends StatelessWidget {
               }
               return ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 30),
-                itemCount: items.length + 1,
+                itemCount: items.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 6),
                 itemBuilder: (context, i) {
-                  if (i == 0) {
-                    return const SectionHeading('Recent updates');
-                  }
-                  final n = items[i - 1];
+                  final n = items[i];
                   final isInvitation =
                       n.type == 'friend_request' || n.type == 'group_invite';
                   final name = isInvitation ? n.fromName?.trim() ?? '' : '';
@@ -140,8 +142,6 @@ class NotificationsScreen extends StatelessWidget {
                           if (sender.isNotEmpty || group.isNotEmpty)
                             const SizedBox(height: 6),
                           if (sender.isNotEmpty) Text('Invited by: $sender'),
-                          if (name.isNotEmpty && email.isNotEmpty)
-                            Text('Email: $email'),
                           if (group.isNotEmpty) Text('Group: $group'),
                           if (n.createdAt != null)
                             Text(

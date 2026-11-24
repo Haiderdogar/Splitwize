@@ -180,7 +180,7 @@ void main() {
     expect(find.text('Hamza Malik invited you to connect on Splitwize.'),
         findsOneWidget);
     expect(find.text('Invited by: Hamza Malik'), findsOneWidget);
-    expect(find.text('Email: hamza@example.com'), findsOneWidget);
+    expect(find.textContaining('Email:'), findsNothing);
     expect(find.text('You have an invitation.'), findsNothing);
     expect(find.textContaining('Group:'), findsNothing);
     await tester.tap(find.text('Connection invitation'));
@@ -229,7 +229,7 @@ void main() {
         findsOneWidget);
     expect(
         find.descendant(
-            of: weekend, matching: find.text('Email: hamza@example.com')),
+            of: weekend, matching: find.text('Invited by: Hamza Malik')),
         findsOneWidget);
     expect(find.descendant(of: weekend, matching: find.text('Group: Weekend')),
         findsOneWidget);
@@ -239,11 +239,11 @@ void main() {
             matching: find.text('Sara Khan invited you to join "Road trip".')),
         findsOneWidget);
     expect(
-        find.descendant(
-            of: trip, matching: find.text('Email: sara@example.com')),
+        find.descendant(of: trip, matching: find.text('Invited by: Sara Khan')),
         findsOneWidget);
     expect(find.descendant(of: trip, matching: find.text('Group: Road trip')),
         findsOneWidget);
+    expect(find.textContaining('Email:'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -307,7 +307,7 @@ void main() {
               read: false),
         ]);
     expect(find.text('Invited by: $longName'), findsOneWidget);
-    expect(find.text('Email: $longEmail'), findsOneWidget);
+    expect(find.textContaining('Email:'), findsNothing);
     expect(find.text('Group: $longGroup'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

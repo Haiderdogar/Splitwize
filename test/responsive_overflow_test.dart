@@ -403,7 +403,7 @@ void main() {
         .tap(find.descendant(of: nav, matching: find.text('Notifications')));
     await tester.pumpAndSettle();
     expect(find.byType(NotificationsScreen), findsOneWidget);
-    expect(find.text('Recent updates'), findsOneWidget);
+    expect(find.text('Recent updates'), findsNothing);
     expect(find.byType(BackButton), findsNothing);
 
     splitwizeScaffoldKey.currentState!.openDrawer();
@@ -479,11 +479,13 @@ void main() {
           .tap(find.descendant(of: nav, matching: find.text('Notifications')));
       await tester.pumpAndSettle();
       expect(find.text('All caught up.'), findsOneWidget);
+      expect(find.text('Mark all read'), findsNothing);
 
       inbox.add(testNotifications);
       await tester.pumpAndSettle();
       expectVisibleBadge(1);
-      expect(find.text('Recent updates'), findsOneWidget);
+      expect(find.text('Recent updates'), findsNothing);
+      expect(find.text('Mark all read'), findsOneWidget);
 
       inbox.add([
         for (final notification in testNotifications)
@@ -491,6 +493,8 @@ void main() {
       ]);
       await tester.pumpAndSettle();
       expectVisibleBadge(0);
+      expect(find.text('Mark all read'), findsNothing,
+          reason: 'There is nothing left to mark once everything is read.');
       expect(tester.takeException(), isNull);
     });
   }
@@ -630,7 +634,8 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Notifications opens directly to recent updates', (tester) async {
+  testWidgets('Notifications opens straight to the inbox, with no extra heading',
+      (tester) async {
     addTearDown(() => tester.view.reset());
     await pumpAt(tester, const NotificationsScreen(),
         size: const Size(390, 844));
@@ -638,7 +643,8 @@ void main() {
     expect(find.text('Notifications.'), findsNothing);
     expect(
         find.text('Bills, payments and invites in one place.'), findsNothing);
-    expect(find.text('Recent updates'), findsOneWidget);
+    expect(find.text('Recent updates'), findsNothing);
+    // The default inbox has one unread item, so the shortcut is offered.
     expect(find.text('Mark all read'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
