@@ -83,7 +83,9 @@ void main() {
       expect(find.text('No friends yet'), findsNothing);
       if (cached.isNotEmpty) expect(find.text('Friend A'), findsOneWidget);
       sync.onRefresh = null;
-      await tester.tap(find.byTooltip('Refresh friends'));
+      // There is no refresh button; the error banner offers the retry.
+      expect(find.byTooltip('Refresh friends'), findsNothing);
+      await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
       expect(sync.refreshCalls, 2);
       expect(

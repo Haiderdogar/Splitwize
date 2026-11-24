@@ -75,25 +75,20 @@ class _FriendsTabState extends ConsumerState<FriendsTab>
       appBar: AppBar(
         leading: const SplitwizeMenuButton(),
         title: const Text('Friends'),
-        actions: [
-          IconButton(
-              tooltip: 'Refresh friends',
-              onPressed: _refreshing ? null : _refresh,
-              icon: const Icon(Icons.refresh_rounded)),
-          const AppNotificationButton(),
-          const SizedBox(width: 5),
+        actions: const [
+          _FriendInvitationsAction(),
+          SizedBox(width: 4),
+          AppNotificationButton(),
+          SizedBox(width: 5),
         ],
       ),
-      // Connected friends, with invitations opened from the section header.
+      // Connected friends. The list refreshes on open, on return to the tab,
+      // on app resume and by pulling down, so there is no refresh button.
       body: RefreshIndicator(
           onRefresh: _refresh,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              const SliverPadding(
-                padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
-                sliver: SliverToBoxAdapter(child: _ConnectedHeader()),
-              ),
               SliverToBoxAdapter(
                 child: Consumer(builder: (context, ref, _) {
                   final count =
@@ -102,7 +97,7 @@ class _FriendsTabState extends ConsumerState<FriendsTab>
                     return const SizedBox.shrink();
                   }
                   return Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                     child: TextField(
                       decoration: const InputDecoration(
                         hintText: 'Search friends by name or email',
@@ -118,7 +113,7 @@ class _FriendsTabState extends ConsumerState<FriendsTab>
                     child: LoadError.compact(
                         message: _refreshError!, onRetry: _refresh)),
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                 sliver: _Connections(
                     query: _query,
                     refreshing: _refreshing,
@@ -141,84 +136,20 @@ class _FriendsTabState extends ConsumerState<FriendsTab>
   }
 }
 
-/// Small muted section header with an optional pending-count pill.
-/// The count watches only the list lengths, so it never rebuilds on
-/// unrelated state changes.
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.text, {this.count, this.trailing});
-
-  final String text;
-  final int? count;
-  final Widget? trailing;
+/// App-bar shortcut to friend invitations; the counter totals incoming and
+/// outgoing invitations.
+class _FriendInvitationsAction extends ConsumerWidget {
+  const _FriendInvitationsAction();
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(
-                  text,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                ),
-                if (count != null && count! > 0)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: scheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '$count',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: scheme.onPrimaryContainer,
-                          ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (trailing != null) trailing!,
-        ],
-      ),
-    );
-  }
-}
-
-class _ConnectedHeader extends StatelessWidget {
-  const _ConnectedHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final count =
-            ref.watch(connectionsProvider.select((v) => v.value?.length ?? 0));
-        final incoming = ref.watch(incomingRequestsProvider).value?.length ?? 0;
-        final outgoing =
-            ref.watch(outgoingRequestsProvider).value?.length ?? 0;
-        return _SectionHeader(
-          'Connected',
-          count: count,
-          trailing: InvitationButton(
-            count: incoming + outgoing,
-            tooltip: 'Friend invitations',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const FriendRequestsScreen())),
-          ),
-        );
-      },
+  Widget build(BuildContext context, WidgetRef ref) {
+    final incoming = ref.watch(incomingRequestsProvider).value?.length ?? 0;
+    final outgoing = ref.watch(outgoingRequestsProvider).value?.length ?? 0;
+    return InvitationButton(
+      count: incoming + outgoing,
+      tooltip: 'Friend invitations',
+      onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const FriendRequestsScreen())),
     );
   }
 }

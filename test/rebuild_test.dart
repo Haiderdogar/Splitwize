@@ -488,7 +488,11 @@ void main() {
       expect(find.text('Invite someone you split with'), findsNothing);
       expect(find.text('Invite by email'), findsNothing);
       expect(find.text('Requests'), findsNothing);
-      expect(find.text('Connected'), findsOneWidget);
+      // The AppBar already names the screen, so there is no "Connected"
+      // heading or count; invitations and refresh live elsewhere.
+      expect(find.text('Connected'), findsNothing);
+      expect(find.byTooltip('Friend invitations'), findsOneWidget);
+      expect(find.byTooltip('Refresh friends'), findsNothing);
       expect(find.byType(FloatingActionButton), findsOneWidget);
       expect(find.byTooltip('Add friend'), findsOneWidget);
 
