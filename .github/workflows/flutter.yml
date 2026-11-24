@@ -36,9 +36,13 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          # pubspec.lock was resolved with Flutter 3.44 (test_api 0.7.11).
+          # Newer stable releases pin a newer test_api, which makes
+          # `flutter pub get` fail on custom_lint/riverpod_generator. Move
+          # this forward together with a refreshed pubspec.lock.
+          flutter-version: 3.44.x
           channel: stable
           cache: true
-          cache-dependency-path: pubspec.lock
 
       - name: Install dependencies
         run: flutter pub get
@@ -80,9 +84,13 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          # pubspec.lock was resolved with Flutter 3.44 (test_api 0.7.11).
+          # Newer stable releases pin a newer test_api, which makes
+          # `flutter pub get` fail on custom_lint/riverpod_generator. Move
+          # this forward together with a refreshed pubspec.lock.
+          flutter-version: 3.44.x
           channel: stable
           cache: true
-          cache-dependency-path: pubspec.lock
 
       - name: Configure Firebase
         env:
