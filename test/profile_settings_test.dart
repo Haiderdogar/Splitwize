@@ -110,6 +110,10 @@ void main() {
     final emailField = tester.widget<TextField>(find.byType(TextField));
     expect(emailField.readOnly, isTrue);
     expect(emailField.controller!.text, original.email);
+    // The lock icon marks the email read-only, so no heading or helper text.
+    expect(find.byIcon(Icons.lock_outline_rounded), findsOneWidget);
+    expect(find.text('Personal details'), findsNothing);
+    expect(find.text('Email cannot be edited.'), findsNothing);
     expect(find.text('Appearance'), findsNothing);
     expect(find.text('Default currency'), findsNothing);
     await tester.tap(find.byTooltip('Edit name'));

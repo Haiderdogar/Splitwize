@@ -59,8 +59,7 @@ class ProfileTab extends ConsumerWidget {
                               errorBuilder: (context, error, stack) =>
                                   PersonMark(
                                       initials: identity.initials, size: 88)))),
-              const SizedBox(height: 20),
-              const SectionHeading('Personal details'),
+              const SizedBox(height: 24),
               SoftPanel(
                   child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,10 +88,9 @@ class ProfileTab extends ConsumerWidget {
                 readOnly: true,
                 showCursor: false,
                 maxLines: null,
+                // The lock icon already says the email is read-only.
                 decoration: const InputDecoration(
                     labelText: 'Email',
-                    helperText: 'Email cannot be edited.',
-                    helperMaxLines: 2,
                     suffixIcon: Icon(Icons.lock_outline_rounded)),
               ),
             ],

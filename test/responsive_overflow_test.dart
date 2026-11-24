@@ -427,7 +427,8 @@ void main() {
     await tester.tap(find.text('View profile'));
     await tester.pumpAndSettle();
     expect(find.text('Profile'), findsOneWidget);
-    expect(find.text('Personal details'), findsOneWidget);
+    expect(find.text('Personal details'), findsNothing);
+    expect(find.byTooltip('Edit name'), findsOneWidget);
     expect(find.text('Appearance'), findsNothing);
     expect(find.byType(BackButton), findsOneWidget);
     await tester.pageBack();
