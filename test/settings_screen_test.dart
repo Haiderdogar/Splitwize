@@ -96,6 +96,8 @@ Future<void> _pumpSettings(
       syncServiceProvider.overrideWith((ref) async => sync ?? _SettingsSync()),
       adFreeStatusProvider.overrideWith(_AdFree.new),
       myBillsProvider.overrideWith((ref) => Stream.value(const <Bill>[])),
+      // Home reads the balance totals; this fake repository cannot compute them.
+      balancesProvider.overrideWith((ref) => const <FriendBalance>[]),
       notificationsProvider
           .overrideWith((ref) => Stream.value(const <AppNotification>[])),
     ],

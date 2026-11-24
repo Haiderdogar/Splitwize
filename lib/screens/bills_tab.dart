@@ -8,6 +8,7 @@ import '../providers/data_providers.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_notification_button.dart';
+import '../widgets/balance_totals.dart';
 import '../widgets/bill_list_tile.dart';
 import '../widgets/home_expense_controls.dart';
 import '../widgets/state_widgets.dart';
@@ -179,6 +180,9 @@ class _BillsTabState extends ConsumerState<BillsTab> {
                                     ),
                                   ),
                                 ),
+                              // Totals per currency; nothing is shown until
+                              // there is an outstanding balance.
+                              const BalanceTotals(bottomPadding: 16),
                               ExpenseFilterBar(
                                 total: bills.length,
                                 settled: settledCount,

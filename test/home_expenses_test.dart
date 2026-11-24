@@ -10,6 +10,7 @@ import 'package:splitwize/screens/bills_tab.dart';
 import 'package:splitwize/screens/create_bill_screen.dart';
 import 'package:splitwize/theme.dart';
 import 'package:splitwize/widgets/bill_list_tile.dart';
+import 'package:splitwize/widgets/money_text.dart';
 
 import 'responsive_overflow_test.dart' as fixture;
 
@@ -54,7 +55,11 @@ Bill _bill(
       currency: 'PKR',
     );
 
-Future<void> _pumpHome(WidgetTester tester, List<Bill> bills) async {
+Future<void> _pumpHome(
+  WidgetTester tester,
+  List<Bill> bills, {
+  List<FriendBalance> balances = const [],
+}) async {
   tester.view.physicalSize = const Size(390, 1600);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -64,6 +69,7 @@ Future<void> _pumpHome(WidgetTester tester, List<Bill> bills) async {
       currentAppUserProvider.overrideWith((ref) => Stream.value(fixture.me)),
       authStateChangesProvider.overrideWith((ref) => Stream.value(null)),
       myBillsProvider.overrideWith((ref) => Stream.value(bills)),
+      balancesProvider.overrideWith((ref) => balances),
       notificationsProvider
           .overrideWith((ref) => Stream.value(<AppNotification>[])),
       adFreeStatusProvider.overrideWith(_AdFree.new),
@@ -159,6 +165,66 @@ void main() {
     await tester.tap(find.text('Show all expenses'));
     await tester.pumpAndSettle();
     expect(_visibleIds(tester), ['dinner']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('home totals keep every currency separate', (tester) async {
+    await _pumpHome(tester, [
+      _bill('dinner', 'Dinner with friends', date: DateTime(2026, 11, 12)),
+    ], balances: const [
+      FriendBalance(
+          uid: 'f2',
+          displayName: 'Hamza Malik',
+          currency: 'PKR',
+          net: 1000,
+          owesMe: 1000,
+          iOweThem: 0,
+          openBills: 1),
+      FriendBalance(
+          uid: 'f3',
+          displayName: 'Sara Khan',
+          currency: 'PKR',
+          net: 300,
+          owesMe: 500,
+          iOweThem: 200,
+          openBills: 2),
+      FriendBalance(
+          uid: 'f2',
+          displayName: 'Hamza Malik',
+          currency: 'USD',
+          net: -40,
+          owesMe: 0,
+          iOweThem: 40,
+          openBills: 1),
+    ]);
+
+    Finder amount(String currency, double value) => find.descendant(
+        of: find.byKey(ValueKey('balance-totals-$currency')),
+        matching: find.byWidgetPredicate((widget) =>
+            widget is MoneyText &&
+            widget.currencyCode == currency &&
+            widget.value == value));
+
+    expect(find.byKey(const ValueKey('balance-totals-PKR')), findsOneWidget);
+    expect(find.byKey(const ValueKey('balance-totals-USD')), findsOneWidget);
+    // PKR sums only PKR balances, USD only USD, with no conversion between.
+    expect(amount('PKR', 1500), findsOneWidget);
+    expect(amount('PKR', 200), findsOneWidget);
+    expect(amount('USD', 0), findsOneWidget);
+    expect(amount('USD', 40), findsOneWidget);
+    expect(find.text('Owed to you'), findsNWidgets(2));
+    expect(find.text('You owe'), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('home shows no totals when nothing is outstanding',
+      (tester) async {
+    await _pumpHome(tester, [
+      _bill('dinner', 'Dinner with friends',
+          date: DateTime(2026, 11, 12), settled: true),
+    ]);
+    expect(find.text('Owed to you'), findsNothing);
+    expect(find.text('You owe'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

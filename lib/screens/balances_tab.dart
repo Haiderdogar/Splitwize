@@ -8,6 +8,7 @@ import '../theme.dart';
 import '../utils/person_bills.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_notification_button.dart';
+import '../widgets/balance_totals.dart';
 import '../widgets/money_text.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/studio_ui.dart';
@@ -45,24 +46,12 @@ class BalancesTab extends StatelessWidget {
           billCounts.putIfAbsent(balance.uid,
               () => billsWithPerson(bills, uid, balance.uid).length);
         }
-        final byCurrency = <String, ({double owed, double owe})>{};
-        for (final balance in balances) {
-          final previous =
-              byCurrency[balance.currency] ?? (owed: 0.0, owe: 0.0);
-          byCurrency[balance.currency] = (
-            owed: previous.owed + balance.owesMe,
-            owe: previous.owe + balance.iOweThem,
-          );
-        }
         return ListView.builder(
           padding: const EdgeInsets.fromLTRB(16, 3, 16, 24),
           itemCount: balances.length + 1,
           itemBuilder: (context, i) {
             if (i == 0) {
-              return _BalanceOverview(
-                byCurrency: byCurrency,
-                hasBalances: balances.isNotEmpty,
-              );
+              return _BalanceOverview(hasBalances: balances.isNotEmpty);
             }
             final balance = balances[i - 1];
             return Padding(
@@ -133,17 +122,11 @@ class BalancesTab extends StatelessWidget {
 }
 
 class _BalanceOverview extends StatelessWidget {
-  const _BalanceOverview({
-    required this.byCurrency,
-    required this.hasBalances,
-  });
-  final Map<String, ({double owed, double owe})> byCurrency;
+  const _BalanceOverview({required this.hasBalances});
   final bool hasBalances;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final codes = byCurrency.keys.toList()..sort();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (!hasBalances)
         const InlineEmpty(
@@ -154,66 +137,10 @@ class _BalanceOverview extends StatelessWidget {
       else ...[
         const SectionHeading('Your totals',
             subtitle: 'Each currency is calculated separately.'),
-        for (final code in codes)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 9),
-            child: SoftPanel(
-                child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(code, style: Theme.of(context).textTheme.labelLarge),
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(
-                      child: _AmountSummary(
-                          label: 'Owed to you',
-                          amount: byCurrency[code]!.owed,
-                          currency: code,
-                          color: scheme.owed)),
-                  const SizedBox(width: 12),
-                  Container(height: 43, width: 1, color: scheme.outlineVariant),
-                  const SizedBox(width: 12),
-                  Expanded(
-                      child: _AmountSummary(
-                          label: 'You owe',
-                          amount: byCurrency[code]!.owe,
-                          currency: code,
-                          color: scheme.owe)),
-                ]),
-              ],
-            )),
-          ),
+        const BalanceTotals(bottomPadding: 9),
         const SectionHeading('People',
             subtitle: 'Open shared bills or record repayments.'),
       ],
-    ]);
-  }
-}
-
-class _AmountSummary extends StatelessWidget {
-  const _AmountSummary({
-    required this.label,
-    required this.amount,
-    required this.currency,
-    required this.color,
-  });
-  final String label;
-  final double amount;
-  final String currency;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: Theme.of(context).textTheme.bodySmall),
-      const SizedBox(height: 5),
-      FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: MoneyText(amount,
-              currencyCode: currency,
-              color: color,
-              style: Theme.of(context).textTheme.titleLarge)),
     ]);
   }
 }
