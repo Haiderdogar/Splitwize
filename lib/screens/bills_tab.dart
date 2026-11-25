@@ -190,7 +190,7 @@ class _BillsTabState extends ConsumerState<BillsTab> {
                               ),
                               const SizedBox(height: 12),
                               if (bills.isEmpty)
-                                InlineEmpty(
+                                const InlineEmpty(
                                   icon: Icons.receipt_long_outlined,
                                   title: 'Your first split starts here',
                                   message:

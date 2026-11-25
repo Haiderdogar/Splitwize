@@ -67,11 +67,13 @@ class GroupsTab extends StatelessWidget {
                 final ordered = [...groups]
                   ..sort((a, b) => lastActivity(b).compareTo(lastActivity(a)));
                 if (ordered.isEmpty) {
-                  return SliverToBoxAdapter(child: InlineEmpty(
-                    icon: Icons.groups_outlined,
-                    title: 'No groups yet',
-                    message: 'Make a group for a trip, flat or project.',
-                  ));
+                  return const SliverToBoxAdapter(
+                    child: InlineEmpty(
+                      icon: Icons.groups_outlined,
+                      title: 'No groups yet',
+                      message: 'Make a group for a trip, flat or project.',
+                    ),
+                  );
                 }
                 return SliverList.builder(
                   itemCount: ordered.length,
