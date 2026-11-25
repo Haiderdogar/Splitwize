@@ -585,10 +585,9 @@ void main() {
       expect(find.text('Your profile.'), findsNothing);
       expect(find.text('Manage your preferences and notifications.'),
           findsNothing);
-      expect(
-        find.text('On — you will be notified of new bills'),
-        findsOneWidget,
-      );
+      expect(find.text('Push notifications'), findsOneWidget);
+      expect(find.text('Enabled'), findsOneWidget);
+      expect(find.text('New bills and payment updates.'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
