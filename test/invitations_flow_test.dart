@@ -48,6 +48,9 @@ class InvitationRepository extends Fake implements AppRepository {
   bool failAccept = false;
   Future<void>? acceptGate;
   final cancelled = <String>[];
+  final friendAnswers = <String>[];
+  final declinedGroups = <String>[];
+  bool failAnswer = false;
   final read = <String>[];
   Future<void>? readGate;
   Stream<BillGroup?> watch() async* {
@@ -59,6 +62,24 @@ class InvitationRepository extends Fake implements AppRepository {
   Future<void> markNotificationRead(String id) async {
     read.add(id);
     await readGate;
+  }
+
+  @override
+  Future<void> acceptConnectionRequest(ConnectionRequest req) async {
+    if (failAnswer) throw StateError('Offline');
+    friendAnswers.add('accept:${req.id}');
+  }
+
+  @override
+  Future<void> declineConnectionRequest(String requestId) async {
+    if (failAnswer) throw StateError('Offline');
+    friendAnswers.add('decline:$requestId');
+  }
+
+  @override
+  Future<void> declineGroupInvite(String groupId) async {
+    if (failAnswer) throw StateError('Offline');
+    declinedGroups.add(groupId);
   }
 
   @override
@@ -190,6 +211,99 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  const friendInvite = AppNotification(
+      id: 'named-friend',
+      toUid: 'me',
+      title: 'Connection invitation',
+      body: 'You have an invitation.',
+      type: 'friend_request',
+      fromUid: 'fa',
+      fromName: 'Hamza Malik',
+      fromEmail: 'hamza@example.com',
+      read: false);
+  const groupInvite = AppNotification(
+      id: 'weekend-invite',
+      toUid: 'me',
+      title: 'Weekend invitation',
+      body: 'You have a group invitation.',
+      type: 'group_invite',
+      fromUid: 'fa',
+      fromName: 'Hamza Malik',
+      fromEmail: 'hamza@example.com',
+      groupId: 'g-in',
+      groupName: 'Weekend',
+      read: false);
+
+  testWidgets('a pending friend invitation is answered from Activity',
+      (tester) async {
+    await pumpFlow(tester, const NotificationsScreen(), repo,
+        inbox: const [friendInvite]);
+    await tester.tap(find.widgetWithText(FilledButton, 'Accept'));
+    await tester.pumpAndSettle();
+    expect(repo.friendAnswers, ['accept:friend-in']);
+    expect(repo.read, ['named-friend']);
+    expect(find.byType(FriendRequestsScreen), findsNothing,
+        reason: 'The buttons answer in place and do not open the details.');
+
+    await tester.tap(find.widgetWithText(TextButton, 'Decline'));
+    await tester.pumpAndSettle();
+    expect(repo.friendAnswers, ['accept:friend-in', 'decline:friend-in']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a pending group invitation is answered from Activity',
+      (tester) async {
+    await pumpFlow(tester, const NotificationsScreen(), repo,
+        inbox: const [groupInvite]);
+    await tester.tap(find.widgetWithText(TextButton, 'Decline'));
+    await tester.pumpAndSettle();
+    expect(repo.declinedGroups, ['g-in']);
+    expect(repo.accepts, 0);
+    expect(repo.read, ['weekend-invite']);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Accept'));
+    await tester.pumpAndSettle();
+    expect(repo.accepts, 1);
+    expect(find.byType(GroupInvitationScreen), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('answered or unavailable invitations show no buttons',
+      (tester) async {
+    await pumpFlow(tester, const NotificationsScreen(), repo,
+        incomingFriends: const [],
+        incomingGroups: const [],
+        inbox: const [friendInvite, groupInvite]);
+    expect(find.text('Hamza Malik invited you to connect on Splitwize.'),
+        findsOneWidget);
+    expect(find.text('Accept'), findsNothing);
+    expect(find.text('Decline'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a failed answer explains itself and can be retried',
+      (tester) async {
+    repo.failAnswer = true;
+    await pumpFlow(tester, const NotificationsScreen(), repo,
+        inbox: const [friendInvite]);
+    await tester.tap(find.widgetWithText(FilledButton, 'Accept'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not accept this request. Please try again.'),
+        findsOneWidget);
+    expect(repo.read, isEmpty, reason: 'It was not answered, so stay unread.');
+    expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, 'Accept'))
+            .onPressed,
+        isNotNull);
+
+    repo.failAnswer = false;
+    await tester.tap(find.widgetWithText(FilledButton, 'Accept'));
+    await tester.pumpAndSettle();
+    expect(repo.friendAnswers, ['accept:friend-in']);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('group notifications keep each inviter and group together',
       (tester) async {
     await pumpFlow(tester, const NotificationsScreen(), repo, inbox: const [
@@ -279,6 +393,8 @@ void main() {
           read: true),
     ]);
     expect(find.text('Your share is PKR 500.00.'), findsOneWidget);
+    expect(find.text('Accept'), findsNothing);
+    expect(find.text('Decline'), findsNothing);
     expect(find.textContaining('Invited by:'), findsNothing);
     expect(find.textContaining('Email:'), findsNothing);
     expect(find.textContaining('Group:'), findsNothing);

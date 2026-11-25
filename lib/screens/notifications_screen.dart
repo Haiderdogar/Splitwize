@@ -7,6 +7,7 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/notification_invitation_actions.dart';
 import '../widgets/studio_ui.dart';
 import '../theme.dart';
 import '../widgets/state_widgets.dart';
@@ -143,6 +144,10 @@ class NotificationsScreen extends StatelessWidget {
                             const SizedBox(height: 6),
                           if (sender.isNotEmpty) Text('Invited by: $sender'),
                           if (group.isNotEmpty) Text('Group: $group'),
+                          if (isInvitation)
+                            NotificationInvitationActions(
+                                key: ValueKey('invite-actions-${n.id}'),
+                                notification: n),
                           if (n.createdAt != null)
                             Text(
                               DateFormat.yMMMd().add_jm().format(n.createdAt!),
