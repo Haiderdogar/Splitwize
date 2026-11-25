@@ -77,6 +77,10 @@ Future<void> _pump(WidgetTester tester, Bill bill) async {
 }
 
 void main() {
+  // Real glyph widths, like the other layout tests; the default test font is
+  // far wider than Roboto and would overflow rows that fit on a device.
+  setUpAll(fixture.loadRoboto);
+
   testWidgets('without a tip the summary shows the total once', (tester) async {
     await _pump(tester, _plainBill);
     expect(find.text('Total'), findsOneWidget);
