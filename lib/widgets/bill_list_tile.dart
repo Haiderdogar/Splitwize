@@ -144,23 +144,14 @@ class _ExpenseHeading extends StatelessWidget {
       ],
     );
 
-    Widget total({required bool stacked}) => Column(
-          crossAxisAlignment:
-              stacked ? CrossAxisAlignment.start : CrossAxisAlignment.end,
-          children: [
-            Text('Total bill',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                )),
-            const SizedBox(height: 3),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: stacked ? Alignment.centerLeft : Alignment.centerRight,
-              child: MoneyText(bill.total,
-                  currencyCode: bill.currency,
-                  style: theme.textTheme.titleLarge?.copyWith(fontSize: 20)),
-            ),
-          ],
+    // The amount beside the title is the bill total; the settlement row below
+    // labels "Your share", so no caption is needed on every tile.
+    Widget total({required bool stacked}) => FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: stacked ? Alignment.centerLeft : Alignment.centerRight,
+          child: MoneyText(bill.total,
+              currencyCode: bill.currency,
+              style: theme.textTheme.titleLarge?.copyWith(fontSize: 20)),
         );
 
     return LayoutBuilder(builder: (context, constraints) {
@@ -221,24 +212,14 @@ class _ExpenseSettlement extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(settled ? 'Settled' : 'Unsettled',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.w700,
-                  )),
-              if (!settled) ...[
-                const SizedBox(height: 3),
-                Text(
-                    '${formatMoney(bill.outstanding, bill.currency)} remaining',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    )),
-              ],
-            ],
-          ),
+          child: Text(
+              settled
+                  ? 'Settled'
+                  : '${formatMoney(bill.outstanding, bill.currency)} remaining',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: statusColor,
+                fontWeight: FontWeight.w700,
+              )),
         ),
       ],
     );
@@ -291,11 +272,6 @@ class _ExpenseSettlement extends StatelessWidget {
             semanticsLabel: 'Settlement progress',
             semanticsValue: '${(progress * 100).round()}%',
           ),
-          const SizedBox(height: 6),
-          Text('${bill.paidCount} of ${bill.splits.length} people settled',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-              )),
         ],
       ],
     );

@@ -201,6 +201,7 @@ List<Override> testOverrides({
   Stream<List<BillGroup>>? groupInvites,
   Stream<List<ConnectionRequest>>? incomingRequests,
   Stream<List<ConnectionRequest>>? outgoingRequests,
+  Bill? bill,
 }) =>
     [
       syncServiceProvider.overrideWith((ref) async => FakeSyncService()),
@@ -227,7 +228,7 @@ List<Override> testOverrides({
           .overrideWith((ref) => inbox ?? Stream.value(testNotifications)),
       currentAppUserProvider.overrideWith((ref) => Stream.value(me)),
       authStateChangesProvider.overrideWith((ref) => Stream.value(null)),
-      billProvider.overrideWith((ref, id) => Stream.value(testBill)),
+      billProvider.overrideWith((ref, id) => Stream.value(bill ?? testBill)),
       groupProvider.overrideWith((ref, id) => Stream.value(testGroup)),
       groupMembersProvider
           .overrideWith((ref, id) async => [me, longNameFriend, friend2]),

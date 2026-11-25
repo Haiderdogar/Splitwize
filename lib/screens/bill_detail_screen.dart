@@ -129,15 +129,18 @@ class _BillBody extends StatelessWidget {
                           ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
-                    _KVRow(
-                        label: 'Subtotal',
-                        value: formatMoney(bill.subtotal, bill.currency)),
-                    if (bill.tipPercent > 0)
+                    // Without a tip the subtotal is the total, so the
+                    // breakdown would only repeat itself.
+                    if (bill.tipPercent > 0) ...[
+                      _KVRow(
+                          label: 'Subtotal',
+                          value: formatMoney(bill.subtotal, bill.currency)),
                       _KVRow(
                           label: 'Tip (${bill.tipPercent.toStringAsFixed(0)}%)',
                           value: formatMoney(
                               bill.total - bill.subtotal, bill.currency)),
-                    const Divider(),
+                      const Divider(),
+                    ],
                     _KVRow(
                         label: 'Total',
                         valueWidget: MoneyText(
@@ -355,18 +358,16 @@ class _PaymentDebtTile extends StatelessWidget {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.titleSmall),
-          if (myIdentity.email.isNotEmpty &&
-              (debt.debtorUid == myUid || debt.creditorUid == myUid))
-            Text(myIdentity.email,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+          // The amount below already says how much is owed; only add the
+          // remainder once part of it has been paid back.
+          if (debt.isSettled || debt.settledAmount > 0.005) ...[
+            const SizedBox(height: 5),
+            Text(
+                debt.isSettled
+                    ? 'Settled'
+                    : '${formatMoney(debt.remainingAmount, currency)} remaining',
                 style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 5),
-          Text(
-              debt.isSettled
-                  ? 'Settled'
-                  : '${formatMoney(debt.remainingAmount, currency)} remaining',
-              style: Theme.of(context).textTheme.bodySmall),
+          ],
           const SizedBox(height: 7),
           Row(children: [
             Expanded(child: MoneyText(debt.amount, currencyCode: currency)),
@@ -480,11 +481,6 @@ class _SplitTile extends StatelessWidget {
                     _isMine ? '${myIdentity.name} (you)' : split.displayName,
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  if (_isMine && myIdentity.email.isNotEmpty)
-                    Text(myIdentity.email,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall),
                   // Wrap (not Row): percent, chip and date flow to a
                   // second line on narrow screens instead of
                   // overflowing.
@@ -494,10 +490,8 @@ class _SplitTile extends StatelessWidget {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       if (split.percent != null)
-                        Text('${split.percent!.toStringAsFixed(1)}%  •  '),
-                      if (usesPaymentLedger)
-                        const Text('Share of expense')
-                      else
+                        Text('${split.percent!.toStringAsFixed(1)}%'),
+                      if (!usesPaymentLedger)
                         Chip(
                           label: Text(split.paid
                               ? 'Paid'

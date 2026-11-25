@@ -79,6 +79,8 @@ void main() {
     expect(find.text('Paid by Ali Haider (you)'), findsOneWidget);
     expect(find.text('Your share: ${formatMoney(40)}'), findsOneWidget);
     expect(find.text('${formatMoney(30)} remaining'), findsOneWidget);
+    expect(find.text('Unsettled'), findsNothing);
+    expect(find.textContaining('people settled'), findsNothing);
     expect(
       tester
           .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator))
@@ -115,8 +117,8 @@ void main() {
         textScale: 2,
         dark: dark,
       );
-      expect(find.text('Total bill'), findsOneWidget);
-      expect(find.text('Unsettled'), findsOneWidget);
+      expect(find.text('Total bill'), findsNothing);
+      expect(find.textContaining('remaining'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
