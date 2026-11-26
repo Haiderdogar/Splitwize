@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-enum ExpenseFilter { all, open, settled }
+/// The order here is the order of the chips: unsettled first, since that is
+/// what people open the app to see.
+enum ExpenseFilter { open, settled, all }
 
 class ExpenseFilterBar extends StatelessWidget {
   const ExpenseFilterBar({
@@ -52,70 +54,6 @@ class ExpenseFilterBar extends StatelessWidget {
             ),
           ),
       ]),
-    );
-  }
-}
-
-class ExpenseListHeading extends StatelessWidget {
-  const ExpenseListHeading({
-    super.key,
-    required this.count,
-    required this.filtered,
-    required this.oldestFirst,
-    required this.onSort,
-  });
-
-  final int count;
-  final bool filtered;
-  final bool oldestFirst;
-  final ValueChanged<bool> onSort;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final sort = PopupMenuButton<bool>(
-      tooltip: 'Sort expenses',
-      initialValue: oldestFirst,
-      onSelected: onSort,
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: false, child: Text('Newest first')),
-        PopupMenuItem(value: true, child: Text('Oldest first')),
-      ],
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.swap_vert_rounded,
-              size: 17, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(width: 4),
-          Text(oldestFirst ? 'Oldest first' : 'Newest first',
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-          const SizedBox(width: 2),
-          Icon(Icons.keyboard_arrow_down_rounded,
-              size: 16, color: theme.colorScheme.onSurfaceVariant),
-        ]),
-      ),
-    );
-    // Without a search or filter the list needs no label of its own, so the
-    // sort control sits alone on the trailing edge.
-    if (!filtered) {
-      return Align(alignment: AlignmentDirectional.centerEnd, child: sort);
-    }
-    return Wrap(
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 12,
-      children: [
-        Semantics(
-          header: true,
-          child: Text(
-            '$count ${count == 1 ? 'result' : 'results'}',
-            style: theme.textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.w700),
-          ),
-        ),
-        sort,
-      ],
     );
   }
 }

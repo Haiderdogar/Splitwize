@@ -26,9 +26,8 @@ class BillsTab extends ConsumerStatefulWidget {
 
 class _BillsTabState extends ConsumerState<BillsTab> {
   final _searchController = TextEditingController();
-  ExpenseFilter _filter = ExpenseFilter.all;
+  ExpenseFilter _filter = ExpenseFilter.open;
   bool _showSearch = false;
-  bool _oldestFirst = false;
 
   @override
   void dispose() {
@@ -72,16 +71,14 @@ class _BillsTabState extends ConsumerState<BillsTab> {
       return searchable.contains(query);
     }).toList();
     visible.sort((a, b) {
-      // Unknown dates belong at the end in either direction.
+      // Newest first; expenses with an unknown date go last.
       if (a.createdAt == null && b.createdAt == null) {
         return a.id.compareTo(b.id);
       }
       if (a.createdAt == null) return 1;
       if (b.createdAt == null) return -1;
-      final order = a.createdAt!.compareTo(b.createdAt!);
-      return order == 0
-          ? a.id.compareTo(b.id)
-          : (_oldestFirst ? order : -order);
+      final order = b.createdAt!.compareTo(a.createdAt!);
+      return order == 0 ? a.id.compareTo(b.id) : order;
     });
     return visible;
   }
@@ -218,15 +215,6 @@ class _BillsTabState extends ConsumerState<BillsTab> {
                                     onPressed: _resetFilters,
                                     child: const Text('Show all expenses'),
                                   ),
-                                )
-                              else
-                                ExpenseListHeading(
-                                  count: visible.length,
-                                  filtered: _filter != ExpenseFilter.all ||
-                                      _searchController.text.trim().isNotEmpty,
-                                  oldestFirst: _oldestFirst,
-                                  onSort: (oldestFirst) => setState(
-                                      () => _oldestFirst = oldestFirst),
                                 ),
                             ],
                           );

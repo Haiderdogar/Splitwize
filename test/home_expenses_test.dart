@@ -115,7 +115,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'WEEKEND');
     await tester.pumpAndSettle();
-    expect(_visibleIds(tester), ['dinner', 'taxi']);
+    // Home opens on Unsettled, so the settled taxi ride is not listed yet.
+    expect(_visibleIds(tester), ['dinner']);
 
     await _selectFilter(tester, 'Settled (1)');
     expect(_visibleIds(tester), ['taxi']);
@@ -133,26 +134,47 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('date sorting keeps undated expenses last in both directions',
-      (tester) async {
+  testWidgets('opens on Unsettled, then Settled, then All', (tester) async {
+    await _pumpHome(tester, [
+      _bill('dinner', 'Dinner with friends', date: DateTime(2026, 11, 12)),
+      _bill('taxi', 'Airport taxi',
+          date: DateTime(2026, 11, 10), settled: true),
+    ]);
+    ChoiceChip chip(String label) =>
+        tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, label));
+    expect(chip('Unsettled (1)').selected, isTrue);
+    expect(chip('Settled (1)').selected, isFalse);
+    expect(chip('All (2)').selected, isFalse);
+    expect(_visibleIds(tester), ['dinner']);
+
+    final unsettled = tester.getTopLeft(find.text('Unsettled (1)')).dx;
+    final settled = tester.getTopLeft(find.text('Settled (1)')).dx;
+    final all = tester.getTopLeft(find.text('All (2)')).dx;
+    expect(unsettled, lessThan(settled));
+    expect(settled, lessThan(all));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('expenses are newest first with undated ones last, no sort or '
+      'result controls', (tester) async {
     await _pumpHome(tester, [
       _bill('undated', 'Undated receipt'),
       _bill('older', 'Airport taxi', date: DateTime(2026, 10, 30)),
       _bill('newer', 'Dinner with friends', date: DateTime(2026, 11, 12)),
     ]);
     expect(_visibleIds(tester), ['newer', 'older', 'undated']);
+    expect(find.byTooltip('Sort expenses'), findsNothing);
+    expect(find.text('Newest first'), findsNothing);
+    expect(find.text('Oldest first'), findsNothing);
 
-    await tester.tap(find.byTooltip('Sort expenses'));
+    // Filtering or searching does not add a "N results" line either.
+    await _selectFilter(tester, 'All (3)');
+    await tester.tap(find.byTooltip('Search expenses'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Oldest first').last);
+    await tester.enterText(find.byType(TextField), 'taxi');
     await tester.pumpAndSettle();
-    expect(_visibleIds(tester), ['older', 'newer', 'undated']);
-
-    await tester.tap(find.byTooltip('Sort expenses'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Newest first').last);
-    await tester.pumpAndSettle();
-    expect(_visibleIds(tester), ['newer', 'older', 'undated']);
+    expect(_visibleIds(tester), ['older']);
+    expect(find.textContaining('result'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
