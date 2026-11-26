@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
-import '../widgets/ad_banner.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/bill_list_tile.dart';
 import '../widgets/home_expense_controls.dart';
@@ -117,133 +116,128 @@ class _BillsTabState extends ConsumerState<BillsTab> {
       body: SafeArea(
         top: false,
         bottom: false,
-        child: Column(children: [
-          Expanded(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: billsAsync.when(
-                  loading: () => const ShimmerList(),
-                  error: (e, _) => LoadError(
-                    message: 'Could not load your expenses.',
-                    onRetry: () {
-                      ref.invalidate(appRepositoryProvider);
-                      ref.invalidate(myBillsProvider);
-                    },
-                  ),
-                  data: (data) {
-                    final bills = data.where((bill) => !bill.deleted).toList();
-                    final settledCount =
-                        bills.where((bill) => bill.fullySettled).length;
-                    final visible = _visibleBills(bills);
-                    final now = DateTime.now();
-                    return ListView.builder(
-                      key: const PageStorageKey('home-expenses'),
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 104),
-                      itemCount: visible.length + 1,
-                      itemBuilder: (context, index) {
-                        if (index == 0) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (_showSearch)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  child: TextField(
-                                    controller: _searchController,
-                                    autofocus: true,
-                                    onChanged: (_) => setState(() {}),
-                                    textInputAction: TextInputAction.search,
-                                    onSubmitted: (_) =>
-                                        FocusScope.of(context).unfocus(),
-                                    decoration: InputDecoration(
-                                      hintText: 'Search expenses',
-                                      prefixIcon:
-                                          const Icon(Icons.search_rounded),
-                                      suffixIcon: _searchController.text.isEmpty
-                                          ? null
-                                          : IconButton(
-                                              tooltip: 'Clear search',
-                                              onPressed: () => setState(
-                                                  _searchController.clear),
-                                              icon: const Icon(
-                                                  Icons.close_rounded),
-                                            ),
-                                    ),
-                                  ),
-                                ),
-                              // Greeting and where you stand, per currency.
-                              HomeSummary(hasExpenses: bills.isNotEmpty),
-                              ExpenseFilterBar(
-                                total: bills.length,
-                                settled: settledCount,
-                                selected: _filter,
-                                onSelected: (filter) =>
-                                    setState(() => _filter = filter),
-                              ),
-                              const SizedBox(height: 12),
-                              if (bills.isEmpty)
-                                const InlineEmpty(
-                                  icon: Icons.receipt_long_outlined,
-                                  title: 'Your first split starts here',
-                                  message:
-                                      'Add an expense to start splitting with friends.',
-                                )
-                              else if (visible.isEmpty)
-                                InlineEmpty(
-                                  icon: _searchController.text.trim().isNotEmpty
-                                      ? Icons.search_off_rounded
-                                      : Icons.task_alt_rounded,
-                                  title:
-                                      _searchController.text.trim().isNotEmpty
-                                          ? 'No matching expenses'
-                                          : _filter == ExpenseFilter.open
-                                              ? 'All settled up'
-                                              : 'No settled expenses yet',
-                                  message: _searchController.text
-                                          .trim()
-                                          .isNotEmpty
-                                      ? 'Try a different name, group, or currency.'
-                                      : _filter == ExpenseFilter.open
-                                          ? 'Unsettled expenses will appear here.'
-                                          : 'Expenses appear here once everyone has settled.',
-                                  action: TextButton(
-                                    onPressed: _resetFilters,
-                                    child: const Text('Show all expenses'),
-                                  ),
-                                ),
-                            ],
-                          );
-                        }
-                        final bill = visible[index - 1];
-                        final dateLabel = _dateLabel(bill.createdAt, now);
-                        final beginsSection = index == 1 ||
-                            _dateLabel(visible[index - 2].createdAt, now) !=
-                                dateLabel;
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (beginsSection)
-                              ExpenseDateHeading(label: dateLabel),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: billsAsync.when(
+              loading: () => const ShimmerList(),
+              error: (e, _) => LoadError(
+                message: 'Could not load your expenses.',
+                onRetry: () {
+                  ref.invalidate(appRepositoryProvider);
+                  ref.invalidate(myBillsProvider);
+                },
+              ),
+              data: (data) {
+                final bills = data.where((bill) => !bill.deleted).toList();
+                final settledCount =
+                    bills.where((bill) => bill.fullySettled).length;
+                final visible = _visibleBills(bills);
+                final now = DateTime.now();
+                return ListView.builder(
+                  key: const PageStorageKey('home-expenses'),
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 104),
+                  itemCount: visible.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_showSearch)
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: BillListTile(
-                                  key: ValueKey(bill.id), bill: bill, uid: uid),
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: TextField(
+                                controller: _searchController,
+                                autofocus: true,
+                                onChanged: (_) => setState(() {}),
+                                textInputAction: TextInputAction.search,
+                                onSubmitted: (_) =>
+                                    FocusScope.of(context).unfocus(),
+                                decoration: InputDecoration(
+                                  hintText: 'Search expenses',
+                                  prefixIcon:
+                                      const Icon(Icons.search_rounded),
+                                  suffixIcon: _searchController.text.isEmpty
+                                      ? null
+                                      : IconButton(
+                                          tooltip: 'Clear search',
+                                          onPressed: () => setState(
+                                              _searchController.clear),
+                                          icon: const Icon(
+                                              Icons.close_rounded),
+                                        ),
+                                ),
+                              ),
                             ),
-                          ],
-                        );
-                      },
+                          // Greeting and where you stand, per currency.
+                          HomeSummary(hasExpenses: bills.isNotEmpty),
+                          ExpenseFilterBar(
+                            total: bills.length,
+                            settled: settledCount,
+                            selected: _filter,
+                            onSelected: (filter) =>
+                                setState(() => _filter = filter),
+                          ),
+                          const SizedBox(height: 12),
+                          if (bills.isEmpty)
+                            const InlineEmpty(
+                              icon: Icons.receipt_long_outlined,
+                              title: 'Your first split starts here',
+                              message:
+                                  'Add an expense to start splitting with friends.',
+                            )
+                          else if (visible.isEmpty)
+                            InlineEmpty(
+                              icon: _searchController.text.trim().isNotEmpty
+                                  ? Icons.search_off_rounded
+                                  : Icons.task_alt_rounded,
+                              title:
+                                  _searchController.text.trim().isNotEmpty
+                                      ? 'No matching expenses'
+                                      : _filter == ExpenseFilter.open
+                                          ? 'All settled up'
+                                          : 'No settled expenses yet',
+                              message: _searchController.text
+                                      .trim()
+                                      .isNotEmpty
+                                  ? 'Try a different name, group, or currency.'
+                                  : _filter == ExpenseFilter.open
+                                      ? 'Unsettled expenses will appear here.'
+                                      : 'Expenses appear here once everyone has settled.',
+                              action: TextButton(
+                                onPressed: _resetFilters,
+                                child: const Text('Show all expenses'),
+                              ),
+                            ),
+                        ],
+                      );
+                    }
+                    final bill = visible[index - 1];
+                    final dateLabel = _dateLabel(bill.createdAt, now);
+                    final beginsSection = index == 1 ||
+                        _dateLabel(visible[index - 2].createdAt, now) !=
+                            dateLabel;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (beginsSection)
+                          ExpenseDateHeading(label: dateLabel),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: BillListTile(
+                              key: ValueKey(bill.id), bill: bill, uid: uid),
+                        ),
+                      ],
                     );
                   },
-                ),
-              ),
+                );
+              },
             ),
           ),
-          const AdBannerSlot(),
-        ]),
+        ),
       ),
       floatingActionButton: compactAction
           ? FloatingActionButton(

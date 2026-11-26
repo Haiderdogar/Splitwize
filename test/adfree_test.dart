@@ -1,8 +1,8 @@
 // Ad-Free monetization tests: the store configuration (one
 // entitlement, two plans, dormant until the RevenueCat key is
 // pasted), the cached-entitlement round-trip, and the paywall's
-// plan selection. Ads themselves are the free tier's revenue —
-// there is no receipt quota anymore; photos are unlimited for all.
+// plan selection. The app shows no ads and has no receipt quota;
+// photos are unlimited for all.
 import 'package:splitwize/providers/core_providers.dart';
 import 'package:splitwize/providers/monetization_providers.dart';
 import 'package:splitwize/utils/monetization.dart';

@@ -34,7 +34,6 @@ dependencies:
   # Skeleton loading placeholders (shimmer effect)
   shimmer: ^4.0.0
   purchases_flutter: ^10.17.0
-  google_mobile_ads: ^9.1.0
 
 dev_dependencies:
   flutter_test:

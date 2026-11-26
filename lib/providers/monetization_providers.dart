@@ -1,7 +1,4 @@
-import 'dart:io' show Platform;
-
 import 'package:flutter/services.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -156,41 +153,4 @@ class PaywallPlan extends _$PaywallPlan {
   bool build() => true;
 
   void select(bool yearly) => state = yearly;
-}
-
-// ---------------------------------------------------------------------------
-// Free-tier ad banner (Ad-Free subscribers never load one)
-// ---------------------------------------------------------------------------
-
-typedef AdBannerState = ({BannerAd? ad, bool loaded});
-
-@riverpod
-class AdBannerController extends _$AdBannerController {
-  @override
-  AdBannerState build() {
-    // Never touch the ads SDK in tests; the slot collapses instead.
-    if (Platform.environment.containsKey('FLUTTER_TEST')) {
-      return (ad: null, loaded: false);
-    }
-    try {
-      MobileAds.instance.initialize();
-    } catch (_) {
-      return (ad: null, loaded: false);
-    }
-    late final BannerAd ad;
-    ad = BannerAd(
-      adUnitId: Monetization.bannerAdUnitId,
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) => state = (ad: ad, loaded: true),
-        onAdFailedToLoad: (failedAd, _) => failedAd.dispose(),
-      ),
-    );
-    // Dispose via the captured instance — reading `state` inside
-    // onDispose is not allowed.
-    ref.onDispose(ad.dispose);
-    ad.load();
-    return (ad: ad, loaded: false);
-  }
 }

@@ -1,17 +1,14 @@
-/// Splitwize monetization — ads are the revenue.
+/// Splitwize monetization.
 ///
-/// Everything in the app is free and unlimited, including receipt
-/// photos. The free tier shows a banner ad (Google TEST ids until a
-/// real AdMob account is wired in). The only paid product is an
-/// **Ad-Free subscription** that removes the ads; it comes in two
-/// plans — monthly [monthlyProductId] and yearly [yearlyProductId] —
-/// behind the single RevenueCat entitlement [entitlementId].
+/// The app currently shows no ads and has no purchase screen: everything is
+/// free and unlimited, including receipt photos. The Ad-Free entitlement
+/// below stays configured behind the single RevenueCat entitlement
+/// [entitlementId] (monthly [monthlyProductId], yearly [yearlyProductId]) so
+/// a paid plan can be offered again later without re-plumbing.
 ///
-/// Purchases run through RevenueCat; the SDK stays dormant until a
-/// real public key is pasted below. Until then the app behaves as
-/// free tier and the paywall explains checkout opens at store
-/// launch; once configured, the paywall shows the store's localized
-/// prices instead of the fallbacks.
+/// Purchases run through RevenueCat; the SDK stays dormant until a real
+/// public key is pasted below, and until then the app behaves as the free
+/// tier.
 abstract final class Monetization {
   /// RevenueCat entitlement that removes ads.
   static const String entitlementId = 'adfree';
@@ -33,9 +30,4 @@ abstract final class Monetization {
   static const String revenueCatApiKey = '';
 
   static bool get purchasesConfigured => revenueCatApiKey.isNotEmpty;
-
-  /// AdMob banner unit. Defaults to Google's public TEST unit id —
-  /// replace with the real unit id after creating an AdMob account,
-  /// and swap the app ids in AndroidManifest.xml / Info.plist too.
-  static const String bannerAdUnitId = 'ca-app-pub-3940256099942544/6300978111';
 }

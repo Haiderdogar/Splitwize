@@ -38,11 +38,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <!-- AdMob app id (Google TEST id — replace with the real one
-             after creating an AdMob account) -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/>
         <!-- Use the legacy Skia renderer instead of Impeller: on some
              older/mid-range Android phones Impeller's GPU backend
              crashes the engine at the first frame, so the app closes

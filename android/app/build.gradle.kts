@@ -48,7 +48,7 @@ android {
             signingConfig = signingConfigs.getByName("sharedDebug")
             // Flutter may turn minify on via -Pshrink (see gradle.properties).
             // Keep rules are always listed so a future shrink=true build does
-            // not strip AdMob/Firebase and crash on open again.
+            // not strip Firebase and crash on open again.
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

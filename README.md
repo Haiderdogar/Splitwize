@@ -407,40 +407,20 @@ preview. Expired or withdrawn invitations do not unlock group details.
 Deploy the group-invitation push trigger with:
 `firebase deploy --only functions:notifyGroupInvitation`.
 
-## Monetization — ads + an Ad-Free subscription
+## Monetization
 
-**Ads are the revenue.** Everything in the app is free and unlimited —
-bills, groups, and receipt photos included. The free tier shows one
-AdMob banner under the Bills list (`AdBannerSlot` in
-`lib/widgets/ad_banner.dart`). The app currently ships Google's
-**test** ad ids (manifest / Info.plist / `Monetization`).
+The app shows **no ads** and has no purchase screen: everything is free and
+unlimited — bills, groups, and receipt photos included. (AdMob and its banner
+were removed.)
 
-The only paid product is an **Ad-Free subscription** that removes the
-ads, in two plans (`lib/utils/monetization.dart`):
+The RevenueCat plumbing for an optional **Ad-Free** entitlement is still in
+the code but dormant, so a paid plan can be offered again later:
 
-- `splitwize_adfree_monthly` — $0.99/month
-- `splitwize_adfree_yearly` — $7/year
-
-- **Entitlement:** RevenueCat is the source of truth (`AdFreeStatus` in
-  `lib/providers/monetization_providers.dart`, entitlement `adfree`),
-  cached in secure storage so the tier is right offline. If the
-  subscription lapses, the ads simply come back — nothing else
-  changes; all bills and photos stay untouched.
-- **Settings** has the Ad-Free tile that opens the paywall sheet
-  (`lib/widgets/paywall_sheet.dart`) with both plans, Subscribe and
-  Restore.
-
-To activate checkout (do once, at store launch):
-
-1. Create a RevenueCat project, add the Play/App Store apps, and create
-   the two products above under the entitlement `adfree`, in one
-   offering (monthly + annual packages).
-2. Paste the RevenueCat public SDK key into `Monetization.revenueCatApiKey`.
-   Until then purchases stay dormant and the paywall says checkout opens
-   with the store launch.
-3. Create an AdMob account/app, then replace the test app ids in
-   `android/app/src/main/AndroidManifest.xml` and `ios/Runner/Info.plist`
-   and the banner unit id in `Monetization.bannerAdUnitId`.
+- `lib/utils/monetization.dart` — entitlement `adfree`, plans
+  `splitwize_adfree_monthly` ($0.99/month) and `splitwize_adfree_yearly`
+  ($7/year), and the RevenueCat key (empty = purchases off).
+- `lib/providers/monetization_providers.dart` — `AdFreeStatus`, cached in
+  secure storage so the tier is right offline.
 
 ## Notes
 

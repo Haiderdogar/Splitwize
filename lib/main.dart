@@ -40,7 +40,7 @@ Future<void> main() async {
     //
     // Native instant-close on Android release APKs is separate: see
     // android/gradle.properties (shrink=false) and
-    // android/app/proguard-rules.pro — R8 was stripping AdMob/Firebase.
+    // android/app/proguard-rules.pro — R8 was stripping Firebase.
     String? firebaseError;
     try {
       await Firebase.initializeApp(
