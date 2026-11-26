@@ -9,7 +9,6 @@ import 'package:splitwize/providers/monetization_providers.dart';
 import 'package:splitwize/screens/bills_tab.dart';
 import 'package:splitwize/screens/create_bill_screen.dart';
 import 'package:splitwize/theme.dart';
-import 'package:splitwize/utils/money.dart';
 import 'package:splitwize/widgets/bill_list_tile.dart';
 import 'package:splitwize/widgets/home_summary.dart';
 import 'package:splitwize/widgets/money_text.dart';
