@@ -360,6 +360,11 @@ void main() {
           findsNothing);
       expect(find.text('Title'), findsOneWidget);
       expect(find.text('Bill amount'), findsOneWidget);
+      // The submit button is pinned to the Scaffold so it never scrolls away,
+      // and it is available before a group is chosen (just disabled).
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+      expect(scaffold.bottomNavigationBar, isNotNull);
+      expect(find.text('Create & notify everyone'), findsOneWidget);
       // Without a group, no members or Select All control are shown.
       expect(find.byType(Checkbox), findsNothing);
       expect(find.text('Select all'), findsNothing);
@@ -370,6 +375,13 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       final boxes = find.byType(Checkbox);
       expect(boxes, findsNWidgets(3));
+      // The signed-in email is not repeated under "(you)", and the optional
+      // receipt comes after the split options instead of before the members.
+      expect(find.text(meUser.email), findsNothing);
+      expect(find.text('Split method'), findsOneWidget);
+      expect(
+          tester.getTopLeft(find.text('Add receipt photo')).dy,
+          greaterThan(tester.getTopLeft(find.text('Split method')).dy));
       // Only the creator is selected automatically; other members are opt-in.
       expect(tester.widget<Checkbox>(boxes.at(0)).value, isTrue);
       expect(tester.widget<Checkbox>(boxes.at(1)).value, isFalse);

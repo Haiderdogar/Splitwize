@@ -62,9 +62,7 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
                   _SubtotalField(),
                   SizedBox(height: 16),
                   _GroupPicker(),
-                  SizedBox(height: 12),
-                  _ReceiptSection(),
-                  SizedBox(height: 10),
+                  SizedBox(height: 8),
                 ],
               ),
             ),
@@ -85,6 +83,15 @@ class _CreateBillScreenState extends ConsumerState<CreateBillScreen> {
             ),
           ),
         ],
+      ),
+      // The primary action belongs to Scaffold, not the scroll content, so it
+      // stays on screen however long the participant list is.
+      bottomNavigationBar: const SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16, 10, 16, 12),
+          child: SizedBox(height: 52, child: _CreateButton()),
+        ),
       ),
     );
   }
@@ -292,7 +299,10 @@ class _MemberSelectionHeader extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Participants  ·  $selectedCount of ${members.length}',
-                style: Theme.of(context).textTheme.titleMedium,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
             TextButton(
@@ -370,10 +380,6 @@ class _MemberRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
-                      if (isMe && identity.email.isNotEmpty)
-                        Text(identity.email, maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),
                 ),
@@ -438,7 +444,8 @@ class _SplitAndSubmitSection extends ConsumerWidget {
           const _SplitTypeSection(),
           const SizedBox(height: 20),
         ],
-        const _CreateButton(),
+        // Optional, so it comes after everything the expense needs.
+        const _ReceiptSection(),
       ],
     );
   }
@@ -554,12 +561,6 @@ class _PaymentSection extends ConsumerWidget {
             ),
           ),
         ],
-        const SizedBox(height: 4),
-        Text(
-          'Their payments will be compared with their split shares to '
-          'calculate who reimburses whom.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
       ],
     );
   }
