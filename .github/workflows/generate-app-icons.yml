@@ -29,9 +29,13 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          # Same pin as flutter.yml: pubspec.lock was resolved with Flutter
+          # 3.44, and newer stable releases make `flutter pub get` fail on
+          # custom_lint/riverpod_generator. Move forward together with a
+          # refreshed pubspec.lock.
+          flutter-version: 3.44.x
           channel: stable
           cache: true
-          cache-dependency-path: pubspec.lock
 
       - name: Install dependencies
         run: flutter pub get
