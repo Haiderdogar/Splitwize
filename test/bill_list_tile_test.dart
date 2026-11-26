@@ -78,7 +78,9 @@ void main() {
 
     expect(find.text('Paid by Ali Haider (you)'), findsOneWidget);
     expect(find.text('Your share: ${formatMoney(40)}'), findsOneWidget);
-    expect(find.text('${formatMoney(30)} remaining'), findsOneWidget);
+    // I paid the merchant and 30 of Alex's 60 is still unpaid.
+    expect(find.text("You're owed ${formatMoney(30)}"), findsOneWidget);
+    expect(find.textContaining('remaining'), findsNothing);
     expect(find.text('Unsettled'), findsNothing);
     expect(find.textContaining('people settled'), findsNothing);
     expect(
@@ -105,6 +107,106 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('the tile says what you owe when someone else paid',
+      (tester) async {
+    addTearDown(tester.view.reset);
+    final owing = _ledgerBill.copyWith(paymentDebts: [
+      const BillDebt(
+        id: 'debt',
+        debtorUid: 'me',
+        debtorName: 'Ali Haider',
+        creditorUid: 'f1',
+        creditorName: 'Alex',
+        amount: 40,
+        settledAmount: 15,
+      ),
+    ]);
+    await _pumpCard(tester, owing);
+
+    expect(find.text('You owe ${formatMoney(25)}'), findsOneWidget);
+    expect(find.textContaining("You're owed"), findsNothing);
+    expect(find.byIcon(Icons.north_east_rounded), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('both directions are shown when a bill leaves you both',
+      (tester) async {
+    addTearDown(tester.view.reset);
+    final both = _ledgerBill.copyWith(paymentDebts: [
+      const BillDebt(
+        id: 'a',
+        debtorUid: 'f1',
+        debtorName: 'Alex',
+        creditorUid: 'me',
+        creditorName: 'Ali Haider',
+        amount: 20,
+      ),
+      const BillDebt(
+        id: 'b',
+        debtorUid: 'me',
+        debtorName: 'Ali Haider',
+        creditorUid: 'f2',
+        creditorName: 'Sam',
+        amount: 5,
+      ),
+    ]);
+    await _pumpCard(tester, both);
+
+    expect(find.text("You're owed ${formatMoney(20)}"), findsOneWidget);
+    expect(find.text('You owe ${formatMoney(5)}'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a bill you are not part of falls back to what is left',
+      (tester) async {
+    addTearDown(tester.view.reset);
+    final others = _ledgerBill.copyWith(paymentDebts: [
+      const BillDebt(
+        id: 'other',
+        debtorUid: 'f1',
+        debtorName: 'Alex',
+        creditorUid: 'f2',
+        creditorName: 'Sam',
+        amount: 60,
+        settledAmount: 10,
+      ),
+    ]);
+    await _pumpCard(tester, others);
+
+    expect(find.text('${formatMoney(50)} remaining'), findsOneWidget);
+    expect(find.textContaining("You're owed"), findsNothing);
+    expect(find.textContaining('You owe'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('participants show as initials, with +N beyond three',
+      (tester) async {
+    addTearDown(tester.view.reset);
+    final crowd = _ledgerBill.copyWith(splits: const [
+      BillSplit(uid: 'me', displayName: 'Ali Haider', amount: 20),
+      BillSplit(uid: 'f1', displayName: 'Alex Stone', amount: 20),
+      BillSplit(uid: 'f2', displayName: 'Sam', amount: 20),
+      BillSplit(uid: 'f3', displayName: 'Zoe Park', amount: 20),
+      BillSplit(uid: 'f4', displayName: 'Omar Khan', amount: 20),
+    ]);
+    await _pumpCard(tester, crowd);
+
+    expect(find.text('AH'), findsOneWidget);
+    expect(find.text('AS'), findsOneWidget);
+    expect(find.text('S'), findsOneWidget);
+    expect(find.text('+2'), findsOneWidget);
+    expect(find.text('ZP'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the title picks a matching icon', (tester) async {
+    addTearDown(tester.view.reset);
+    await _pumpCard(tester, _ledgerBill);
+    // "Shared dinner" is a meal.
+    expect(find.byIcon(Icons.restaurant_rounded), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final dark in [false, true]) {
     testWidgets(
         'long expense fits 320px at 2x text in ${dark ? 'dark' : 'light'}',
@@ -118,7 +220,8 @@ void main() {
         dark: dark,
       );
       expect(find.text('Total bill'), findsNothing);
-      expect(find.textContaining('remaining'), findsOneWidget);
+      // Ali created the bill and the other two shares are still unpaid.
+      expect(find.textContaining("You're owed"), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

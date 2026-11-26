@@ -13,6 +13,7 @@ import 'package:splitwize/data/local_database.dart';
 import 'package:splitwize/models/models.dart';
 import 'package:splitwize/services/firestore_service.dart';
 import 'package:splitwize/services/secure_storage_service.dart';
+import 'package:splitwize/utils/bill_position.dart';
 import 'package:splitwize/utils/debt_simplifier.dart';
 
 import 'test_harness.dart';
@@ -369,6 +370,28 @@ void main() {
 
       final bUsd = balances.singleWhere((b) => b.uid == 'fb');
       expect(bUsd.net, 100);
+    });
+
+    test('each bill position adds up to the totals computeBalances reports',
+        () async {
+      await seedBills();
+      final bills = await repo.watchMyBills().first;
+      final balances = repo.computeBalances(bills);
+      final currencies = {for (final b in bills) b.currency};
+      expect(currencies, {'USD', 'PKR'});
+      for (final currency in currencies) {
+        final positions = [
+          for (final b in bills.where((b) => b.currency == currency))
+            billPosition(b, uid),
+        ];
+        final inCurrency = balances.where((b) => b.currency == currency);
+        expect(positions.fold<double>(0, (sum, p) => sum + p.owed),
+            closeTo(inCurrency.fold<double>(0, (sum, b) => sum + b.owesMe), .001),
+            reason: 'owed to me in $currency');
+        expect(positions.fold<double>(0, (sum, p) => sum + p.owe),
+            closeTo(inCurrency.fold<double>(0, (sum, b) => sum + b.iOweThem), .001),
+            reason: 'owed by me in $currency');
+      }
     });
 
     test('settleUpWithFriend pays only that friend, only that currency',

@@ -7,11 +7,14 @@ import '../providers/core_providers.dart';
 import '../providers/data_providers.dart';
 import '../screens/bill_detail_screen.dart';
 import '../theme.dart';
+import '../utils/bill_position.dart';
 import '../utils/current_user_identity.dart';
+import '../utils/expense_icon.dart';
 import '../utils/money.dart';
 import 'money_text.dart';
 
-/// A scannable expense summary, with the bill total separate from your share.
+/// A scannable expense summary: what it was, who is in it, the bill total, and
+/// what it means for you right now (owed to you, owed by you, or settled).
 class BillListTile extends ConsumerWidget {
   const BillListTile({super.key, required this.bill, required this.uid});
 
@@ -46,6 +49,9 @@ class BillListTile extends ConsumerWidget {
             ? 'Paid by ${personName(payerIds.single)}'
             : 'Paid by ${payerIds.length} people';
     final radius = BorderRadius.circular(20);
+    final metaStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: scheme.onSurfaceVariant,
+        );
 
     return Material(
       color: scheme.surfaceContainerLowest,
@@ -66,22 +72,30 @@ class BillListTile extends ConsumerWidget {
             children: [
               _ExpenseHeading(bill: bill),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(paidBy,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          )),
-                  if (bill.createdAt != null)
-                    Text(
-                      DateFormat.yMMMd().format(bill.createdAt!),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
+                  if (bill.splits.isNotEmpty) ...[
+                    _ParticipantStack(
+                      names: [for (final split in bill.splits) split.displayName],
                     ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(paidBy, style: metaStyle),
+                        if (bill.createdAt != null)
+                          Text(
+                            DateFormat.MMMd().format(bill.createdAt!.toLocal()),
+                            style: metaStyle,
+                          ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
               Padding(
@@ -110,14 +124,14 @@ class _ExpenseHeading extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 42,
+          width: 46,
           height: 46,
           decoration: BoxDecoration(
-            color: scheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(13),
+            color: scheme.primaryContainer,
+            borderRadius: BorderRadius.circular(15),
           ),
-          child: Icon(Icons.receipt_long_outlined,
-              size: 22, color: scheme.primary),
+          child: Icon(expenseIcon(bill.title),
+              size: 24, color: scheme.onPrimaryContainer),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -145,7 +159,7 @@ class _ExpenseHeading extends StatelessWidget {
     );
 
     // The amount beside the title is the bill total; the settlement row below
-    // labels "Your share", so no caption is needed on every tile.
+    // says what it means for you, so no caption is needed on every tile.
     Widget total({required bool stacked}) => FittedBox(
           fit: BoxFit.scaleDown,
           alignment: stacked ? Alignment.centerLeft : Alignment.centerRight,
@@ -179,6 +193,78 @@ class _ExpenseHeading extends StatelessWidget {
   }
 }
 
+/// Up to three overlapping initials, then "+N" for everyone else.
+class _ParticipantStack extends StatelessWidget {
+  const _ParticipantStack({required this.names});
+
+  final List<String> names;
+
+  static const _size = 26.0;
+  static const _step = 17.0;
+  static const _shown = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final shown = names.take(_shown).toList();
+    final extra = names.length - shown.length;
+    final labels = [
+      for (final name in shown) _initials(name),
+      if (extra > 0) '+$extra',
+    ];
+    final fills = [
+      scheme.primaryContainer,
+      scheme.secondaryContainer,
+      scheme.surfaceContainerHigh,
+      scheme.surfaceContainer,
+    ];
+    return ExcludeSemantics(
+      child: SizedBox(
+        width: _size + (labels.length - 1) * _step,
+        height: _size,
+        child: Stack(
+          children: [
+            for (var i = 0; i < labels.length; i++)
+              Positioned(
+                left: i * _step,
+                child: Container(
+                  width: _size,
+                  height: _size,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: fills[i % fills.length],
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: scheme.surfaceContainerLowest, width: 2),
+                  ),
+                  child: Text(
+                    labels[i],
+                    maxLines: 1,
+                    // A fixed-size badge: larger system text must not
+                    // push the initials out of the circle.
+                    textScaler: TextScaler.noScaling,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _initials(String name) {
+  final parts = name.trim().split(RegExp(r'\s+'));
+  if (parts.isEmpty || parts.first.isEmpty) return '?';
+  if (parts.length == 1) return parts.first[0].toUpperCase();
+  return (parts.first[0] + parts.last[0]).toUpperCase();
+}
+
 class _ExpenseSettlement extends StatelessWidget {
   const _ExpenseSettlement({required this.bill, required this.uid});
 
@@ -190,7 +276,7 @@ class _ExpenseSettlement extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final settled = bill.fullySettled;
-    final statusColor = settled ? scheme.owed : scheme.onSurface;
+    final position = billPosition(bill, uid);
     final settlementTotal = bill.hasPaymentLedger
         ? bill.paymentDebts.fold(0.0, (total, debt) => total + debt.amount)
         : bill.splits.fold(0.0, (total, share) => total + share.amount);
@@ -199,30 +285,39 @@ class _ExpenseSettlement extends StatelessWidget {
         : settlementTotal > 0
             ? (1 - bill.outstanding / settlementTotal).clamp(0.0, 1.0)
             : 0.0;
-    final status = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Icon(
-            settled ? Icons.check_circle_rounded : Icons.timelapse_rounded,
-            size: 16,
-            color: settled ? scheme.owed : scheme.onSurfaceVariant,
+
+    // What this expense means for you. The amounts follow the same rules as
+    // the Home totals, so the tiles add up to them.
+    final chips = <Widget>[
+      if (settled)
+        _StatusChip(
+          icon: Icons.check_circle_rounded,
+          label: 'Settled',
+          color: scheme.owed,
+        )
+      else ...[
+        if (position.owed > 0.004)
+          _StatusChip(
+            icon: Icons.south_west_rounded,
+            label: "You're owed ${formatMoney(position.owed, bill.currency)}",
+            color: scheme.owed,
           ),
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-              settled
-                  ? 'Settled'
-                  : '${formatMoney(bill.outstanding, bill.currency)} remaining',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: statusColor,
-                fontWeight: FontWeight.w700,
-              )),
-        ),
+        if (position.owe > 0.004)
+          _StatusChip(
+            icon: Icons.north_east_rounded,
+            label: 'You owe ${formatMoney(position.owe, bill.currency)}',
+            color: scheme.owe,
+          ),
+        if (position.owed <= 0.004 && position.owe <= 0.004)
+          _StatusChip(
+            icon: Icons.timelapse_rounded,
+            label:
+                '${formatMoney(bill.outstanding, bill.currency)} remaining',
+            color: scheme.onSurfaceVariant,
+          ),
       ],
-    );
+    ];
+    final status = Wrap(spacing: 8, runSpacing: 6, children: chips);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,15 +330,16 @@ class _ExpenseSettlement extends StatelessWidget {
             textAlign: stacked ? TextAlign.start : TextAlign.end,
             style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w600,
-              color: scheme.onSurface,
+              color: scheme.onSurfaceVariant,
             ),
           );
+          final participant = bill.participantIds.contains(uid);
           if (stacked) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 status,
-                if (bill.participantIds.contains(uid)) ...[
+                if (participant) ...[
                   const SizedBox(height: 8),
                   share,
                 ],
@@ -251,12 +347,18 @@ class _ExpenseSettlement extends StatelessWidget {
             );
           }
           return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(child: status),
-              if (bill.participantIds.contains(uid)) ...[
+              if (participant) ...[
                 const SizedBox(width: 12),
-                Expanded(child: share),
+                // Natural width, but never more than ~40% of the row, so a
+                // very large amount wraps instead of squeezing the status.
+                ConstrainedBox(
+                  constraints:
+                      BoxConstraints(maxWidth: constraints.maxWidth * .4),
+                  child: share,
+                ),
               ],
             ],
           );
@@ -265,7 +367,7 @@ class _ExpenseSettlement extends StatelessWidget {
           const SizedBox(height: 12),
           LinearProgressIndicator(
             value: progress,
-            minHeight: 3,
+            minHeight: 4,
             borderRadius: BorderRadius.circular(4),
             backgroundColor: scheme.surfaceContainerHigh,
             color: scheme.primary,
@@ -274,6 +376,49 @@ class _ExpenseSettlement extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(icon, size: 15, color: color),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

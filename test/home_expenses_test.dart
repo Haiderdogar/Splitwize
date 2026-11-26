@@ -9,7 +9,9 @@ import 'package:splitwize/providers/monetization_providers.dart';
 import 'package:splitwize/screens/bills_tab.dart';
 import 'package:splitwize/screens/create_bill_screen.dart';
 import 'package:splitwize/theme.dart';
+import 'package:splitwize/utils/money.dart';
 import 'package:splitwize/widgets/bill_list_tile.dart';
+import 'package:splitwize/widgets/home_summary.dart';
 import 'package:splitwize/widgets/money_text.dart';
 
 import 'responsive_overflow_test.dart' as fixture;
@@ -236,7 +238,46 @@ void main() {
     expect(amount('USD', 40), findsOneWidget);
     expect(find.text('Owed to you'), findsNWidgets(2));
     expect(find.text('You owe'), findsNWidgets(2));
+
+    // Each currency also says how many people are behind its numbers and what
+    // it nets to, still without touching the other currency.
+    Finder inside(String currency, String text) => find.descendant(
+        of: find.byKey(ValueKey('balance-totals-$currency')),
+        matching: find.text(text));
+    expect(inside('PKR', 'From 2 people'), findsOneWidget);
+    expect(inside('PKR', 'To 1 person'), findsOneWidget);
+    expect(inside('PKR', 'Net +${formatMoney(1300, 'PKR')}'), findsOneWidget);
+    expect(inside('USD', 'No one owes you'), findsOneWidget);
+    expect(inside('USD', 'To 1 person'), findsOneWidget);
+    expect(inside('USD', 'Net \u2212${formatMoney(40, 'USD')}'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('home greets you by first name above the summary',
+      (tester) async {
+    await _pumpHome(tester, []);
+    // The salutation depends on the hour, the name does not.
+    expect(find.textContaining(', Ali'), findsOneWidget);
+    expect(find.textContaining('Ali Haider'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('expense tiles say what each expense means for you',
+      (tester) async {
+    await _pumpHome(tester, [
+      _bill('dinner', 'Dinner with friends', date: DateTime(2026, 11, 12)),
+    ]);
+    // Ali recorded the bill and Hamza's 100 is still unpaid.
+    expect(find.text("You're owed ${formatMoney(100, 'PKR')}"), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('the greeting follows the hour of the day', () {
+    expect(greetingFor(DateTime(2026, 11, 26, 7)), 'Good morning');
+    expect(greetingFor(DateTime(2026, 11, 26, 13)), 'Good afternoon');
+    expect(greetingFor(DateTime(2026, 11, 26, 19)), 'Good evening');
+    expect(greetingFor(DateTime(2026, 11, 26, 23)), 'Hello');
+    expect(greetingFor(DateTime(2026, 11, 26, 2)), 'Hello');
   });
 
   testWidgets('home shows no totals when nothing is outstanding',
@@ -247,6 +288,17 @@ void main() {
     ]);
     expect(find.text('Owed to you'), findsNothing);
     expect(find.text('You owe'), findsNothing);
+    // With expenses on record, an empty balance says so instead of vanishing.
+    expect(find.text('Nothing outstanding'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a new account sees the greeting but no balance card',
+      (tester) async {
+    await _pumpHome(tester, []);
+    expect(find.text('Nothing outstanding'), findsNothing);
+    expect(find.text('Owed to you'), findsNothing);
+    expect(find.text('Your first split starts here'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
